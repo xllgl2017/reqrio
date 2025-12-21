@@ -4,6 +4,7 @@ version = "0.0.1"
 edition = "2024"
 license = "Apache-2.0"
 description = "a http lib"
+repository = "https://github.com/xllgl2017/reqrio"
 
 [dependencies]
 json = { package = "reqrio-json", version = "0.1.3" }

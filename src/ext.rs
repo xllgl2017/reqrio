@@ -1,5 +1,7 @@
 use json::JsonValue;
-use crate::coder;
+use crate::{coder, Proxy, ALPN};
+#[cfg(use_cls)]
+use super::tls::Fingerprint;
 use crate::error::HlsResult;
 use crate::file::HttpFile;
 use crate::packet::{Application, ContentType, Header, HeaderKey, HeaderValue, Response, Text};
@@ -30,6 +32,14 @@ pub trait ReqExt {
     fn timeout(&self) -> &Timeout;
     fn url(&self) -> &Url;
     fn url_mut(&mut self) -> &mut Url;
+    fn set_proxy(&mut self, proxy: Proxy);
+    fn with_proxy(self, proxy: Proxy) -> Self;
+    fn set_alpn(&mut self, alpn: ALPN);
+    fn with_alpn(self, alpn: ALPN) -> Self;
+    #[cfg(use_cls)]
+    fn set_fingerprint(&mut self, fingerprint: Fingerprint);
+    #[cfg(use_cls)]
+    fn with_fingerprint(self, fingerprint: Fingerprint) -> Self;
     fn set_headers(&mut self, mut headers: Header, keep_cookie: bool) {
         if keep_cookie {
             let cks = self.header_mut().cookies().unwrap_or(&vec![]).clone();
@@ -184,8 +194,8 @@ pub trait ReqGenExt: ReqPriExt {
     fn gen_h2_header(&mut self) -> HlsResult<Vec<HeaderKey>> {
         let mut headers = self.header().as_h2c()?;
         headers.insert(1, HeaderKey::new(":authority".to_string(), HeaderValue::String(self.url().addr().to_string().replace(":80", "").replace(":443", ""))));
-        headers.insert(2, HeaderKey::new(":path".to_string(), HeaderValue::String(self.url().uri().to_string())));
-        headers.insert(3, HeaderKey::new(":scheme".to_string(), HeaderValue::String("https".to_string())));
+        headers.insert(2, HeaderKey::new(":scheme".to_string(), HeaderValue::String("https".to_string())));
+        headers.insert(3, HeaderKey::new(":path".to_string(), HeaderValue::String(self.url().uri().to_string())));
         Ok(headers)
     }
 

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use crate::error::{HlsError, HlsResult};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Addr {
     host: String,
     port: u16,
@@ -32,6 +32,10 @@ impl Addr {
 
     pub fn set_port(&mut self, port: u16) {
         self.port = port;
+    }
+
+    pub fn set_host(&mut self, host: impl ToString) {
+        self.host = host.to_string();
     }
 }
 

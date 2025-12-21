@@ -45,7 +45,9 @@ pub use tls::Fingerprint;
 pub use ext::ReqExt;
 pub use alpn::ALPN;
 pub use json;
-pub use packet::Method;
+pub use packet::{Method, Cookie};
+pub use stream::Proxy;
+pub use url::{Url, Addr};
 
 
 mod error;

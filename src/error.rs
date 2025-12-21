@@ -150,5 +150,7 @@ impl From<JsonError> for HlsError {
 
 impl Error for HlsError {}
 
+unsafe impl Send for HlsError {}
+
 
 pub type HlsResult<T> = Result<T, HlsError>;

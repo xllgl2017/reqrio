@@ -127,25 +127,6 @@ impl AcReq {
         Err("stream io error".into())
     }
 
-    pub fn with_fingerprint(mut self, fingerprint: Fingerprint) -> Self {
-        self.fingerprint = fingerprint;
-        self
-    }
-
-    pub fn set_fingerprint(&mut self, fingerprint: Fingerprint) {
-        self.fingerprint = fingerprint;
-    }
-
-    pub fn with_proxy(mut self, proxy: Proxy) -> Self {
-        self.proxy = proxy;
-        self
-    }
-
-    pub fn with_alpn(mut self, alpn: ALPN) -> Self {
-        self.alpn = alpn;
-        self
-    }
-
     pub async fn re_conn(&mut self) -> HlsResult<()> {
         self.hack_coder = HPackCoding::new();
         self.stream_id = 0;
@@ -316,5 +297,34 @@ impl ReqExt for AcReq {
 
     fn url_mut(&mut self) -> &mut Url {
         &mut self.url
+    }
+
+    fn set_alpn(&mut self, alpn: ALPN) {
+        self.alpn = alpn;
+    }
+
+    #[cfg(use_cls)]
+    fn set_fingerprint(&mut self, fingerprint: Fingerprint) {
+        self.fingerprint = fingerprint;
+    }
+
+    fn set_proxy(&mut self, proxy: Proxy) {
+        self.proxy = proxy;
+    }
+
+    fn with_alpn(mut self, alpn: ALPN) -> Self {
+        self.alpn = alpn;
+        self
+    }
+
+    #[cfg(use_cls)]
+    fn with_fingerprint(mut self, fingerprint: Fingerprint) -> Self {
+        self.fingerprint = fingerprint;
+        self
+    }
+
+    fn with_proxy(mut self, proxy: Proxy) -> Self {
+        self.proxy = proxy;
+        self
     }
 }

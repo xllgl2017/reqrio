@@ -105,4 +105,9 @@ impl Response {
         let decode = self.decode_body()?;
         Ok(json::from_bytes(&decode)?)
     }
+
+    pub fn to_string(self) -> HlsResult<String> {
+        let decode = self.decode_body()?;
+        Ok(String::from_utf8(decode)?)
+    }
 }

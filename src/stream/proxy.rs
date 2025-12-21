@@ -6,7 +6,7 @@ use crate::url::Addr;
 use std::fmt::{Display, Formatter};
 use std::net::{TcpStream, ToSocketAddrs};
 
-
+#[derive(Clone, Debug)]
 pub enum Proxy {
     Null,
     HttpPlain(Addr),
@@ -16,7 +16,7 @@ pub enum Proxy {
 impl Proxy {
     fn create_sync(&self, addr: impl AsRef<str>, timeout: &Timeout) -> HlsResult<TcpStream> {
         let socket_addr = addr.as_ref().to_socket_addrs()?.next().ok_or("Invalid address")?;
-        let stream=TcpStream::connect_timeout(&socket_addr, timeout.connect())?;
+        let stream = TcpStream::connect_timeout(&socket_addr, timeout.connect())?;
         stream.set_read_timeout(Some(timeout.read()))?;
         stream.set_write_timeout(Some(timeout.write()))?;
         Ok(stream)
@@ -24,7 +24,7 @@ impl Proxy {
 
     #[cfg(any(feature = "std_async", feature = "cls_async"))]
     async fn create_async(&self, addr: impl AsRef<str>, timeout: &Timeout) -> HlsResult<AsyncTcpStream> {
-        let mut stream =AsyncTcpStream::connect_timeout(addr.as_ref(), timeout.connect()).await?;
+        let mut stream = AsyncTcpStream::connect_timeout(addr.as_ref(), timeout.connect()).await?;
         stream.set_read_timeout(timeout.read());
         stream.set_write_timeout(timeout.write());
         return Ok(stream);

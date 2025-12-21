@@ -101,3 +101,13 @@ impl Fingerprint {
         Ok(())
     }
 }
+
+impl Clone for Fingerprint {
+    fn clone(&self) -> Self {
+        let mut res = Fingerprint::default().unwrap();
+        res.client_hello = RecordLayer::from_bytes(&self.client_hello.as_bytes(), false).unwrap();
+        res.client_key_exchange = RecordLayer::from_bytes(&self.client_key_exchange.as_bytes(), false).unwrap();
+        res.change_cipher_spec = RecordLayer::from_bytes(&self.change_cipher_spec.as_bytes(), false).unwrap();
+        res
+    }
+}

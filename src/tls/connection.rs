@@ -67,7 +67,7 @@ impl Connection {
         };
         let mut master_secret = [0u8; 48];
         self.prf.prf(&share_secret, label, &seed, &mut master_secret)?; //"master secret"
-        let mut f = OpenOptions::new().create(true).append(true).open("1.log")?;
+        let mut f = OpenOptions::new().create(true).append(true).open("2.log")?;
         f.write(format!("CLIENT_RANDOM {} {}\r\n", hex::encode(self.client_random.as_ref()), hex::encode(&master_secret)).as_bytes())?;
         f.flush()?;
         let aead = self.cipher_suite.aead().ok_or("aead none")?;
