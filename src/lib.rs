@@ -63,5 +63,5 @@ mod acq;
 #[cfg(sync)]
 mod scq;
 mod file;
-mod coder;
+pub mod coder;
 mod ext;
