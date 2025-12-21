@@ -1,10 +1,12 @@
 [package]
-name = "hls"
-version = "0.1.0"
+name = "reqrio"
+version = "0.0.1"
 edition = "2024"
+license = "Apache-2.0"
+description = "a http lib"
 
 [dependencies]
-json = { git = "https://github.com/lgl2017/json" }
+json = { package = "reqrio-json", version = "0.1.3" }
 brotli = "8.0.2"
 flate2 = "1.1.5"
 zstd = "0.13.3"
@@ -36,4 +38,4 @@ std_async = ["tokio", "tokio-rustls", "rustls", 'webpki-roots']
 cfg_aliases = "0.2.1"
 
 [profile.release]
-strip = "all"
+strip = "symbols"

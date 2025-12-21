@@ -1,4 +1,4 @@
-use hls::{ScReq, ALPN};
+use reqrio::{ScReq, ALPN};
 
 fn main() {
     let mut req = ScReq::new().with_alpn(ALPN::Http11).with_url("https://m.so.com").unwrap();

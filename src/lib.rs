@@ -1,11 +1,11 @@
 //! #### hls是http请求库，目标是可以使用rust快速、简单、便捷使用http请求
 //! ```rust
-//! use hls::ScReq;
+//! use reqrio::ScReq;
 //! let req=ScReq::new_with_url("").unwrap();
 //! ```
 //! * hls支持tls指纹，可以通过tls握手的十六禁止或ja3设置,仅cls_sync和cls_async支持,例如:
 //! ```rust
-//! use hls::{Fingerprint, ScReq, ALPN};
+//! use reqrio::{Fingerprint, ScReq, ALPN};
 //! let fingerprint=Fingerprint::default().unwrap();
 //! fingerprint.set_ja3("771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,13-11-65037-17613-45-18-16-5-43-10-0-27-23-35-51-65281,4588-29-23-24,0");
 //! let req=ScReq::new()
