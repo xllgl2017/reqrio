@@ -1,4 +1,4 @@
-use reqrio::{AcReq, ReqExt, ReqGenExt, ALPN};
+use reqrio::{AcReq, ReqExt, ALPN};
 
 #[tokio::main]
 async fn main() {

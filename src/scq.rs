@@ -3,7 +3,7 @@ use crate::coder::HPackCoding;
 use crate::error::HlsResult;
 use crate::ext::{ReqExt, ReqGenExt, ReqPriExt};
 use crate::file::HttpFile;
-use crate::packet::{Application, ContentType, Frame, FrameFlag, FrameType, Header, HeaderKey, Method, Response, Text};
+use crate::packet::*;
 use crate::stream::{ConnParam, Proxy, Stream};
 use crate::timeout::Timeout;
 #[cfg(feature = "cls_sync")]
@@ -30,7 +30,7 @@ pub struct ScReq {
 impl ScReq {
     pub fn new() -> ScReq {
         ScReq {
-            header: Header::new(),
+            header: Header::new_req_h1(),
             url: Url::new(),
             hack_coder: HPackCoding::new(),
             stream: Stream::NonConnection,
@@ -104,6 +104,7 @@ impl ScReq {
             }
         }?;
         self.update_cookie(&response);
+        if let ALPN::Http20 = self.alpn { self.stream_id += 2; }
         Ok(response)
     }
 
@@ -303,5 +304,19 @@ impl ReqExt for ScReq {
 
     fn url_mut(&mut self) -> &mut Url {
         &mut self.url
+    }
+
+    fn set_proxy(&mut self, proxy: Proxy) {
+        self.proxy = proxy;
+    }
+
+    fn set_alpn(&mut self, alpn: ALPN) {
+        self.alpn = alpn;
+        if let ALPN::Http20 = self.alpn { self.header = Header::new_req_h2(); }
+    }
+
+    #[cfg(use_cls)]
+    fn set_fingerprint(&mut self, fingerprint: Fingerprint) {
+        self.fingerprint = fingerprint;
     }
 }
