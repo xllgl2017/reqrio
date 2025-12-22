@@ -19,7 +19,7 @@ impl Cookie {
         Cookie {
             name: "".to_string(),
             value: "".to_string(),
-            age: 0,
+            age: -1,
             domain: "".to_string(),
             path: "".to_string(),
             http_only: false,
@@ -42,7 +42,7 @@ impl Cookie {
             "httponly" => self.http_only = true,
             "secure" => self.secure = true,
             "path" => self.path = v,
-            "max-age" => self.age = v.parse().unwrap_or(0),
+            "max-age" => self.age = v.parse().unwrap_or(-1),
             "domain" => self.domain = v,
             "expires" => self.expires = v,
             "samesite" => self.same_site = v,
@@ -76,6 +76,18 @@ impl Cookie {
             cookie.insert(name, value.to_string());
         }
         Ok(cookie)
+    }
+    pub fn as_res(&self) -> String {
+        let mut res = vec![format!("{}={}", self.name, self.value)];
+        if !self.expires.is_empty() { res.push(format!("expires={}", self.expires)); }
+        if self.age != -1 { res.push(format!("Max-Age={}", self.age)); }
+        if !self.path.is_empty() { res.push(format!("path={}", self.path)); }
+        if !self.same_site.is_empty() { res.push(format!("samesite={}", self.same_site)); }
+        if !self.domain.is_empty() { res.push(format!("domain={}", self.domain)); }
+        if self.secure { res.push("secure".to_string()); }
+        if self.http_only { res.push("httponly".to_string()); }
+        if self.icpsp { res.push("icpsp".to_string()); }
+        res.join("; ")
     }
     pub fn as_req(&self) -> String { format!("{}={}", self.name, self.value) }
     pub fn set_name(&mut self, name: String) {

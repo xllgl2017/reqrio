@@ -16,7 +16,7 @@ pub struct Response {
 impl Response {
     pub fn new() -> Response {
         Response {
-            header: Header::new(),
+            header: Header::new_res(),
             body: Vec::new(),
             raw: Vec::new(),
             frames: vec![],
@@ -30,6 +30,7 @@ impl Response {
         if let Some(pos) = pos && self.header.is_empty() {
             let hdr_bs = self.raw.drain(..pos).collect();
             let hdr_str = String::from_utf8(hdr_bs)?;
+            // println!("{}", hdr_str);
             self.header = Header::parse_res(hdr_str)?;
             self.raw.drain(..4);
         }

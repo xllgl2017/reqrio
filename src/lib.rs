@@ -42,7 +42,7 @@ pub use acq::AcReq;
 pub use scq::ScReq;
 #[cfg(use_cls)]
 pub use tls::Fingerprint;
-pub use ext::ReqExt;
+pub use ext::{ReqExt, ReqGenExt};
 pub use alpn::ALPN;
 pub use json;
 pub use packet::{Method, Cookie};

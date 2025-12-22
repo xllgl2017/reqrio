@@ -8,7 +8,7 @@ use crate::packet::{Application, ContentType, Header, HeaderKey, HeaderValue, Re
 use crate::timeout::Timeout;
 use crate::url::Url;
 
-pub trait ReqExt {
+pub trait ReqExt: Sized {
     fn data(&self) -> &JsonValue;
     fn file_bytes(&mut self) -> &mut Vec<HttpFile>;
     fn set_data(&mut self, data: JsonValue);
@@ -33,13 +33,22 @@ pub trait ReqExt {
     fn url(&self) -> &Url;
     fn url_mut(&mut self) -> &mut Url;
     fn set_proxy(&mut self, proxy: Proxy);
-    fn with_proxy(self, proxy: Proxy) -> Self;
+    fn with_proxy(mut self, proxy: Proxy) -> Self {
+        self.set_proxy(proxy);
+        self
+    }
     fn set_alpn(&mut self, alpn: ALPN);
-    fn with_alpn(self, alpn: ALPN) -> Self;
+    fn with_alpn(mut self, alpn: ALPN) -> Self {
+        self.set_alpn(alpn);
+        self
+    }
     #[cfg(use_cls)]
     fn set_fingerprint(&mut self, fingerprint: Fingerprint);
     #[cfg(use_cls)]
-    fn with_fingerprint(self, fingerprint: Fingerprint) -> Self;
+    fn with_fingerprint(mut self, fingerprint: Fingerprint) -> Self{
+        self.set_fingerprint(fingerprint);
+        self
+    }
     fn set_headers(&mut self, mut headers: Header, keep_cookie: bool) {
         if keep_cookie {
             let cks = self.header_mut().cookies().unwrap_or(&vec![]).clone();
@@ -178,6 +187,7 @@ pub(crate) trait ReqPriExt: ReqExt {
     }
 }
 
+#[allow(private_bounds)]
 pub trait ReqGenExt: ReqPriExt {
     fn gen_h1(&mut self) -> HlsResult<Vec<u8>> {
         let host = self.url().addr().to_string().replace(":80", "").replace(":443", "");

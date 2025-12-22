@@ -25,41 +25,75 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn new() -> Self {
+    pub fn new_res() -> Self {
         Self {
             method: Method::GET,
             agreement: "".to_string(),
             uri: Uri::new(),
             status: HttpStatus::None,
-            keys: vec![
-                //h2 order
-                HeaderKey::new("cache-control", HeaderValue::String("".to_string())),
-                HeaderKey::new("sec-ch-ua", HeaderValue::String("".to_string())),
-                HeaderKey::new("sec-ch-ua-mobile", HeaderValue::String("".to_string())),
-                HeaderKey::new("sec-ch-ua-platform", HeaderValue::String("".to_string())),
-                HeaderKey::new("upgrade-insecure-requests", HeaderValue::Bool(true)),
-                HeaderKey::new("user-agent", HeaderValue::String("".to_string())),
-                HeaderKey::new("accept", HeaderValue::String("".to_string())),
-                HeaderKey::new("sec-fetch-site", HeaderValue::String("".to_string())),
-                HeaderKey::new("sec-fetch-mode", HeaderValue::String("".to_string())),
-                HeaderKey::new("sec-fetch-user", HeaderValue::String("".to_string())),
-                HeaderKey::new("sec-fetch-dest", HeaderValue::String("".to_string())),
-                HeaderKey::new("referer", HeaderValue::String("".to_string())),
-                HeaderKey::new("accept-encoding", HeaderValue::String("".to_string())),
-                HeaderKey::new("accept-language", HeaderValue::String("".to_string())),
-                HeaderKey::new("cookie", HeaderValue::Cookies(vec![])),
-                HeaderKey::new("priority", HeaderValue::String("".to_string())),
-                //unknown or http
-                HeaderKey::new("host", HeaderValue::String("".to_string())),
-                HeaderKey::new("origin", HeaderValue::String("".to_string())),
-                HeaderKey::new("content-encoding", HeaderValue::String("".to_string())),
-                // HeaderKey::new("content-length", HeaderValue::Number(0)),
-                HeaderKey::new("content-type", HeaderValue::String("".to_string())),
-                HeaderKey::new("connection", HeaderValue::String("".to_string())),
-                HeaderKey::new("authorization", HeaderValue::String("".to_string())),
-                HeaderKey::new("content-type", HeaderValue::String("".to_string())),
-            ],
+            keys: vec![],
         }
+    }
+
+
+    pub fn new_req_h2() -> Self {
+        let mut res = Header::new_res();
+        res.keys = vec![
+            //h2 order
+            HeaderKey::new("cache-control", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-ch-ua", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-ch-ua-mobile", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-ch-ua-platform", HeaderValue::String("".to_string())),
+            HeaderKey::new("upgrade-insecure-requests", HeaderValue::Bool(true)),
+            HeaderKey::new("user-agent", HeaderValue::String("".to_string())),
+            HeaderKey::new("accept", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-fetch-site", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-fetch-mode", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-fetch-user", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-fetch-dest", HeaderValue::String("".to_string())),
+            HeaderKey::new("referer", HeaderValue::String("".to_string())),
+            HeaderKey::new("accept-encoding", HeaderValue::String("".to_string())),
+            HeaderKey::new("accept-language", HeaderValue::String("".to_string())),
+            HeaderKey::new("cookie", HeaderValue::Cookies(vec![])),
+            HeaderKey::new("priority", HeaderValue::String("".to_string())),
+            //unknown or http
+            // HeaderKey::new("host", HeaderValue::String("".to_string())),
+            HeaderKey::new("origin", HeaderValue::String("".to_string())),
+            HeaderKey::new("content-encoding", HeaderValue::String("".to_string())),
+            // HeaderKey::new("content-length", HeaderValue::Number(0)),
+            HeaderKey::new("content-type", HeaderValue::String("".to_string())),
+            // HeaderKey::new("connection", HeaderValue::String("".to_string())),
+            HeaderKey::new("authorization", HeaderValue::String("".to_string())),
+            HeaderKey::new("content-type", HeaderValue::String("".to_string())),
+        ];
+        res
+    }
+
+    pub fn new_req_h1() -> Self {
+        let mut res = Header::new_res();
+        res.keys = vec![
+            HeaderKey::new("accept", HeaderValue::String("".to_string())),
+            HeaderKey::new("accept-encoding", HeaderValue::String("".to_string())),
+            HeaderKey::new("accept-language", HeaderValue::String("".to_string())),
+            HeaderKey::new("cache-control", HeaderValue::String("".to_string())),
+            HeaderKey::new("connection", HeaderValue::String("".to_string())),
+            HeaderKey::new("cookie", HeaderValue::Cookies(vec![])),
+            HeaderKey::new("host", HeaderValue::String("".to_string())),
+            // HeaderKey::new("origin", HeaderValue::String("".to_string())),
+            HeaderKey::new("pragma", HeaderValue::String("".to_string())),
+            HeaderKey::new("referer", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-fetch-dest", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-fetch-mode", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-fetch-site", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-fetch-user", HeaderValue::String("".to_string())),
+            HeaderKey::new("upgrade-insecure-requests", HeaderValue::Bool(true)),
+            HeaderKey::new("user-agent", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-ch-ua", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-ch-ua-mobile", HeaderValue::String("".to_string())),
+            HeaderKey::new("sec-ch-ua-platform", HeaderValue::String("".to_string())),
+            HeaderKey::new("content-length", HeaderValue::Number(0)),
+        ];
+        res
     }
 
     pub fn to_req_cookie_str(&self) -> String {
@@ -80,7 +114,12 @@ impl Header {
         let mut res = vec![];
         for key in &self.keys {
             if key.value().to_string() == "" { continue; }
-            res.push(format!("{}: {}", key.name(), key.value().to_string()))
+            match key.name() {
+                "set-cookie" => for cookie in key.cookies().unwrap_or(&vec![]) {
+                    res.push(format!("set-cookie: {}", cookie.as_res()));
+                },
+                _ => res.push(format!("{}: {}", key.name(), key.value().to_string()))
+            }
         }
         res
     }
@@ -144,16 +183,14 @@ impl Header {
                 "content-length" => header.set_value(HeaderValue::Number(v.to_string().parse()?)),
                 "content-type" => header.set_value(HeaderValue::ContextType(ContentType::try_from(&v.to_string())?)),
                 "upgrade-insecure-requests" => header.set_value(HeaderValue::Bool(v.to_string() == "1")),
+                "set-cookie" => header.value_mut().add_cookie(Cookie::from_res(v.to_string())?),
                 _ => header.set_value(HeaderValue::String(v.to_string())),
             }
         } else {
             match k.as_ref() {
                 "set-cookie" => {
                     let cookie = Cookie::from_res(v.to_string())?;
-                    match self.keys.iter_mut().find(|x| x.name() == "cookie") {
-                        None => self.keys.push(HeaderKey::new("cookie", HeaderValue::Cookies(vec![cookie]))),
-                        Some(header) => header.value_mut().add_cookie(cookie)
-                    }
+                    self.keys.push(HeaderKey::new("set-cookie", HeaderValue::Cookies(vec![cookie])));
                 }
                 "content-length" => self.keys.push(HeaderKey::new("content-length", HeaderValue::Number(v.to_string().parse()?))),
                 _ => self.keys.push(HeaderKey::new(k, HeaderValue::String(v.to_string()))),
@@ -223,7 +260,7 @@ impl Header {
     }
 
     pub fn cookies(&self) -> Option<&Vec<Cookie>> {
-        let header = self.keys.iter().find(|x| x.name() == "cookie");
+        let header = self.keys.iter().find(|x| x.name() == "cookie" || x.name() == "set-cookie");
         header?.cookies()
     }
 
@@ -264,14 +301,14 @@ impl Header {
     }
 
     pub fn parse_req(mut value: String) -> HlsResult<Header> {
-        let mut header = Header::new();
+        let mut header = Header::new_res();
         value = value.replace("\r\n", "\n");
         for (index, line) in value.split("\n").enumerate() {
             if index == 0 {
                 let mut items = line.split(" ");
                 header.method = Method::try_from(items.next().unwrap_or("GET")).unwrap_or(Method::GET);
                 let _ = header.set_uri(items.next().unwrap_or(""));
-                header.agreement = items.collect::<Vec<_>>().join(" ");
+                header.agreement = items.collect::<Vec<_>>().join(" ").to_uppercase();
             }
             let mut items = line.split(": ");
             let name = items.next().unwrap_or("");
@@ -282,7 +319,7 @@ impl Header {
     }
 
     pub fn parse_res(mut value: String) -> HlsResult<Header> {
-        let mut header = Header::new();
+        let mut header = Header::new_res();
         value = value.replace("\r\n", "\n");
         for (index, line) in value.split("\n").enumerate() {
             if index == 0 {
@@ -300,12 +337,11 @@ impl Header {
     }
 
     pub fn parse_h2(packs: Vec<HPack>) -> HlsResult<Header> {
-        let mut header = Header::new();
-        header.agreement="HTTP/2.0".to_string();
+        let mut header = Header::new_res();
+        header.agreement = "HTTP/2.0".to_string();
         for pack in packs {
-            println!("{}", pack);
+            // println!("{}", pack);
             match pack.name() {
-                ":method" => header.method = Method::try_from(pack.value())?,
                 ":status" => header.status = HttpStatus::try_from(pack.value().parse::<i32>()?)?,
                 _ => header.insert(pack.name(), pack.value())?,
             }
@@ -321,7 +357,7 @@ impl Header {
 impl TryFrom<JsonValue> for Header {
     type Error = HlsError;
     fn try_from(value: JsonValue) -> Result<Self, Self::Error> {
-        let mut ss = Self::new();
+        let mut ss = Self::new_res();
         for (k, v) in value.entries() {
             ss.insert(k.to_string(), v.to_string())?;
         }
@@ -331,13 +367,33 @@ impl TryFrom<JsonValue> for Header {
 
 impl Display for Header {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut raw = self.raw();
-        match self.status {
-            HttpStatus::None => raw.insert(0, format!("{} {} {}", self.method, self.uri, self.agreement)),
-            _ => raw.insert(0, format!("{} {} {}", self.agreement, self.status.status_num(), self.status.to_string()))
+        let raw = match self.status {
+            HttpStatus::None => {
+                let mut raw = self.raw();
+                raw.insert(0, format!("{} {} {}", self.method, self.uri, self.agreement));
+                raw.push("".to_string());
+                raw.push("".to_string());
+                raw
+            }
+            _ => {
+                if self.agreement.starts_with("HTTP/1") {
+                    let mut raw = self.raw();
+                    raw.insert(0, format!("{} {} {}", self.agreement, self.status.status_num(), self.status.to_string()));
+                    raw.push("".to_string());
+                    raw.push("".to_string());
+                    raw
+                } else {
+                    let mut raw = vec![format!(":status: {}", self.status.status_num())];
+                    self.keys.iter().for_each(|k| match k.value() {
+                        HeaderValue::Cookies(cookies) => for cookie in cookies {
+                            raw.push(format!("{}: {}", k.name(), cookie.as_res()));
+                        },
+                        _ => raw.push(format!("{}: {}", k.name(), k.value()))
+                    });
+                    raw
+                }
+            }
         };
-        raw.push("".to_string());
-        raw.push("".to_string());
         f.write_str(&raw.join("\r\n"))
     }
 }

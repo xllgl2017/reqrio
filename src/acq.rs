@@ -29,7 +29,7 @@ pub struct AcReq {
 impl AcReq {
     pub fn new() -> AcReq {
         AcReq {
-            header: Header::new(),
+            header: Header::new_req_h1(),
             url: Url::new(),
             hack_coder: HPackCoding::new(),
             stream: Stream::NonConnection,
@@ -103,6 +103,7 @@ impl AcReq {
             }
         }?;
         self.update_cookie(&response);
+        if let ALPN::Http20 = self.alpn { self.stream_id += 2; }
         Ok(response)
     }
 
@@ -299,32 +300,17 @@ impl ReqExt for AcReq {
         &mut self.url
     }
 
+    fn set_proxy(&mut self, proxy: Proxy) {
+        self.proxy = proxy;
+    }
+
     fn set_alpn(&mut self, alpn: ALPN) {
+        self.header = if let ALPN::Http20 = alpn { Header::new_req_h2() } else { Header::new_req_h1() };
         self.alpn = alpn;
     }
 
     #[cfg(use_cls)]
     fn set_fingerprint(&mut self, fingerprint: Fingerprint) {
         self.fingerprint = fingerprint;
-    }
-
-    fn set_proxy(&mut self, proxy: Proxy) {
-        self.proxy = proxy;
-    }
-
-    fn with_alpn(mut self, alpn: ALPN) -> Self {
-        self.alpn = alpn;
-        self
-    }
-
-    #[cfg(use_cls)]
-    fn with_fingerprint(mut self, fingerprint: Fingerprint) -> Self {
-        self.fingerprint = fingerprint;
-        self
-    }
-
-    fn with_proxy(mut self, proxy: Proxy) -> Self {
-        self.proxy = proxy;
-        self
     }
 }
