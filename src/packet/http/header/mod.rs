@@ -152,12 +152,11 @@ impl Header {
         Ok(res)
     }
 
-    pub fn add_cookie(&mut self, cookie: Cookie) -> Option<()> {
+    pub fn add_cookie(&mut self, cookie: Cookie){
         match self.keys.iter_mut().find(|x| x.name() == "cookie") {
             None => self.keys.push(HeaderKey::new("cookie",HeaderValue::Cookies(vec![cookie]))),
             Some(header) => header.value_mut().add_cookie(cookie)
         }
-        None
     }
 
     pub fn set_cookies(&mut self, ck: Vec<Cookie>) {
