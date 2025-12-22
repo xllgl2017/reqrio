@@ -45,7 +45,7 @@ pub trait ReqExt: Sized {
     #[cfg(use_cls)]
     fn set_fingerprint(&mut self, fingerprint: Fingerprint);
     #[cfg(use_cls)]
-    fn with_fingerprint(mut self, fingerprint: Fingerprint) -> Self{
+    fn with_fingerprint(mut self, fingerprint: Fingerprint) -> Self {
         self.set_fingerprint(fingerprint);
         self
     }
@@ -71,6 +71,10 @@ pub trait ReqExt: Sized {
     fn insert_header(&mut self, k: impl AsRef<str>, v: impl ToString) -> HlsResult<()> {
         self.header_mut().insert(k, v)?;
         Ok(())
+    }
+
+    fn remove_header(&mut self, k: impl AsRef<str>) -> Option<HeaderValue> {
+        self.header_mut().remove(k)
     }
 
     fn set_params(&mut self, params: JsonValue) {

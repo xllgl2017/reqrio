@@ -131,8 +131,8 @@ impl Header {
         Some(header.value())
     }
 
-    pub fn remove(&mut self, name: &str) -> Option<HeaderValue> {
-        let lower = name.to_lowercase();
+    pub fn remove(&mut self, name: impl AsRef<str>) -> Option<HeaderValue> {
+        let lower = name.as_ref().to_lowercase();
         let pos = self.keys.iter().position(|x| x.name() == lower)?;
         Some(self.keys.remove(pos).into_value())
     }
@@ -153,8 +153,10 @@ impl Header {
     }
 
     pub fn add_cookie(&mut self, cookie: Cookie) -> Option<()> {
-        let header = self.keys.iter_mut().find(|x| x.name() == "cookie")?;
-        header.value_mut().add_cookie(cookie);
+        match self.keys.iter_mut().find(|x| x.name() == "cookie") {
+            None => self.keys.push(HeaderKey::new("cookie",HeaderValue::Cookies(vec![cookie]))),
+            Some(header) => header.value_mut().add_cookie(cookie)
+        }
         None
     }
 
