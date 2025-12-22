@@ -1,9 +1,9 @@
 [package]
 name = "reqrio"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 license = "Apache-2.0"
-description = "a http lib"
+description = "A http lib"
 repository = "https://github.com/xllgl2017/reqrio"
 
 [dependencies]
