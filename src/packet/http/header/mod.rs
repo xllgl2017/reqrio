@@ -152,9 +152,9 @@ impl Header {
         Ok(res)
     }
 
-    pub fn add_cookie(&mut self, cookie: Cookie){
+    pub fn add_cookie(&mut self, cookie: Cookie) {
         match self.keys.iter_mut().find(|x| x.name() == "cookie") {
-            None => self.keys.push(HeaderKey::new("cookie",HeaderValue::Cookies(vec![cookie]))),
+            None => self.keys.push(HeaderKey::new("cookie", HeaderValue::Cookies(vec![cookie]))),
             Some(header) => header.value_mut().add_cookie(cookie)
         }
     }
@@ -193,6 +193,7 @@ impl Header {
                     let cookie = Cookie::from_res(v.to_string())?;
                     self.keys.push(HeaderKey::new("set-cookie", HeaderValue::Cookies(vec![cookie])));
                 }
+                "cookie" => self.set_cookie(v.to_string())?,
                 "content-length" => self.keys.push(HeaderKey::new("content-length", HeaderValue::Number(v.to_string().parse()?))),
                 _ => self.keys.push(HeaderKey::new(k, HeaderValue::String(v.to_string()))),
             }
