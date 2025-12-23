@@ -2,7 +2,6 @@
 name = "reqrio"
 version = "0.0.4"
 edition = "2024"
-license = "Apache-2.0"
 readme = "README.md"
 description = "A http lib"
 license-file = "LICENSE-APACHE"
