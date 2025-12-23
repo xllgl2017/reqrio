@@ -3,7 +3,7 @@
 //! use reqrio::ScReq;
 //! let req=ScReq::new_with_url("").unwrap();
 //! ```
-//! * hls支持tls指纹，可以通过tls握手的十六禁止或ja3设置,仅cls_sync和cls_async支持,例如:
+//! * hls支持tls指纹，可以通过tls握手的十六进制或ja3设置,仅cls_sync和cls_async支持,例如:
 //! ```rust
 //! use reqrio::{Fingerprint, ScReq, ALPN};
 //! let fingerprint=Fingerprint::default().unwrap();

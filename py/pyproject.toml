@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reqrio"
+version = "0.0.4"
+license = "MIT"
+requires-python = ">=3.9"
+description = "A http lib"
+readme = "../README.md"
+
+authors = [
+  { name="xllgl2017", email="xinlanxi2017@gmail.com" },
+]
+
+[tool.setuptools]
+packages = ["reqrio"]
+
+[tool.setuptools.package-data]
+reqrio = ["*.dll"]
+
+[project.urls]
+Homepage = "https://github.com/xllgl2017/reqrio"
