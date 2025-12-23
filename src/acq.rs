@@ -7,7 +7,9 @@ use crate::packet::{Application, ContentType, Frame, FrameFlag, FrameType, Heade
 use crate::stream::{ConnParam, Proxy, Stream};
 use crate::timeout::Timeout;
 use crate::url::Url;
-use crate::{Fingerprint, ReqExt};
+#[cfg(use_cls)]
+use crate::tls::Fingerprint;
+use crate::ext::ReqExt;
 use json::JsonValue;
 
 pub struct AcReq {
@@ -32,7 +34,7 @@ impl AcReq {
             header: Header::new_req_h1(),
             url: Url::new(),
             hack_coder: HPackCoding::new(),
-            stream: Stream::NonConnection,
+            stream: Stream::unconnection(),
             files: vec![],
             timeout: Timeout::new(),
             raw_bytes: vec![],
@@ -91,7 +93,7 @@ impl AcReq {
     }
 
     async fn handle_io(&mut self) -> HlsResult<Response> {
-        let response = match self.alpn {
+        let response = match self.stream.alpn() {
             ALPN::Http20 => {
                 let headers = self.gen_h2_header()?;
                 let body = self.gen_h2_body()?;
@@ -103,7 +105,7 @@ impl AcReq {
             }
         }?;
         self.update_cookie(&response);
-        if let ALPN::Http20 = self.alpn { self.stream_id += 2; }
+        if let ALPN::Http20 = self.stream.alpn() { self.stream_id += 2; }
         Ok(response)
     }
 
@@ -137,10 +139,11 @@ impl AcReq {
                 url: &self.url,
                 proxy: &self.proxy,
                 timeout: &self.timeout,
+                #[cfg(use_cls)]
                 fingerprint: &mut self.fingerprint,
                 alpn: &self.alpn,
             };
-            let res = tokio::time::timeout(self.timeout.connect(), self.stream.async_conn(param)).await;
+            let res = tokio::time::timeout(self.timeout.connect(), self.stream.async_connect(param)).await;
             match &res {
                 Ok(res) => if let Err(e) = res && i != self.timeout.handle_times() - 1 {
                     println!("[AcReq] connect with error-{}, handle: {}/{}", e.to_string(), i + 2, self.timeout.handle_times());
@@ -153,9 +156,9 @@ impl AcReq {
             }
             return match res {
                 Ok(res) => match res {
-                    Ok(alpn) => {
-                        self.alpn = alpn;
-                        if self.alpn == ALPN::Http20 { self.handle_h2_setting().await?; }
+                    Ok(_) => {
+                        self.header.init_by_alpn(self.stream.alpn());
+                        if self.stream.alpn() == &ALPN::Http20 { self.handle_h2_setting().await?; }
                         Ok(())
                     }
                     Err(e) => Err(e.into()),
@@ -305,7 +308,6 @@ impl ReqExt for AcReq {
     }
 
     fn set_alpn(&mut self, alpn: ALPN) {
-        self.header = if let ALPN::Http20 = alpn { Header::new_req_h2() } else { Header::new_req_h1() };
         self.alpn = alpn;
     }
 

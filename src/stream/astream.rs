@@ -17,6 +17,7 @@ use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
 #[cfg(all(feature = "std_async", not(feature = "cls_sync")))]
 use tokio_rustls::TlsConnector;
+use crate::alpn::ALPN;
 
 #[cfg(any(feature = "cls_async", feature = "std_async"))]
 pub struct AsyncTcpStream {
@@ -155,7 +156,7 @@ pub struct AsyncTlsStream {
 #[cfg(cls_async)]
 impl AsyncTlsStream {
     pub async fn connect_timeout(param: ConnParam<'_>, tcp: AsyncTcpStream) -> HlsResult<AsyncTlsStream> {
-        let connect_timeout=param.timeout.connect();
+        let connect_timeout = param.timeout.connect();
         let stream = AsyncStream::connect(param, tcp.stream);
         Ok(AsyncTlsStream {
             stream: tokio::time::timeout(connect_timeout, stream).await??,

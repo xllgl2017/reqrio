@@ -2,7 +2,7 @@ use reqrio::{AcReq, ReqExt, ALPN};
 
 #[tokio::main]
 async fn main() {
-    let mut req = AcReq::new().with_alpn(ALPN::Http20).with_url("https://m.so.com").await.unwrap();
+    let mut req = AcReq::new().with_alpn(ALPN::Http20);
     let header = json::object! {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -23,6 +23,7 @@ async fn main() {
         "sec-ch-ua-platform": r#""Windows""#
     };
     req.set_headers_json(header).unwrap();
+    req.set_alpn(ALPN::Http11);
     // let content = req.gen_h1().unwrap();
     // println!("{}", String::from_utf8(content).unwrap());
     // let res = req.get().await.unwrap();

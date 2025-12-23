@@ -32,6 +32,8 @@ impl HeaderKey {
 
     pub fn value(&self) -> &HeaderValue { &self.value }
 
+    pub fn take_value(self) -> HeaderValue { self.value }
+
     pub fn value_mut(&mut self) -> &mut HeaderValue { &mut self.value }
 
     pub fn set_value(&mut self, value: HeaderValue) {

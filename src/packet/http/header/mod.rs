@@ -1,15 +1,17 @@
-use std::fmt::Display;
-use json::JsonValue;
-pub use key::HeaderKey;
-pub use value::HeaderValue;
-pub use method::Method;
-pub use status::HttpStatus;
 use crate::coder::HPack;
 use crate::error::{HlsError, HlsResult};
+use crate::ALPN;
+use json::JsonValue;
+pub use key::HeaderKey;
+pub use method::Method;
+pub use status::HttpStatus;
+use std::fmt::Display;
+use std::mem;
+pub use value::HeaderValue;
 
+use super::super::super::url::Uri;
 use super::content_type::ContentType;
 use super::cookie::Cookie;
-use super::super::super::url::Uri;
 
 mod value;
 mod key;
@@ -352,6 +354,18 @@ impl Header {
 
     pub fn status(&self) -> &HttpStatus {
         &self.status
+    }
+
+    pub(crate) fn init_by_alpn(&mut self, alpn: &ALPN) {
+        let keys = if let ALPN::Http20 = alpn { Header::new_req_h2().keys } else { Header::new_req_h1().keys };
+        let keys = mem::replace(&mut self.keys, keys);
+        for ok in keys {
+            let nk = self.keys.iter_mut().find(|x| x.name() == ok.name());
+            match nk {
+                None => self.keys.push(ok),
+                Some(nk) => nk.set_value(ok.take_value())
+            }
+        }
     }
 }
 

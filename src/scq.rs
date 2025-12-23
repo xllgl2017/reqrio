@@ -33,7 +33,7 @@ impl ScReq {
             header: Header::new_req_h1(),
             url: Url::new(),
             hack_coder: HPackCoding::new(),
-            stream: Stream::NonConnection,
+            stream: Stream::unconnection(),
             files: vec![],
             timeout: Timeout::new(),
             raw_bytes: vec![],
@@ -92,7 +92,7 @@ impl ScReq {
     }
 
     fn handle_io(&mut self) -> HlsResult<Response> {
-        let response = match self.alpn {
+        let response = match self.stream.alpn() {
             ALPN::Http20 => {
                 let headers = self.gen_h2_header()?;
                 let body = self.gen_h2_body()?;
@@ -146,10 +146,11 @@ impl ScReq {
                 fingerprint: &mut self.fingerprint,
                 alpn: &self.alpn,
             };
-            match self.stream.sync_conn(param) {
-                Ok(alpn) => {
-                    self.alpn = alpn;
-                    if self.alpn == ALPN::Http20 { self.handle_h2_setting()?; }
+            match self.stream.sync_connect(param) {
+                Ok(_) => {
+                    println!("{}", self.stream.alpn().alpn_str());
+                    self.header.init_by_alpn(self.stream.alpn());
+                    if self.stream.alpn() == &ALPN::Http20 { self.handle_h2_setting()?; }
                     return Ok(());
                 }
                 Err(e) => {
@@ -312,7 +313,6 @@ impl ReqExt for ScReq {
 
     fn set_alpn(&mut self, alpn: ALPN) {
         self.alpn = alpn;
-        if let ALPN::Http20 = self.alpn { self.header = Header::new_req_h2(); }
     }
 
     #[cfg(use_cls)]
