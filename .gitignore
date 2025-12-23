@@ -1,2 +1,6 @@
 /target
+/py/.idea
 2.log
+py/build
+py/dist
+py/reqrio.egg-info
