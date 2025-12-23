@@ -1,10 +1,11 @@
-use crate::error::HlsResult;
+use crate::error::{HlsError, HlsResult};
 #[cfg(any(feature = "std_async", feature = "cls_async"))]
 use crate::stream::astream::AsyncTcpStream;
 use crate::timeout::Timeout;
-use crate::url::Addr;
+use crate::url::{Addr, Protocol};
 use std::fmt::{Display, Formatter};
 use std::net::{TcpStream, ToSocketAddrs};
+use crate::Url;
 
 #[derive(Clone, Debug)]
 pub enum Proxy {
@@ -121,5 +122,24 @@ impl Display for Proxy {
             Proxy::HttpPlain(addr) => f.write_str(&addr.to_string()),
             Proxy::Socks5(addr) => f.write_str(&addr.to_string()),
         }
+    }
+}
+
+impl TryFrom<&str> for Proxy {
+    type Error = HlsError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let url = Url::try_from(value)?;
+        match url.protocol() {
+            Protocol::Http => Ok(Proxy::HttpPlain(url.addr().clone())),
+            Protocol::Socks5 => Ok(Proxy::Socks5(url.addr().clone())),
+            _ => Err("unsupported proxy scheme".into())
+        }
+    }
+}
+
+impl TryFrom<String> for Proxy {
+    type Error = HlsError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Proxy::try_from(value.as_str())
     }
 }

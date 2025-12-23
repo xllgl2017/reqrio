@@ -117,5 +117,11 @@ mod tests {
         let url5 = "https://www.baidu.com";
         let url = Url::try_from(url5).unwrap();
         println!("{:#?} {}", url, url.to_string() == url5);
+        let url6 = "socks5://127.0.0.1:1023";
+        let url = Url::try_from(url6).unwrap();
+        println!("{:#?} {}", url, url6.to_string() == url6);
+        let url7 = "http://127.0.0.1:8080";
+        let url = Url::try_from(url7).unwrap();
+        println!("{:#?} {}", url, url.to_string() == url7);
     }
 }

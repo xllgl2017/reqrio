@@ -4,7 +4,9 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::num::ParseIntError;
+use std::str::Utf8Error;
 use std::string::FromUtf8Error;
+use std::sync::PoisonError;
 #[cfg(feature = "aws-lc-rs")]
 use aws_lc_rs::error::Unspecified;
 #[cfg(feature = "hex")]
@@ -144,6 +146,18 @@ impl From<EncoderError> for HlsError {
 
 impl From<JsonError> for HlsError {
     fn from(value: JsonError) -> Self {
+        HlsError::StdErr(Box::new(value))
+    }
+}
+
+impl<T: 'static> From<PoisonError<T>> for HlsError {
+    fn from(value: PoisonError<T>) -> Self {
+        HlsError::StdErr(Box::new(value))
+    }
+}
+
+impl From<Utf8Error> for HlsError {
+    fn from(value: Utf8Error) -> Self {
         HlsError::StdErr(Box::new(value))
     }
 }

@@ -1,5 +1,5 @@
-use crate::packet::http::cookie::Cookie;
 use super::value::HeaderValue;
+use crate::packet::http::cookie::Cookie;
 
 #[derive(Clone)]
 pub struct HeaderKey {

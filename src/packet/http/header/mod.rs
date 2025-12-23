@@ -124,7 +124,6 @@ impl Header {
         res
     }
 
-
     pub fn get(&self, name: &str) -> Option<&HeaderValue> {
         let k = name.to_lowercase();
         let header = self.keys.iter().find(|x| x.name() == k)?;
@@ -364,6 +363,28 @@ impl TryFrom<JsonValue> for Header {
             ss.insert(k.to_string(), v.to_string())?;
         }
         Ok(ss)
+    }
+}
+
+
+#[cfg(feature = "export")]
+impl From<&Header> for JsonValue {
+    fn from(value: &Header) -> Self {
+        let mut header = json::object! {
+            "uri":value.uri.to_string(),
+            "method":value.method.to_string(),
+            "status":value.status.status_num(),
+            "agreement":value.agreement.clone(),
+            "keys":{}
+        };
+        for key in &value.keys {
+            let value = match key.value() {
+                HeaderValue::Cookies(v) => JsonValue::from(v.clone()),
+                _ => JsonValue::String(key.value().to_string())
+            };
+            let _ = header["keys"].insert(key.name(), value);
+        }
+        header
     }
 }
 

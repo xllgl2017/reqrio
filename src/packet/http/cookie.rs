@@ -1,3 +1,4 @@
+use json::JsonValue;
 use crate::error::HlsResult;
 
 #[derive(Clone, Debug)]
@@ -119,6 +120,23 @@ impl Cookie {
     }
 }
 
+#[cfg(feature = "export")]
+impl From<Cookie> for JsonValue {
+    fn from(cookie: Cookie) -> Self {
+        json::object! {
+            "name": cookie.name.clone(),
+            "value": cookie.value.clone(),
+            "age": cookie.age,
+            "domain": cookie.domain.clone(),
+            "path": cookie.path.clone(),
+            "http_only": cookie.http_only,
+            "secure": cookie.secure,
+            "expires": cookie.expires.clone(),
+            "same_site": cookie.same_site.clone(),
+            "icpsp": cookie.icpsp,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -320,3 +320,9 @@ impl ReqExt for ScReq {
         self.fingerprint = fingerprint;
     }
 }
+
+impl Drop for ScReq {
+    fn drop(&mut self) {
+        let _ = self.stream.sync_shutdown();
+    }
+}
