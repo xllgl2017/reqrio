@@ -1,7 +1,11 @@
 [package]
 name = "reqtls"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2024"
+readme = "README.md"
+description = "A tls lib"
+license-file = "LICENSE-APACHE"
+repository = "https://github.com/xllgl2017/reqrio"
 
 [dependencies]
 hex = "0.4.3"
