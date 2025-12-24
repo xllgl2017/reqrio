@@ -139,10 +139,10 @@ fn send(id: i32, method: Method) -> *mut c_char {
         let mut ac = acs.remove(&id).ok_or("id  不存在")?;
         drop(acs);
         ac.header_mut().set_method(method);
-        let resp = ac.stream_io()?;
+        let mut resp = ac.stream_io()?;
         let res = json::object! {
             "header":resp.header(),
-            "body":hex::encode(resp.decode_body()?),
+            "body":hex::encode(resp.decode_body()?.as_bytes()?),
         };
         let mut acs = CONNECTIONS.lock()?;
         acs.insert(id, ac);

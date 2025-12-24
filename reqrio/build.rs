@@ -25,6 +25,9 @@ fn main() {
         },
         std_async:{
             all(feature = "std_async",not(any(feature="cls_sync",feature="cls_async")))
+        },
+        anys:{
+            any(feature = "std_async", feature = "std_sync", feature = "cls_async", feature = "cls_sync")
         }
 
     }

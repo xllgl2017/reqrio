@@ -83,6 +83,13 @@ impl Body {
     fn is_raw(&self) -> bool {
         matches!(self, Body::Raw(_))
     }
+
+    pub fn as_bytes(&self) -> HlsResult<&Vec<u8>> {
+        match self {
+            Body::Decoded(decoded) => return Ok(decoded),
+            _ => Err("not decode".into()),
+        }
+    }
 }
 
 pub struct Response {

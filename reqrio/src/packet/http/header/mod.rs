@@ -1,11 +1,13 @@
 use crate::coder::HPack;
 use crate::error::{HlsError, HlsResult};
+#[cfg(anys)]
 use crate::ALPN;
 use json::JsonValue;
 pub use key::HeaderKey;
 pub use method::Method;
 pub use status::HttpStatus;
 use std::fmt::Display;
+#[cfg(anys)]
 use std::mem;
 pub use value::HeaderValue;
 
@@ -358,6 +360,7 @@ impl Header {
 
     pub fn keys(&self) -> &Vec<HeaderKey> { &self.keys }
 
+    #[cfg(anys)]
     pub(crate) fn init_by_alpn(&mut self, alpn: &ALPN) {
         let keys = if let ALPN::Http20 = alpn { Header::new_req_h2().keys } else { Header::new_req_h1().keys };
         let keys = mem::replace(&mut self.keys, keys);

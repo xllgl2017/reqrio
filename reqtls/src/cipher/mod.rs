@@ -80,14 +80,13 @@ impl Cipher {
 
 #[cfg(test)]
 mod tests {
-    use crate::tls::bytes::Bytes;
-    use crate::tls::cipher::Cipher;
-    use crate::tls::cipher::iv::Iv;
-    use crate::tls::cipher::key::Key;
-    use crate::tls::extend::Aead;
-    use crate::tls::message::Message;
-    use crate::tls::record::{RecordLayer, RecordType};
-    use crate::tls::version::{Version, VersionKind};
+    use crate::cipher::Cipher;
+    use crate::cipher::iv::Iv;
+    use crate::cipher::key::Key;
+    use crate::extend::Aead;
+    use crate::{Message, RecordLayer, RecordType, Version};
+    use crate::bytes::Bytes;
+    use crate::version::VersionKind;
 
     #[test]
     fn test_cipher() {

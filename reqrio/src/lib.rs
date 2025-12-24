@@ -46,6 +46,8 @@ pub use json;
 pub use packet::{Method, Cookie, Header, HeaderValue, Response, Frame, ContentType, Application, Text, Font, HttpStatus};
 pub use stream::Proxy;
 pub use url::{Url, Addr, Protocol};
+#[cfg(use_cls)]
+pub use reqtls::Fingerprint;
 
 
 mod error;

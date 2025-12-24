@@ -4,7 +4,7 @@ use crate::{coder, Proxy, ALPN};
 use reqtls::Fingerprint;
 use crate::error::HlsResult;
 use crate::file::HttpFile;
-use crate::packet::{Application, ContentType, Header, HeaderKey, HeaderValue, Response, Text};
+use crate::packet::*;
 use crate::timeout::Timeout;
 use crate::url::Url;
 
@@ -165,6 +165,7 @@ pub(crate) trait ReqPriExt: ReqExt {
         Ok(header)
     }
 
+    #[cfg(anys)]
     fn update_cookie(&mut self, response: &Response) {
         for cookie in response.header().cookies().unwrap_or(&vec![]) {
             if cookie.name() == "" && cookie.value() == "" { continue; }
@@ -172,6 +173,7 @@ pub(crate) trait ReqPriExt: ReqExt {
         }
     }
 
+    #[cfg(anys)]
     fn check_status(&self, response: &Response) -> HlsResult<()> {
         let status = response.header().status().status_num();
         match status {
@@ -180,6 +182,7 @@ pub(crate) trait ReqPriExt: ReqExt {
         }
     }
 
+    #[cfg(anys)]
     fn check_res(&self, response: Response, k: impl AsRef<str>, v: impl ToString, e: Vec<impl AsRef<str>>) -> HlsResult<JsonValue> {
         let data = response.to_json()?;
         if data[k.as_ref()].to_string() != v.to_string() {

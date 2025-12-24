@@ -6,7 +6,7 @@ members = [
 ]
 
 [workspace.dependencies]
-reqtls = { path = "reqtls" }
+reqtls = { path = "reqtls", version = "0.0.5" }
 rand = "0.10.0-rc.5"
 
 [profile.release]

@@ -1,10 +1,14 @@
 #[cfg(use_cls)]
 use reqtls::Fingerprint;
+#[cfg(anys)]
 use super::url::Url;
+#[cfg(anys)]
 use crate::alpn::ALPN;
+#[cfg(anys)]
 use crate::error::HlsResult;
-
+#[cfg(anys)]
 use crate::stream::kind::StreamKind;
+#[cfg(anys)]
 use crate::timeout::Timeout;
 
 pub use proxy::Proxy;
@@ -20,8 +24,10 @@ mod astream;
 mod proxy;
 #[cfg(feature = "std_sync")]
 mod cstream;
+#[cfg(anys)]
 mod kind;
 
+#[cfg(anys)]
 pub struct ConnParam<'a> {
     pub url: &'a Url,
     pub proxy: &'a Proxy,
@@ -31,12 +37,13 @@ pub struct ConnParam<'a> {
     pub alpn: &'a ALPN,
 }
 
-
+#[cfg(anys)]
 pub struct Stream {
     alpn: ALPN,
     kind: StreamKind,
 }
 
+#[cfg(anys)]
 impl Stream {
     pub fn unconnection() -> Self {
         Stream {

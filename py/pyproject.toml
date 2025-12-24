@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reqrio"
-version = "0.0.4"
+version = "0.0.5"
 license = "MIT"
 requires-python = ">=3.9"
 description = "A http lib"
-readme = "../README.md"
+readme = "../reqrio/README.md"
 
 authors = [
   { name="xllgl2017", email="xinlanxi2017@gmail.com" },
