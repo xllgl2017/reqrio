@@ -1,4 +1,6 @@
 use std::fmt::Display;
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::vec::IntoIter;
 use crate::error::{HlsError, HlsResult};
 
 #[derive(Debug, Clone)]
@@ -37,6 +39,20 @@ impl Addr {
     pub fn set_host(&mut self, host: impl ToString) {
         self.host = host.to_string();
     }
+
+    pub fn socket_addr(&self) -> HlsResult<IntoIter<SocketAddr>> {
+        Ok(self.to_string().to_socket_addrs()?)
+    }
+
+    pub fn socket_addr_v4(&self) -> HlsResult<SocketAddr> {
+        let addr = self.socket_addr()?.find(|x| x.is_ipv4()).ok_or("not found ipv4")?;
+        Ok(addr)
+    }
+
+    pub fn socket_addr_v6(&self) -> HlsResult<SocketAddr> {
+        let addr = self.socket_addr()?.find(|x| x.is_ipv6()).ok_or("not found ipv6")?;
+        Ok(addr)
+    }
 }
 
 impl Display for Addr {
@@ -62,5 +78,15 @@ impl TryFrom<String> for Addr {
     type Error = HlsError;
     fn try_from(value: String) -> HlsResult<Addr> {
         Addr::try_from(value.as_str())
+    }
+}
+
+
+impl From<SocketAddr> for Addr {
+    fn from(value: SocketAddr) -> Self {
+        Addr {
+            host: value.ip().to_string(),
+            port: value.port(),
+        }
     }
 }

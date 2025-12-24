@@ -43,3 +43,10 @@ impl TryFrom<&str> for Method {
         }
     }
 }
+
+impl TryFrom<String> for Method {
+    type Error = HlsError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Method::try_from(value.as_str())
+    }
+}

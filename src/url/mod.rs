@@ -1,12 +1,12 @@
-use std::fmt::Display;
-pub use protocol::Protocol;
-pub use addr::Addr;
-pub use uri::Uri;
 use crate::error::{HlsError, HlsResult};
+pub use addr::Addr;
+pub use protocol::Protocol;
+use std::fmt::Display;
+pub use uri::Uri;
 
+mod addr;
 mod param;
 mod protocol;
-mod addr;
 mod uri;
 
 #[derive(Debug)]
@@ -52,7 +52,9 @@ impl Display for Url {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let addr = self.addr.to_string().replace(":443", "").replace(":80", "");
         let mut res = format!("{}://{}{}", self.protocol, addr, self.uri());
-        if res.ends_with("?") { res = res[..res.len() - 1].to_string(); }
+        if res.ends_with("?") {
+            res = res[..res.len() - 1].to_string();
+        }
         f.write_str(&res)
     }
 }
@@ -95,7 +97,6 @@ impl TryFrom<&str> for Url {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::url::Url;
@@ -123,5 +124,8 @@ mod tests {
         let url7 = "http://127.0.0.1:8080";
         let url = Url::try_from(url7).unwrap();
         println!("{:#?} {}", url, url.to_string() == url7);
+        let url8 = "https://www.so.com/link?m=uJUHfEbfz+ZVSx90v4iLs4mlJ1cSfmojdrI1pYls/wftn5aL/ll53A6XAa1BSX2UtYWvcHBuUKSEURqhhVHtJNCWxeXYrgMOwkXoRLHGJ4yHLzOB1C61LDwQTgDd5OjTmAFlu3YJVdfU=";
+        let url = Url::try_from(url8).unwrap();
+        println!("{:#?} {}", url, url.to_string() == url8);
     }
 }
