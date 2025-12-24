@@ -1,0 +1,14 @@
+[package]
+name = "reqtls"
+version = "0.0.4"
+edition = "2024"
+
+[dependencies]
+hex = "0.4.3"
+aws-lc-rs = "1.15.2"
+md5 = "0.8.0"
+rand = { workspace = true }
+hmac = "0.13.0-rc.3"
+sha2 = "0.11.0-rc.3"
+p256 = { version = "0.14.0-rc.1", features = ["ecdh"], default-features = false }
+x25519-dalek = "3.0.0-pre.3"

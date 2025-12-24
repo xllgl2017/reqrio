@@ -521,24 +521,18 @@ checksum = "104a23e4e8b77312a823b6b5613edbac78397e2f34320bc7ac4277013ec4478e"
 name = "reqrio"
 version = "0.0.4"
 dependencies = [
- "aws-lc-rs",
  "brotli",
  "cfg_aliases",
  "flate2",
- "hex",
- "hmac",
  "httlib-huffman",
- "md5",
- "p256",
  "rand",
  "reqrio-json",
+ "reqtls",
  "rustls",
- "sha2",
  "tokio",
  "tokio-rustls",
  "urlencoding",
  "webpki-roots",
- "x25519-dalek",
  "zstd",
 ]
 
@@ -551,6 +545,20 @@ dependencies = [
  "json",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "reqtls"
+version = "0.0.4"
+dependencies = [
+ "aws-lc-rs",
+ "hex",
+ "hmac",
+ "md5",
+ "p256",
+ "rand",
+ "sha2",
+ "x25519-dalek",
 ]
 
 [[package]]
