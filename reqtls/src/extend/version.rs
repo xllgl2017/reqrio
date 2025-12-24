@@ -1,3 +1,4 @@
+use crate::version::VersionKind;
 use super::super::version::Version;
 
 #[derive(Debug)]
@@ -32,5 +33,12 @@ impl Versions {
         }
         res[0] = (res.len() - 1) as u8;
         res
+    }
+
+    pub fn remove_tls13(&mut self) {
+        let pos = self.versions.iter().position(|x| x.as_u16() == VersionKind::TLS_1_3 as u16);
+        if let Some(pos) = pos {
+            self.versions.remove(pos);
+        }
     }
 }

@@ -22,6 +22,7 @@ impl<S: Read + Write> SyncStream<S> {
             ALPN::Http20 => client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.add_h2_alpn(),
             _ => client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.remove_h2_alpn()
         }
+        client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.remove_tls13();
         conn.update_session(&client_hello.message.as_bytes())?;
         stream.write(&client_hello.as_bytes())?;
         stream.flush()?;

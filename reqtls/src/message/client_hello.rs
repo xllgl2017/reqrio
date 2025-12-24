@@ -139,11 +139,11 @@ impl ClientHello {
         self.version = version;
     }
 
-    pub fn set_cipher_suites(&mut self, suites:Vec<CipherSuite>){
+    pub fn set_cipher_suites(&mut self, suites: Vec<CipherSuite>) {
         self.cipher_suites = suites;
     }
 
-    pub fn set_extension(&mut self, extension:Vec<Extension>){
+    pub fn set_extension(&mut self, extension: Vec<Extension>) {
         self.extensions = extension;
     }
 
@@ -155,6 +155,13 @@ impl ClientHello {
         let extend = self.extensions.iter_mut().find(|x| x.extension_type().as_u16() == ExtensionKind::ApplicationSetting as u16);
         if let Some(ext) = extend {
             ext.remove_h2_alpn();
+        }
+    }
+
+    pub fn remove_tls13(&mut self) {
+        let extend = self.extensions.iter_mut().find(|x| x.extension_type().as_u16() == ExtensionKind::SupportedVersions as u16);
+        if let Some(ext) = extend {
+            ext.remove_tls13()
         }
     }
 

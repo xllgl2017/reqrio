@@ -121,7 +121,7 @@ impl Response {
             self.raw.drain(..4);
         }
         match self.header.content_length() {
-            None => Ok(self.raw.ends_with(&[13, 10, 48, 13, 10, 13, 10])),
+            None => Ok(self.raw.ends_with(&[48, 13, 10, 13, 10])),
             Some(len) => Ok(self.raw.len() >= len)
         }
     }

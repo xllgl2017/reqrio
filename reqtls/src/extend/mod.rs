@@ -306,6 +306,13 @@ impl Extension {
         }
     }
 
+    pub fn remove_tls13(&mut self){
+        match self.value {
+            ExtensionValue::SupportedVersions(ref mut v) => v.remove_tls13(),
+            _ => {}
+        }
+    }
+
     pub fn remove_h2_alpn(&mut self) {
         match self.value {
             ExtensionValue::ApplicationSetting(ref mut v) => v.remove_h2_alpn(),

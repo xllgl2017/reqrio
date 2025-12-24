@@ -91,10 +91,6 @@ impl ALPS {
             ALPN {
                 len: 8,
                 value: "http/1.1".to_string(),
-            },
-            ALPN {
-                len: 8,
-                value: "http/1.0".to_string(),
             }
         ]
     }

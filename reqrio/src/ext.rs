@@ -37,6 +37,7 @@ pub trait ReqExt: Sized {
         self.set_proxy(proxy);
         self
     }
+    /// *必须在建立tls连接（即：set_url/with_url）前设置, 否则需要调re_conn
     fn set_alpn(&mut self, alpn: ALPN);
     fn with_alpn(mut self, alpn: ALPN) -> Self {
         self.set_alpn(alpn);

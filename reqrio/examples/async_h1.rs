@@ -23,7 +23,7 @@ async fn main() {
         "sec-ch-ua-platform": r#""Windows""#
     };
     req.set_headers_json(header).unwrap();
-    req.set_alpn(ALPN::Http11);
+    // req.set_alpn(ALPN::Http11);
     // let content = req.gen_h1().unwrap();
     // println!("{}", String::from_utf8(content).unwrap());
     let res = req.get().await.unwrap();

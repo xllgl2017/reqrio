@@ -41,7 +41,6 @@ impl StreamKind {
     pub async fn async_conn(&mut self, param: ConnParam<'_>) -> HlsResult<ALPN> {
         let _ = self.async_shutdown().await;
         let stream = param.proxy.create_async_stream(param.url.addr(), param.timeout).await?;
-        println!("3333333");
         match param.url.protocol() {
             Protocol::Http => {
                 *self = StreamKind::AsyncHttp(stream);
@@ -56,7 +55,6 @@ impl StreamKind {
             }
             #[cfg(cls_async)]
             Protocol::Https => {
-                println!("{}",11111);
                 let tls_stream = AsyncTlsStream::connect_timeout(param, stream).await?;
                 let alpn = tls_stream.alpn().map(|x| ALPN::from_slice(x.as_bytes())).unwrap_or(ALPN::Http11);
                 *self = StreamKind::AsyncHttps(tls_stream);
