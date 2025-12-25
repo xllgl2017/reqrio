@@ -287,8 +287,8 @@ impl ReqExt for AcReq {
         &self.header
     }
 
-    fn timeout_mut(&mut self) -> &mut Timeout {
-        &mut self.timeout
+    fn set_timeout(&mut self, timeout: Timeout) {
+        self.timeout = timeout;
     }
 
     fn timeout(&self) -> &Timeout {

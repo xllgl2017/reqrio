@@ -47,7 +47,7 @@ headers = {
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
     # "Cookie": "__guid=15015764.1071255116101212729.1764940193317.2156; env_webp=1; _S=pvc5q7leemba50e4kn4qis4b95; QiHooGUID=4C8051464B2D97668E3B21198B9CA207.1766289287750; count=1; so-like-red=2; webp=1; so_huid=114r0SZFiQcJKtA38GZgwZg%2Fdit1cjUGuRcsIL2jTn4%2FE%3D; __huid=114r0SZFiQcJKtA38GZgwZg%2Fdit1cjUGuRcsIL2jTn4%2FE%3D; gtHuid=1",
-    "Host": "m.so.com",
+    # "Host": "m.so.com",host的值最好不要自己设置，有底层自动添加，避免在同一个session使用不同链接时host冲突
     "Pragma": "no-cache",
     "Sec-Fetch-Dest": "document",
     "Sec-Fetch-Mode": "navigate",
@@ -61,6 +61,8 @@ headers = {
 }
 # 默认没有任何请求头，需要自己设置
 session.set_header_json(headers)
+# 设置超时
+session.set_timeout(3,3,3,3)
 session.set_url('https://m.so.com')
 resp = session.get()
 # 获取响应头

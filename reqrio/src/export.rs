@@ -1,8 +1,9 @@
 use crate::error::HlsResult;
-use crate::{Fingerprint, Method, Proxy, ReqExt, ScReq, ALPN};
+use crate::{Cookie, Fingerprint, Method, Proxy, ReqExt, ScReq, ALPN};
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 use std::sync::{LazyLock, Mutex};
+use crate::timeout::Timeout;
 
 static CONNECTIONS: LazyLock<Mutex<HashMap<i32, ScReq>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 fn unique_id() -> i32 {
@@ -128,6 +129,40 @@ pub extern "system" fn set_json(id: i32, data: *const c_char) -> i32 {
         let data = json::from_bytes(data)?;
         let mut params = CONNECTIONS.lock()?;
         params.get_mut(&id).ok_or("id 不存在")?.set_json(data);
+        Ok(0)
+    }().unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn set_timeout(id: i32, timeout: *const c_char) -> i32 {
+    || -> HlsResult<i32> {
+        let timeout = unsafe { CStr::from_ptr(timeout) }.to_bytes();
+        let data = json::from_bytes(timeout)?;
+        let timeout = Timeout::try_from(data)?;
+        let mut params = CONNECTIONS.lock()?;
+        params.get_mut(&id).ok_or("id 不存在")?.set_timeout(timeout);
+        Ok(0)
+    }().unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn set_cookie(id: i32, cookie: *const c_char) -> i32 {
+    || -> HlsResult<i32> {
+        let cookie = unsafe { CStr::from_ptr(cookie) }.to_str()?;
+        let mut params = CONNECTIONS.lock()?;
+        params.get_mut(&id).ok_or("id 不存在")?.header_mut().set_cookie(cookie)?;
+        Ok(0)
+    }().unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn add_cookie(id: i32, name: *const c_char, value: *const c_char) -> i32 {
+    || -> HlsResult<i32> {
+        let name = unsafe { CStr::from_ptr(name) }.to_str()?;
+        let value = unsafe { CStr::from_ptr(value) }.to_str()?;
+        let cookie = Cookie::new_cookie(name, value);
+        let mut params = CONNECTIONS.lock()?;
+        params.get_mut(&id).ok_or("id 不存在")?.header_mut().add_cookie(cookie);
         Ok(0)
     }().unwrap_or(-1)
 }

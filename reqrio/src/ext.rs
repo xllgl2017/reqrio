@@ -28,7 +28,7 @@ pub trait ReqExt: Sized {
     fn add_file(&mut self, file: HttpFile);
     fn header_mut(&mut self) -> &mut Header;
     fn header(&self) -> &Header;
-    fn timeout_mut(&mut self) -> &mut Timeout;
+    fn set_timeout(&mut self, timeout: Timeout);
     fn timeout(&self) -> &Timeout;
     fn url(&self) -> &Url;
     fn url_mut(&mut self) -> &mut Url;

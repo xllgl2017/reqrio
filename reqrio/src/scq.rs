@@ -114,7 +114,7 @@ impl ScReq {
             match res {
                 Ok(res) => return Ok(res),
                 Err(e) => if i != self.timeout.handle_times() - 1 {
-                    println!("[AcReq] write/recv error, error: {}, handle: {}/{}", e.to_string(), i + 2, self.timeout.handle_times());
+                    println!("[ScReq] write/recv error, error: {}, handle: {}/{}", e.to_string(), i + 2, self.timeout.handle_times());
                     continue;
                 }
             }
@@ -153,8 +153,8 @@ impl ScReq {
                     if self.stream.alpn() == &ALPN::Http20 { self.handle_h2_setting()?; }
                     return Ok(());
                 }
-                Err(e) => {
-                    println!("[AcReq] continue with error-{}, handle: {}/{}", e.to_string(), i + 2, self.timeout.handle_times());
+                Err(e) => if i != self.timeout.connect_times() - 1 {
+                    println!("[ScReq] continue with error-{}, handle: {}/{}", e.to_string(), i + 2, self.timeout.handle_times());
                     continue;
                 }
             }
@@ -291,8 +291,8 @@ impl ReqExt for ScReq {
         &self.header
     }
 
-    fn timeout_mut(&mut self) -> &mut Timeout {
-        &mut self.timeout
+    fn set_timeout(&mut self, timeout: Timeout) {
+        self.timeout = timeout;
     }
 
     fn timeout(&self) -> &Timeout {

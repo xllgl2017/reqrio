@@ -1,4 +1,6 @@
 use std::time::Duration;
+use json::JsonValue;
+use crate::error::HlsError;
 
 pub struct Timeout {
     //连接超时
@@ -80,5 +82,19 @@ impl Timeout {
 
     pub fn set_handle_times(&mut self, handle_times: i32) {
         self.handle_times = handle_times;
+    }
+}
+
+impl TryFrom<JsonValue> for Timeout {
+    type Error = HlsError;
+    fn try_from(value: JsonValue) -> Result<Self, Self::Error> {
+        Ok(Timeout {
+            connect: Duration::from_secs(value["connect"].as_u64()?),
+            read:Duration::from_secs(value["read"].as_u64()?),
+            write:Duration::from_secs(value["write"].as_u64()?),
+            handle:Duration::from_secs(value["handle"].as_u64()?),
+            connect_times:value["connect_times"].as_i32()?,
+            handle_times:value["handle_times"].as_i32()?,
+        })
     }
 }
