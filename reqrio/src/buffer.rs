@@ -22,15 +22,14 @@ impl Buffer {
     }
 
     pub fn new() -> Self {
-        Buffer {
-            buffer: vec![0; 16 * 1024],
-            len: 0,
-        }
+        let res = Buffer::with_capacity(16 * 1024);
+        res
     }
 
     pub fn new_bytes(bytes: Vec<u8>) -> Self {
         let mut res = Buffer::new();
         res.buffer[..bytes.len()].copy_from_slice(&bytes);
+        res.len = bytes.len();
         res
     }
 

@@ -110,6 +110,21 @@ impl Response {
         }
     }
 
+    fn check_status(&self) -> Option<bool> {
+        let chucked = self.header.get("transfer-encoding");
+        if let Some(chucked) = chucked {
+            if chucked.as_string()? != "chunked" {
+                println!("have transfer-encoding, but unknow-{}", chucked.as_string()?);
+                return None;
+            }
+            if self.raw.ends_with(&[48, 13, 10, 13, 10]) { return Some(true); }
+            None
+        } else {
+            let len = self.header.content_length().unwrap_or(0);
+            if self.raw.len() >= len { Some(true) } else { None }
+        }
+    }
+
     pub fn extend(&mut self, buffer: &Buffer) -> HlsResult<bool> {
         self.raw.reserve(buffer.len());
         unsafe {
@@ -117,20 +132,19 @@ impl Response {
             ptr::copy_nonoverlapping(buffer.as_ref().as_ptr(), dst, buffer.len());
             self.raw.set_len(self.raw.len() + buffer.len());
         }
-        if self.header.is_empty() {
-            let pos = self.raw.windows(4).position(|w| w == b"\r\n\r\n");
-            if let Some(pos) = pos {
-                let hdr_bs = self.raw.drain(..pos).collect();
-                let hdr_str = String::from_utf8(hdr_bs)?;
-                // println!("{}", hdr_str);
-                self.header = Header::try_from(hdr_str)?;
-                self.raw.drain(..4);
+        match self.header.is_empty() {
+            true => {
+                let pos = self.raw.windows(4).position(|w| w == b"\r\n\r\n");
+                if let Some(pos) = pos {
+                    let hdr_bs = self.raw.drain(..pos).collect();
+                    let hdr_str = String::from_utf8(hdr_bs)?;
+                    // println!("{}", hdr_str);
+                    self.header = Header::try_from(hdr_str)?;
+                    self.raw.drain(..4);
+                    Ok(self.check_status().unwrap_or(false))
+                } else { Ok(false) }
             }
-        }
-
-        match self.header.content_length() {
-            None => Ok(self.raw.ends_with(&[48, 13, 10, 13, 10])),
-            Some(len) => Ok(self.raw.len() >= len)
+            false => Ok(self.check_status().unwrap_or(false))
         }
     }
 
