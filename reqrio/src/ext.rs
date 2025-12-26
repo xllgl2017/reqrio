@@ -59,9 +59,7 @@ pub trait ReqExt: Sized {
     }
 
     fn set_headers_json(&mut self, headers: JsonValue) -> HlsResult<()> {
-        let hs = Header::try_from(headers)?;
-        *self.header_mut() = hs;
-        Ok(())
+        self.header_mut().set_by_json(headers)
     }
 
     fn set_json(&mut self, data: JsonValue) {

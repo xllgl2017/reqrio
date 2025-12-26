@@ -38,30 +38,36 @@
 //!
 #[cfg(aync)]
 pub use acq::AcReq;
-#[cfg(sync)]
-pub use scq::ScReq;
-pub use ext::{ReqExt, ReqGenExt};
 pub use alpn::ALPN;
+pub use buffer::Buffer;
+pub use ext::{ReqExt, ReqGenExt};
 pub use json;
-pub use packet::{Method, Cookie, Header, HeaderValue, Response, Frame, ContentType, Application, Text, Font, HttpStatus};
-pub use stream::Proxy;
-pub use url::{Url, Addr, Protocol};
+pub use packet::{
+    Application, Body, ContentType, Cookie, Font, Frame, FrameFlag, FrameType, Header, HeaderValue,
+    HttpStatus, Method, Response, Text,
+};
 #[cfg(use_cls)]
 pub use reqtls::Fingerprint;
+#[cfg(sync)]
+pub use scq::ScReq;
+pub use stream::Proxy;
+#[cfg(feature = "tokio")]
+pub use tokio;
+pub use url::{Addr, Protocol, Uri, Url};
 
-
-mod error;
-mod url;
-mod stream;
-mod packet;
-mod timeout;
-mod alpn;
 #[cfg(aync)]
 mod acq;
-#[cfg(sync)]
-mod scq;
-mod file;
+mod alpn;
+mod buffer;
 pub mod coder;
-mod ext;
+mod error;
 #[cfg(feature = "export")]
 mod export;
+mod ext;
+mod file;
+mod packet;
+#[cfg(sync)]
+mod scq;
+mod stream;
+mod timeout;
+mod url;

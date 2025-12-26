@@ -49,7 +49,7 @@ impl TryFrom<&str> for Param {
         let mut items = value.split("=");
         let mut res = Param::new();
         res.name = items.next().ok_or("name not found")?.to_string();
-        let value = items.next().unwrap_or("");
+        let value = items.collect::<Vec<_>>().join("=");
         res.value = coder::url_decode(value)?.to_string();
         Ok(res)
     }

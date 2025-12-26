@@ -11,6 +11,7 @@ use crate::url::Url;
 use reqtls::Fingerprint;
 use crate::ext::ReqExt;
 use json::JsonValue;
+use crate::Buffer;
 
 pub struct AcReq {
     header: Header,
@@ -87,7 +88,7 @@ impl AcReq {
         let mut response = Response::new();
         loop {
             let rbs = self.stream.async_read().await?;
-            if response.extend(rbs)? { break; }
+            if response.extend(&Buffer::new_bytes(rbs))? { break; }
         }
         Ok(response)
     }

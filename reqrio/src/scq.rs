@@ -9,6 +9,7 @@ use crate::timeout::Timeout;
 #[cfg(feature = "cls_sync")]
 use reqtls::Fingerprint;
 use crate::url::Url;
+use crate::buffer::Buffer;
 use json::JsonValue;
 
 pub struct ScReq {
@@ -86,7 +87,7 @@ impl ScReq {
         let mut response = Response::new();
         loop {
             let rbs = self.stream.sync_read()?;
-            if response.extend(rbs)? { break; }
+            if response.extend(&Buffer::new_bytes(rbs))? { break; }
         }
         Ok(response)
     }

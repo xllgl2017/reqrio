@@ -30,6 +30,8 @@ impl HeaderKey {
 
     pub fn name(&self) -> &str { &self.name }
 
+    pub fn name_lower(&self) -> String { self.name.to_lowercase() }
+
     pub fn value(&self) -> &HeaderValue { &self.value }
 
     pub fn take_value(self) -> HeaderValue { self.value }

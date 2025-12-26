@@ -76,32 +76,38 @@ impl Header {
     pub fn new_req_h1() -> Self {
         let mut res = Header::new_res();
         res.keys = vec![
-            HeaderKey::new("accept", HeaderValue::String("".to_string())),
-            HeaderKey::new("accept-encoding", HeaderValue::String("".to_string())),
-            HeaderKey::new("accept-language", HeaderValue::String("".to_string())),
-            HeaderKey::new("cache-control", HeaderValue::String("".to_string())),
-            HeaderKey::new("connection", HeaderValue::String("".to_string())),
-            HeaderKey::new("cookie", HeaderValue::Cookies(vec![])),
-            HeaderKey::new("host", HeaderValue::String("".to_string())),
-            // HeaderKey::new("origin", HeaderValue::String("".to_string())),
-            HeaderKey::new("pragma", HeaderValue::String("".to_string())),
-            HeaderKey::new("referer", HeaderValue::String("".to_string())),
-            HeaderKey::new("sec-fetch-dest", HeaderValue::String("".to_string())),
-            HeaderKey::new("sec-fetch-mode", HeaderValue::String("".to_string())),
-            HeaderKey::new("sec-fetch-site", HeaderValue::String("".to_string())),
-            HeaderKey::new("sec-fetch-user", HeaderValue::String("".to_string())),
-            HeaderKey::new("upgrade-insecure-requests", HeaderValue::Bool(true)),
-            HeaderKey::new("user-agent", HeaderValue::String("".to_string())),
+            HeaderKey::new("Host", HeaderValue::String("".to_string())),
+            HeaderKey::new("Connection", HeaderValue::String("".to_string())),
+            HeaderKey::new("Content-Length", HeaderValue::Number(0)),
+            HeaderKey::new("Authorization", HeaderValue::String("".to_string())),
+            HeaderKey::new("Content-Type", HeaderValue::String("".to_string())),
+            HeaderKey::new("Cache-Control", HeaderValue::String("".to_string())),
             HeaderKey::new("sec-ch-ua", HeaderValue::String("".to_string())),
             HeaderKey::new("sec-ch-ua-mobile", HeaderValue::String("".to_string())),
             HeaderKey::new("sec-ch-ua-platform", HeaderValue::String("".to_string())),
-            HeaderKey::new("content-length", HeaderValue::Number(0)),
+            HeaderKey::new("Upgrade-Insecure-Requests", HeaderValue::Bool(true)),
+            HeaderKey::new("User-Agent", HeaderValue::String("".to_string())),
+            HeaderKey::new("Accept", HeaderValue::String("".to_string())),
+            HeaderKey::new("Sec-Fetch-Site", HeaderValue::String("".to_string())),
+            HeaderKey::new("Sec-Fetch-Mode", HeaderValue::String("".to_string())),
+            HeaderKey::new("Sec-Fetch-User", HeaderValue::String("".to_string())),
+            HeaderKey::new("Sec-Fetch-Dest", HeaderValue::String("".to_string())),
+            HeaderKey::new("Sec-Fetch-Storage-Access", HeaderValue::String("".to_string())),
+            HeaderKey::new("Referer", HeaderValue::String("".to_string())),
+            HeaderKey::new("Accept-Encoding", HeaderValue::String("".to_string())),
+            HeaderKey::new("Accept-Language", HeaderValue::String("".to_string())),
+            HeaderKey::new("Cookie", HeaderValue::Cookies(vec![])),
+
+
+            // HeaderKey::new("origin", HeaderValue::String("".to_string())),
+            // HeaderKey::new("pragma", HeaderValue::String("".to_string())),
+
         ];
         res
     }
 
     pub fn to_req_cookie_str(&self) -> String {
-        let header = self.keys.iter().find(|x| x.name() == "cookie");
+        let header = self.keys.iter().find(|x| x.name_lower() == "cookie");
         if let Some(header) = header && let Some(cookie) = header.cookies() {
             cookie.iter().map(|cookie| cookie.as_req()).collect::<Vec<_>>().join("; ")
         } else {
@@ -118,9 +124,9 @@ impl Header {
         let mut res = vec![];
         for key in &self.keys {
             if key.value().to_string() == "" { continue; }
-            match key.name() {
+            match key.name_lower().as_str() {
                 "set-cookie" => for cookie in key.cookies().unwrap_or(&vec![]) {
-                    res.push(format!("set-cookie: {}", cookie.as_res()));
+                    res.push(format!("Set-Cookie: {}", cookie.as_res()));
                 },
                 _ => res.push(format!("{}: {}", key.name(), key.value().to_string()))
             }
@@ -130,13 +136,13 @@ impl Header {
 
     pub fn get(&self, name: &str) -> Option<&HeaderValue> {
         let k = name.to_lowercase();
-        let header = self.keys.iter().find(|x| x.name() == k)?;
+        let header = self.keys.iter().find(|x| x.name_lower() == k)?;
         Some(header.value())
     }
 
     pub fn remove(&mut self, name: impl AsRef<str>) -> Option<HeaderValue> {
         let lower = name.as_ref().to_lowercase();
-        let pos = self.keys.iter().position(|x| x.name() == lower)?;
+        let pos = self.keys.iter().position(|x| x.name_lower() == lower)?;
         Some(self.keys.remove(pos).into_value())
     }
 
@@ -146,7 +152,7 @@ impl Header {
         let res = res.into_iter().filter_map(|x| {
             if x.value().to_string() == "" {
                 None
-            } else if x.name() == "connection" || x.name() == "host" || x.name() == "content-length" {
+            } else if x.name_lower() == "connection" || x.name_lower() == "host" || x.name_lower() == "content-length" {
                 None
             } else {
                 Some(x)
@@ -156,14 +162,14 @@ impl Header {
     }
 
     pub fn add_cookie(&mut self, cookie: Cookie) {
-        match self.keys.iter_mut().find(|x| x.name() == "cookie") {
+        match self.keys.iter_mut().find(|x| x.name_lower() == "cookie") {
             None => self.keys.push(HeaderKey::new("cookie", HeaderValue::Cookies(vec![cookie]))),
             Some(header) => header.value_mut().add_cookie(cookie)
         }
     }
 
     pub fn set_cookies(&mut self, ck: Vec<Cookie>) {
-        let header = self.keys.iter_mut().find(|x| x.name() == "cookie");
+        let header = self.keys.iter_mut().find(|x| x.name_lower() == "cookie");
         if let Some(header) = header {
             header.set_value(HeaderValue::Cookies(ck));
         } else {
@@ -178,11 +184,11 @@ impl Header {
     }
 
     pub fn insert(&mut self, k: impl AsRef<str>, v: impl ToString) -> HlsResult<()> {
-        let k = k.as_ref().to_lowercase().replace("contentlength", "content-length")
+        let lower_key = k.as_ref().to_lowercase().replace("contentlength", "content-length")
             .replace("contenttype", "ccontent-type");
-        let header = self.keys.iter_mut().find(|x| x.name() == k);
+        let header = self.keys.iter_mut().find(|x| x.name_lower() == lower_key);
         if let Some(header) = header {
-            match header.name() {
+            match header.name_lower().as_str() {
                 "cookie" => self.set_cookie(v.to_string())?,
                 "content-length" => header.set_value(HeaderValue::Number(v.to_string().parse()?)),
                 "content-type" => header.set_value(HeaderValue::ContextType(ContentType::try_from(&v.to_string())?)),
@@ -191,14 +197,17 @@ impl Header {
                 _ => header.set_value(HeaderValue::String(v.to_string())),
             }
         } else {
-            match k.as_ref() {
+            match lower_key.as_ref() {
                 "set-cookie" => {
                     let cookie = Cookie::from_res(v.to_string())?;
-                    self.keys.push(HeaderKey::new("set-cookie", HeaderValue::Cookies(vec![cookie])));
+                    self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::Cookies(vec![cookie])));
                 }
-                "cookie" => self.set_cookie(v.to_string())?,
-                "content-length" => self.keys.push(HeaderKey::new("content-length", HeaderValue::Number(v.to_string().parse()?))),
-                _ => self.keys.push(HeaderKey::new(k, HeaderValue::String(v.to_string()))),
+                "cookie" => {
+                    self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::Cookies(vec![])));
+                    self.set_cookie(v.to_string())?
+                }
+                "content-length" => self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::Number(v.to_string().parse()?))),
+                _ => self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::String(v.to_string()))),
             }
         }
         Ok(())
@@ -237,7 +246,7 @@ impl Header {
     }
 
     pub fn set_content_type(&mut self, content_type: ContentType) {
-        let header = self.keys.iter_mut().find(|x| x.name() == "content-type");
+        let header = self.keys.iter_mut().find(|x| x.name_lower() == "content-type");
         if let Some(header) = header {
             header.set_value(HeaderValue::ContextType(content_type))
         } else {
@@ -265,7 +274,7 @@ impl Header {
     }
 
     pub fn cookies(&self) -> Option<&Vec<Cookie>> {
-        let header = self.keys.iter().find(|x| x.name() == "cookie" || x.name() == "set-cookie");
+        let header = self.keys.iter().find(|x| x.name_lower() == "cookie" || x.name_lower() == "set-cookie");
         header?.cookies()
     }
 
@@ -275,8 +284,8 @@ impl Header {
         &self.agreement
     }
 
-    pub fn uri(&self) -> String {
-        self.uri.to_string()
+    pub fn uri(&self) -> &Uri {
+        &self.uri
     }
 
     pub fn is_empty(&self) -> bool { self.agreement == "" }
@@ -290,7 +299,10 @@ impl Header {
     pub fn set_uri(&mut self, uri: impl AsRef<str>) -> HlsResult<()> {
         let mut items = uri.as_ref().split("?");
         self.uri.set_uri(items.next().ok_or("invalid uri")?);
-        self.uri.parse_param(items.next().unwrap_or(""))
+        if let Some(param) = items.next() {
+            self.uri.parse_param(param)?;
+        }
+        Ok(())
     }
 
     pub fn location(&self) -> Option<&str> {
@@ -305,7 +317,7 @@ impl Header {
         self.insert("authorization", authorization)
     }
 
-    pub fn parse_req(mut value: String) -> HlsResult<Header> {
+    fn parse_req(mut value: String) -> HlsResult<Header> {
         let mut header = Header::new_res();
         value = value.replace("\r\n", "\n");
         for (index, line) in value.split("\n").enumerate() {
@@ -323,7 +335,7 @@ impl Header {
         Ok(header)
     }
 
-    pub fn parse_res(mut value: String) -> HlsResult<Header> {
+    fn parse_res(mut value: String) -> HlsResult<Header> {
         let mut header = Header::new_res();
         value = value.replace("\r\n", "\n");
         for (index, line) in value.split("\n").enumerate() {
@@ -365,26 +377,32 @@ impl Header {
         let keys = if let ALPN::Http20 = alpn { Header::new_req_h2().keys } else { Header::new_req_h1().keys };
         let keys = mem::replace(&mut self.keys, keys);
         for ok in keys {
-            let nk = self.keys.iter_mut().find(|x| x.name() == ok.name());
+            let nk = self.keys.iter_mut().find(|x| x.name_lower() == ok.name_lower());
             match nk {
                 None => self.keys.push(ok),
                 Some(nk) => nk.set_value(ok.take_value())
             }
         }
     }
-}
 
-impl TryFrom<JsonValue> for Header {
-    type Error = HlsError;
-    fn try_from(value: JsonValue) -> Result<Self, Self::Error> {
-        let mut ss = Self::new_res();
-        for (k, v) in value.entries() {
-            ss.insert(k.to_string(), v.to_string())?;
+    pub fn set_by_json(&mut self, headers: JsonValue) -> HlsResult<()> {
+        for (k, v) in headers.entries() {
+            self.insert(k, v.dump())?;
         }
-        Ok(ss)
+        Ok(())
     }
 }
 
+// impl TryFrom<JsonValue> for Header {
+//     type Error = HlsError;
+//     fn try_from(value: JsonValue) -> Result<Self, Self::Error> {
+//         let mut ss = Self::new_res();
+//         for (k, v) in value.entries() {
+//             ss.insert(k.to_string(), v.to_string())?;
+//         }
+//         Ok(ss)
+//     }
+// }
 
 #[cfg(feature = "export")]
 impl From<&Header> for JsonValue {
@@ -404,6 +422,16 @@ impl From<&Header> for JsonValue {
             let _ = header["keys"].insert(key.name(), value);
         }
         header
+    }
+}
+
+impl TryFrom<String> for Header {
+    type Error = HlsError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.to_uppercase().starts_with("HTTP/1") {
+            true => Header::parse_res(value),
+            false => Header::parse_req(value),
+        }
     }
 }
 

@@ -30,15 +30,22 @@ impl Display for Method {
 impl TryFrom<&str> for Method {
     type Error = HlsError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value.to_uppercase().as_str() {
-            "GET" => Ok(Method::GET),
-            "POST" => Ok(Method::POST),
-            "OPTIONS" => Ok(Method::OPTIONS),
-            "HEAD" => Ok(Method::HEAD),
-            "PUT" => Ok(Method::PUT),
-            "DELETE" => Ok(Method::DELETE),
-            "CONNECT" => Ok(Method::CONNECT),
-            "TRACH" => Ok(Method::TRACH),
+        Method::try_from(value.as_bytes())
+    }
+}
+
+impl TryFrom<&[u8]> for Method {
+    type Error = HlsError;
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match value {
+            b"GET" => Ok(Method::GET),
+            b"POST" => Ok(Method::POST),
+            b"OPTIONS" => Ok(Method::OPTIONS),
+            b"HEAD" => Ok(Method::HEAD),
+            b"PUT" => Ok(Method::PUT),
+            b"DELETE" => Ok(Method::DELETE),
+            b"CONNECT" => Ok(Method::CONNECT),
+            b"TRACH" => Ok(Method::TRACH),
             _ => Err("Invalid HTTP method".into())
         }
     }

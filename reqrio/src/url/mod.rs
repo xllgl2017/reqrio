@@ -99,7 +99,7 @@ impl TryFrom<&str> for Url {
 
 #[cfg(test)]
 mod tests {
-    use crate::url::Url;
+    use crate::url::{Uri, Url};
 
     #[test]
     fn test_url() {
@@ -127,5 +127,9 @@ mod tests {
         let url8 = "https://www.so.com/link?m=uJUHfEbfz+ZVSx90v4iLs4mlJ1cSfmojdrI1pYls/wftn5aL/ll53A6XAa1BSX2UtYWvcHBuUKSEURqhhVHtJNCWxeXYrgMOwkXoRLHGJ4yHLzOB1C61LDwQTgDd5OjTmAFlu3YJVdfU=";
         let url = Url::try_from(url8).unwrap();
         println!("{:#?} {}", url, url.to_string() == url8);
+
+        let mut uri = Uri::new();
+        uri.set_uri("美国02【vip1】");
+        println!("{}", uri);
     }
 }

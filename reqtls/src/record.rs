@@ -50,6 +50,7 @@ impl RecordLayer {
         res.context_type = RecordType::from_byte(bytes[0]).ok_or("LayerType Unknown")?;
         res.version = Version::new(u16::from_be_bytes([bytes[1], bytes[2]]));
         res.len = u16::from_be_bytes([bytes[3], bytes[4]]);
+        if bytes.len()-5!=res.len as usize { return Err("record body not enough".into()); }
         res.message = match res.context_type {
             RecordType::HandShake => Message::from_bytes(bytes[5..].to_vec(), payload)?,
             _ => Message::CipherSpec,
