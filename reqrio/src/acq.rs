@@ -88,6 +88,7 @@ impl AcReq {
         let mut response = Response::new();
         let mut buffer = Buffer::with_capacity(16413);
         loop {
+            buffer.reset();
             self.stream.async_read(&mut buffer).await?;
             if response.extend(&buffer)? { break; }
         }
