@@ -1,11 +1,15 @@
 use crate::error::{HlsError, HlsResult};
 #[cfg(any(feature = "std_async", feature = "cls_async"))]
 use crate::stream::astream::AsyncTcpStream;
+#[cfg(aync)]
+use crate::stream::astream::TimeoutRW;
 use crate::timeout::Timeout;
 use crate::url::{Addr, Protocol};
+use crate::Url;
 use std::fmt::{Display, Formatter};
 use std::net::{TcpStream, ToSocketAddrs};
-use crate::Url;
+#[cfg(aync)]
+use crate::Buffer;
 
 #[derive(Clone, Debug)]
 pub enum Proxy {
@@ -87,9 +91,10 @@ impl Proxy {
                 ];
                 stream.write(context.join("\r\n").as_bytes()).await?;
                 stream.flush().await?;
-                let mut buf = [0; 1024];
-                let len = stream.read(&mut buf).await?;
-                let res = String::from_utf8(buf[..len].to_vec())?;
+                let mut buffer = Buffer::with_capacity(1024);
+                // let mut buf = [0; 1024];
+                stream.read(&mut buffer).await?;
+                let res = String::from_utf8(buffer.filled().to_vec())?;
                 if !res.starts_with("HTTP/1.1 200") { return Err("connect to proxy error".into()); }
                 Ok(stream)
             }
@@ -97,18 +102,21 @@ impl Proxy {
                 let mut stream = self.create_async(addr.to_string(), timeout).await?;
                 stream.write(&[5, 1, 0]).await?;
                 stream.flush().await?;
-                let mut buf = [0; 2];
-                let len = stream.read(&mut buf).await?;
-                if len != 2 { return Err("socks5 handshake fail".into()); }
+                let mut buffer = Buffer::with_capacity(256);
+                // buffer[0..2].copy_from_slice(&[0, 2]);
+                // let mut buf = [0; 2];
+                stream.read_limit(&mut buffer, 2).await?;
+                if buffer.len() != 2 { return Err("socks5 handshake fail".into()); }
                 let mut data = vec![5, 1, 0, 3];
                 data.push(peer_addr.host().len() as u8);
                 data.extend_from_slice(peer_addr.host().as_bytes());
                 data.extend(peer_addr.port().to_be_bytes());
                 stream.write(&data).await?;
                 stream.flush().await?;
-                let mut buf = [0; 256];
-                let len = stream.read(&mut buf).await?;
-                if len == 0 { return Err("connection closed by proxy".into()); }
+                buffer.reset();
+                // let mut buf = [0; 256];
+                stream.read(&mut buffer).await?;
+                if buffer.len() == 0 { return Err("connection closed by proxy".into()); }
                 Ok(stream)
             }
         }

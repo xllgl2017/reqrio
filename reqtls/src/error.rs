@@ -98,6 +98,12 @@ impl From<p256::elliptic_curve::Error> for RlsError {
     }
 }
 
+impl From<RlsError> for io::Error {
+    fn from(error: RlsError) -> Self {
+        io::Error::new(io::ErrorKind::Other, error.to_string())
+    }
+}
+
 impl Error for RlsError {}
 
 pub type RlsResult<T> = Result<T, RlsError>;

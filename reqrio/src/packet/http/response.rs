@@ -129,7 +129,7 @@ impl Response {
         self.raw.reserve(buffer.len());
         unsafe {
             let dst = self.raw.as_mut_ptr().add(self.raw.len());
-            ptr::copy_nonoverlapping(buffer.as_ref().as_ptr(), dst, buffer.len());
+            ptr::copy_nonoverlapping(buffer.filled().as_ptr(), dst, buffer.len());
             self.raw.set_len(self.raw.len() + buffer.len());
         }
         match self.header.is_empty() {

@@ -1,8 +1,8 @@
 use super::record::RecordLayer;
-use aws_lc_rs::aead::{Aad, Nonce};
-use key::Key;
-use iv::Iv;
 use crate::error::{RlsError, RlsResult};
+use aws_lc_rs::aead::{Aad, Nonce};
+use iv::Iv;
+use key::Key;
 
 pub mod iv;
 pub mod key;
@@ -32,61 +32,56 @@ impl Cipher {
         self.iv = iv;
     }
 
-    fn build_aad(&self, layer: &RecordLayer, encrypt: bool) -> RlsResult<[u8; 13]> {
+    fn build_aad(&self, layer: &RecordLayer) -> RlsResult<[u8; 13]> {
         let mut res = [0; 13];
         res[0..8].copy_from_slice(self.seq.to_be_bytes().as_ref());
         res[8] = layer.context_type.as_u8();
         res[9..11].copy_from_slice(&layer.version.as_bytes()); // TLS1.2
         let payload = layer.message.payload().ok_or(RlsError::PayloadNone)?;
-        let payload_len = match encrypt {
-            true => payload.len() as u16,
-            //data+explicit+tag
-            false => (payload.len() - 8 - 16) as u16,
-        };
+        let payload_len = payload.len() as u16 - 8 - 16;
         res[11..13].copy_from_slice(&payload_len.to_be_bytes());
         Ok(res)
     }
 
-    pub fn encrypt(&mut self, record: &mut RecordLayer) -> RlsResult<()> {
-        let add_arr = self.build_aad(&record, true)?;
+    pub fn encrypt<'a>(&mut self, record: &'a mut RecordLayer<'a>) -> RlsResult<()> {
+        let add_arr = self.build_aad(&record)?;
         let aad = Aad::from(&add_arr);
         let encrypter = self.key.encrypter().ok_or(RlsError::EncrypterNone)?;
         let nonce = Nonce::assume_unique_for_key(self.iv.as_array(self.seq));
         let payload = record.message.payload_mut().ok_or(RlsError::PayloadNone)?;
-        payload.as_mut().splice(0..0, nonce.as_ref()[4..].to_vec());
-        let tag = encrypter.seal_in_place_separate_tag(nonce, aad, &mut payload.as_mut()[8..])?;
-        payload.as_mut().extend(tag.as_ref());
-        record.len = payload.len() as u16;
+        let payload_len = payload.len();
+        payload[..8].copy_from_slice(&nonce.as_ref()[4..]);
+        let tag = encrypter.seal_in_place_separate_tag(nonce, aad, &mut payload[8..payload_len - 16])?;
+        payload[payload_len-16..].copy_from_slice(tag.as_ref());
         self.seq += 1;
         Ok(())
     }
 
-    pub fn decrypt(&mut self, mut record: RecordLayer) -> RlsResult<Vec<u8>> {
-        let add_arr = self.build_aad(&record, false)?;
+    pub fn decrypt<'a>(&mut self, record: &'a mut RecordLayer<'a>) -> RlsResult<usize> {
+        let add_arr = self.build_aad(&record)?;
         let aad = Aad::from(&add_arr);
         let decrypter = self.key.decrypter().ok_or(RlsError::DecrypterNone)?;
-        let mut payload = record.message.take_payload().ok_or(RlsError::PayloadNone)?.to_bytes();
-        let explicit = payload.drain(0..8).collect::<Vec<u8>>();
+        let payload = record.message.payload_mut().ok_or(RlsError::PayloadNone)?;
+        let explicit = payload[..8].to_vec();
         self.iv.set_explicit(explicit);
         let nonce = Nonce::assume_unique_for_key(self.iv.as_ref());
-        let out = decrypter.open_in_place(nonce, aad, &mut payload)?;
-        let len = out.len();
-        let content = payload.drain(0..len).collect::<Vec<u8>>();
+        let out = decrypter.open_in_place(nonce, aad, &mut payload[8..])?;
+        record.len = out.len() as u16;
         self.seq += 1;
-        Ok(content)
+        Ok(out.len())
     }
 }
 
 
 #[cfg(test)]
 mod tests {
-    use crate::cipher::Cipher;
+    use crate::bytes::Bytes;
     use crate::cipher::iv::Iv;
     use crate::cipher::key::Key;
+    use crate::cipher::Cipher;
     use crate::extend::Aead;
-    use crate::{Message, RecordLayer, RecordType, Version};
-    use crate::bytes::Bytes;
     use crate::version::VersionKind;
+    use crate::{Message, RecordLayer, RecordType, Version};
 
     #[test]
     fn test_cipher() {

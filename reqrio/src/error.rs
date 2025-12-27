@@ -138,6 +138,12 @@ impl From<Elapsed> for HlsError {
     }
 }
 
+impl From<HlsError> for io::Error {
+    fn from(err: HlsError) -> io::Error {
+        io::Error::new(io::ErrorKind::Other, err.to_string())
+    }
+}
+
 impl Error for HlsError {}
 
 unsafe impl Send for HlsError {}

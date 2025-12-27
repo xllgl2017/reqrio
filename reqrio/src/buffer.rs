@@ -1,7 +1,7 @@
-#[cfg(feature = "tokio")]
-use crate::error::HlsResult;
+use crate::error::{HlsResult, HlsError};
 use std::ffi::c_void;
-use std::ops::{Index, RangeFrom, RangeTo};
+use std::io::Read;
+use std::ops::{Index, IndexMut, Range, RangeFrom, RangeTo};
 use std::ptr;
 #[cfg(feature = "tokio")]
 use tokio::io::AsyncReadExt;
@@ -34,10 +34,33 @@ impl Buffer {
     }
 
     #[cfg(feature = "tokio")]
-    pub async fn read<S: AsyncReadExt + Unpin>(&mut self, stream: &mut S) -> HlsResult<()> {
-        self.len = stream.read(&mut self.buffer).await?;
+    pub async fn async_read<S: AsyncReadExt + Unpin>(&mut self, stream: &mut S) -> HlsResult<()> {
+        self.async_read_limit(stream, self.buffer.capacity() - self.len).await
+    }
+
+    #[cfg(feature = "tokio")]
+    pub async fn async_read_limit<S: AsyncReadExt + Unpin>(&mut self, stream: &mut S, limit: usize) -> HlsResult<()> {
+        let len = stream.read(&mut self.buffer[self.len..self.len + limit]).await?;
+        if len == 0 { return Err(HlsError::PeerClosedConnection); }
+        self.len += len;
         Ok(())
     }
+
+    pub fn sync_read<S: Read>(&mut self, stream: &mut S) -> HlsResult<()> {
+        self.sync_read_limit(stream, self.buffer.capacity() - self.len)
+    }
+
+    pub fn sync_read_limit<S: Read>(&mut self, stream: &mut S, limit: usize) -> HlsResult<()> {
+        let len = stream.read(&mut self.buffer[self.len..self.len + limit])?;
+        if len == 0 { return Err(HlsError::PeerClosedConnection); }
+        self.len += len;
+        Ok(())
+    }
+
+    pub fn reset(&mut self) {
+        self.len = 0;
+    }
+
 
     pub fn len(&self) -> usize {
         self.len
@@ -74,16 +97,24 @@ impl Buffer {
             self.buffer.set_len(self.buffer.len() + slice.len());
         }
     }
-}
 
-impl AsRef<[u8]> for Buffer {
-    fn as_ref(&self) -> &[u8] {
+    ///必须手动管理len
+    pub fn push_slice_in(&mut self, place: usize, slice: &[u8]) {
+        unsafe {
+            let dst = self.buffer.as_mut_ptr().add(place);
+            ptr::copy_nonoverlapping(slice.as_ref().as_ptr(), dst, slice.len());
+        }
+    }
+
+    pub fn filled(&self) -> &[u8] {
         &self.buffer[..self.len]
     }
-}
 
-impl AsMut<[u8]> for Buffer {
-    fn as_mut(&mut self) -> &mut [u8] {
+    pub fn filled_mut(&mut self) -> &mut [u8] {
+        &mut self.buffer[..self.len]
+    }
+
+    pub fn unfilled_mut(&mut self) -> &mut [u8] {
         &mut self.buffer[self.len..]
     }
 }
@@ -99,5 +130,37 @@ impl Index<RangeFrom<usize>> for Buffer {
     type Output = [u8];
     fn index(&self, i: RangeFrom<usize>) -> &[u8] {
         &self.buffer[i.start..self.len]
+    }
+}
+
+impl Index<Range<usize>> for Buffer {
+    type Output = [u8];
+    fn index(&self, i: Range<usize>) -> &[u8] {
+        &self.buffer[i]
+    }
+}
+
+impl IndexMut<RangeTo<usize>> for Buffer {
+    fn index_mut(&mut self, i: RangeTo<usize>) -> &mut [u8] {
+        &mut self.buffer[i]
+    }
+}
+
+impl IndexMut<RangeFrom<usize>> for Buffer {
+    fn index_mut(&mut self, i: RangeFrom<usize>) -> &mut [u8] {
+        &mut self.buffer[i]
+    }
+}
+
+impl IndexMut<Range<usize>> for Buffer {
+    fn index_mut(&mut self, i: Range<usize>) -> &mut [u8] {
+        &mut self.buffer[i]
+    }
+}
+
+impl Index<usize> for Buffer {
+    type Output = u8;
+    fn index(&self, i: usize) -> &u8 {
+        &self.buffer[i]
     }
 }

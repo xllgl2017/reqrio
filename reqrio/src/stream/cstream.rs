@@ -59,3 +59,19 @@ impl StdSyncTlsStream {
         }
     }
 }
+
+// impl Read for StdSyncTlsStream {
+//     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+//         self.stream.read(buf)
+//     }
+// }
+//
+// impl Write for StdSyncTlsStream {
+//     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+//         self.stream.write(buf)
+//     }
+//
+//     fn flush(&mut self) -> std::io::Result<()> {
+//         self.stream.flush()
+//     }
+// }

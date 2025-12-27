@@ -1,5 +1,5 @@
 use crate::error::RlsResult;
-use super::message::Message;
+use super::message::{Message, Payload};
 use super::version::Version;
 
 #[derive(Debug, Copy, Clone)]
@@ -29,15 +29,15 @@ impl RecordType {
 
 
 #[derive(Debug)]
-pub struct RecordLayer {
+pub struct RecordLayer<'a> {
     pub context_type: RecordType,
     pub version: Version,
     pub len: u16,
-    pub message: Message,
+    pub message: Message<'a>,
 }
 
-impl RecordLayer {
-    pub fn new() -> RecordLayer {
+impl<'a> RecordLayer<'a> {
+    pub fn new() -> RecordLayer<'a> {
         RecordLayer {
             context_type: RecordType::CipherSpec,
             version: Version::new(0),
@@ -45,55 +45,36 @@ impl RecordLayer {
             message: Message::CipherSpec,
         }
     }
-    pub fn from_bytes(bytes: &[u8], payload: bool) -> RlsResult<RecordLayer> {
+    pub fn from_bytes(bytes: &mut [u8], payload: bool) -> RlsResult<RecordLayer<'_>> {
         let mut res = RecordLayer::new();
         res.context_type = RecordType::from_byte(bytes[0]).ok_or("LayerType Unknown")?;
         res.version = Version::new(u16::from_be_bytes([bytes[1], bytes[2]]));
         res.len = u16::from_be_bytes([bytes[3], bytes[4]]);
-        if bytes.len()-5!=res.len as usize { return Err("record body not enough".into()); }
+        if bytes.len() - 5 != res.len as usize { return Err("record body not enough".into()); }
         res.message = match res.context_type {
-            RecordType::HandShake => Message::from_bytes(bytes[5..].to_vec(), payload)?,
+            RecordType::HandShake => Message::from_bytes(&mut bytes[5..], payload)?,
+            RecordType::ApplicationData => Message::Payload(Payload::from_slice(&mut bytes[5..])),
+            RecordType::Alert=>if payload {
+                Message::Payload(Payload::from_slice(&mut bytes[5..]))
+            }else {
+                Message::CipherSpec
+            }
             _ => Message::CipherSpec,
         };
         Ok(res)
     }
 
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut res = vec![self.context_type.as_u8()];
-        res.extend(self.version.as_bytes());
+    pub fn handshake_bytes(&self) -> Vec<u8> {
+        let mut res = self.head_bytes();
         let msg = self.message.as_bytes();
         res.extend((msg.len() as u16).to_be_bytes());
         res.extend(msg);
         res
     }
 
-    // pub fn read<R: Read>(r: &mut R) -> SyncResult<RecordLayer> {
-    //     let mut head = [0; 5];
-    //     let len = r.read(&mut head)?;
-    //     if len != 5 { return Err(SyncError::HeadSizeInvalid); }
-    //     let mut res = RecordLayer::new();
-    //     res.context_type = RecordType::from_byte(head[0]).ok_or("LayerType Unknown")?;
-    //     res.version = Version::new(u16::from_be_bytes([head[1], head[2]]));
-    //     res.len = u16::from_be_bytes([head[3], head[4]]) as usize;
-    //
-    //     let mut buffer = Vec::with_capacity(res.len);
-    //     buffer.resize(res.len, 0); //unsafe { buffer.set_len(res.len); }
-    //     let mut index = 0;
-    //     while index < res.len {
-    //         let len = r.read(&mut buffer[index..])?;
-    //         if len == 0 { return Err(SyncError::PeerClosedConnection); }
-    //         index += len;
-    //     }
-    //     let rd = hex::encode(&buffer);
-    //     res.message = match res.context_type {
-    //         RecordType::HandShake => Message::from_bytes(buffer)?,
-    //         RecordType::ApplicationData => Message::from_bytes(buffer)?,
-    //         _ => Message::CipherSpec,
-    //     };
-    //
-    //     let sd = hex::encode(res.message.as_bytes());
-    //     // println!("{}\n{}", rd, sd);
-    //     if rd != sd { return Err("data error".into()); }
-    //     Ok(res)
-    // }
+    pub fn head_bytes(&self) -> Vec<u8> {
+        let mut res = vec![self.context_type.as_u8()];
+        res.extend(self.version.as_bytes());
+        res
+    }
 }

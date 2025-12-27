@@ -109,7 +109,7 @@ impl HackEncode {
                     }
                     res
                 }
-                _ => self.encode_once_filed(&header.name(), header.value().to_string(), tables)?
+                _ => self.encode_once_filed(&header.name().to_lowercase(), header.value().to_string(), tables)?
             };
             res.extend(ebs);
         }

@@ -1,24 +1,24 @@
 use super::record::RecordLayer;
-use crate::error::{RlsError, RlsResult};
 use crate::cipher::suite::CipherSuite;
+use crate::error::{RlsError, RlsResult};
 use crate::extend::formats::EcPointFormat;
 use crate::extend::group::GroupType;
 use crate::extend::{Extension, ExtensionType};
 use crate::version::Version;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Fingerprint {
-    pub client_hello: RecordLayer,
-    pub client_key_exchange: RecordLayer,
-    pub change_cipher_spec: RecordLayer,
+    client_hello: Vec<u8>,
+    client_key_exchange: Vec<u8>,
+    change_cipher_spec: Vec<u8>,
 }
 
 impl Fingerprint {
     fn new() -> Fingerprint {
         Fingerprint {
-            client_hello: RecordLayer::new(),
-            client_key_exchange: RecordLayer::new(),
-            change_cipher_spec: RecordLayer::new(),
+            client_hello: vec![],
+            client_key_exchange: vec![],
+            change_cipher_spec: vec![],
         }
     }
 
@@ -32,18 +32,18 @@ impl Fingerprint {
         let mut res = Fingerprint::new();
         let len = u16::from_be_bytes([data[3], data[4]]);
         let client_hello = data.drain(..len as usize + 5).collect::<Vec<u8>>();
-        res.client_hello = RecordLayer::from_bytes(&client_hello, false)?;
+        res.client_hello = client_hello; //RecordLayer::from_bytes(&mut client_hello, false)?;
         let len = u16::from_be_bytes([data[3], data[4]]);
         let client_key_exchange = data.drain(..len as usize + 5).collect::<Vec<u8>>();
 
         let len = u16::from_be_bytes([data[3], data[4]]);
         let change_cipher_spec = data.drain(..len as usize + 5).collect::<Vec<u8>>();
-        res.change_cipher_spec = RecordLayer::from_bytes(&change_cipher_spec, false)?;
+        res.change_cipher_spec = change_cipher_spec; //RecordLayer::from_bytes(&mut change_cipher_spec, false)?;
         if client_key_exchange.len() == 6 {
             res.change_cipher_spec = res.client_key_exchange;
-            res.client_key_exchange = RecordLayer::from_bytes(&hex::decode("1603030046100000424104ff635373fbbfbc37444a2026372f57fd06c5205bacfe32b61261a9d29bf1fca57f91ef22cb2ba46af8cf9ae7c3123f56634099af297dcd30835cd81664005fb9")?, false)?;
+            res.client_key_exchange = hex::decode("1603030046100000424104ff635373fbbfbc37444a2026372f57fd06c5205bacfe32b61261a9d29bf1fca57f91ef22cb2ba46af8cf9ae7c3123f56634099af297dcd30835cd81664005fb9")?;
         } else {
-            res.client_key_exchange = RecordLayer::from_bytes(&client_key_exchange, false)?;
+            res.client_key_exchange = client_key_exchange;
         }
         Ok(res)
     }
@@ -61,7 +61,8 @@ impl Fingerprint {
     }
 
     pub fn set_ja3(&mut self, ja3: impl AsRef<str>) -> RlsResult<()> {
-        let client_hello = self.client_hello.message.client_mut().ok_or(RlsError::ClientHelloNone)?;
+        let mut record = RecordLayer::new();
+        let client_hello = record.message.client_mut().ok_or(RlsError::ClientHelloNone)?;
         let mut items = ja3.as_ref().split(",");
         let version = items.next().ok_or("version not found")?.parse::<u16>()?;
         client_hello.set_version(Version::new(version));
@@ -90,24 +91,23 @@ impl Fingerprint {
             formats.add_format(EcPointFormat::from_u8(ft.parse()?).unwrap());
         }
         client_hello.set_extension(extensions);
+        self.client_hello = record.handshake_bytes();
         Ok(())
     }
 
     pub fn set_ja4(&mut self, ja4: impl AsRef<str>) -> RlsResult<()> {
-        let client_hello = self.client_hello.message.client_mut().ok_or(RlsError::ClientHelloNone)?;
+        let mut record = RecordLayer::new();
+        let client_hello = record.message.client_mut().ok_or(RlsError::ClientHelloNone)?;
         let mut items = ja4.as_ref().split(",");
         let version = items.next().ok_or("version not found")?.parse::<u16>()?;
         client_hello.set_version(Version::new(version));
+        self.client_hello = record.handshake_bytes();
         Ok(())
     }
-}
 
-impl Clone for Fingerprint {
-    fn clone(&self) -> Self {
-        let mut res = Fingerprint::default().unwrap();
-        res.client_hello = RecordLayer::from_bytes(&self.client_hello.as_bytes(), false).unwrap();
-        res.client_key_exchange = RecordLayer::from_bytes(&self.client_key_exchange.as_bytes(), false).unwrap();
-        res.change_cipher_spec = RecordLayer::from_bytes(&self.change_cipher_spec.as_bytes(), false).unwrap();
-        res
-    }
+    pub fn client_hello_mut(&mut self) -> &mut [u8] { &mut self.client_hello }
+
+    pub fn client_key_exchange_mut(&mut self) -> &mut [u8] { &mut self.client_key_exchange }
+
+    pub fn change_cipher_spec(&self) -> &[u8] { &self.change_cipher_spec }
 }

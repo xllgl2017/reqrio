@@ -1,17 +1,17 @@
 use crate::alpn::ALPN;
 use crate::coder::HPackCoding;
 use crate::error::HlsResult;
+use crate::ext::ReqExt;
 use crate::ext::{ReqGenExt, ReqPriExt};
 use crate::file::HttpFile;
 use crate::packet::{Application, ContentType, Frame, FrameFlag, FrameType, Header, HeaderKey, Method, Response, Text};
 use crate::stream::{ConnParam, Proxy, Stream};
 use crate::timeout::Timeout;
 use crate::url::Url;
+use crate::Buffer;
+use json::JsonValue;
 #[cfg(use_cls)]
 use reqtls::Fingerprint;
-use crate::ext::ReqExt;
-use json::JsonValue;
-use crate::Buffer;
 
 pub struct AcReq {
     header: Header,
@@ -86,9 +86,10 @@ impl AcReq {
     pub async fn h1_io(&mut self, context: Vec<u8>) -> HlsResult<Response> {
         self.stream.async_write(context.as_slice()).await?;
         let mut response = Response::new();
+        let mut buffer = Buffer::with_capacity(16413);
         loop {
-            let rbs = self.stream.async_read().await?;
-            if response.extend(&Buffer::new_bytes(rbs))? { break; }
+            self.stream.async_read(&mut buffer).await?;
+            if response.extend(&buffer)? { break; }
         }
         Ok(response)
     }
@@ -115,6 +116,9 @@ impl AcReq {
             let res = tokio::time::timeout(self.timeout.handle(), self.handle_io()).await;
             match &res {
                 Ok(res) => if let Err(e) = res && i != self.timeout.handle_times() - 1 {
+                    if e.to_string().to_lowercase().contains("close") {
+                        self.re_conn().await?;
+                    }
                     println!("[AcReq] write/recv with error-{}, handle: {}/{}", e.to_string(), i + 2, self.timeout.handle_times());
                     continue;
                 }
@@ -227,9 +231,11 @@ impl AcReq {
             self.stream.async_write(body_frame.to_bytes().as_slice()).await?;
         }
         let mut response = Response::new();
+        let mut buffer = Buffer::with_capacity(16413);
         loop {
-            let rbs = self.stream.async_read().await?;
-            self.raw_bytes.extend(rbs);
+            buffer.reset();
+            self.stream.async_read(&mut buffer).await?;
+            self.raw_bytes.extend_from_slice(buffer.filled());
             while let Ok(frame) = Frame::from_bytes(&self.raw_bytes) {
                 if frame.frame_type() == &FrameType::Settings && frame.flags().contains(&FrameFlag::ACK) {
                     let mut end_frame = Frame::none_frame();

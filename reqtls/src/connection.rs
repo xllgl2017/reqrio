@@ -9,7 +9,7 @@ use super::cipher::Cipher;
 use super::extend::alps::ALPN;
 use super::message::key_exchange::NamedCurve;
 use super::message::server_hello::ServerHello;
-use super::message::Message;
+use super::message::{Message, Payload};
 use super::prf::Prf;
 use super::version::Version;
 use super::version::VersionKind;
@@ -89,26 +89,36 @@ impl Connection {
         Ok(())
     }
 
-    pub fn make_finish_message(&mut self, session_hash: &[u8]) -> RlsResult<RecordLayer> {
-        let mut data = vec![0x14, 0x00, 0x0, 0xc];
-        data.resize(16, 0);
-        self.prf.prf(&self.master_secret, "client finished", &session_hash, &mut data[4..])?;
-        let layer = self.make_message(RecordType::HandShake, data)?;
+    ///#### tls Record结构-5bytes(头部)+payload(8byte的explicit+16payload+16byte的tag)
+    /// * type-1bye
+    /// * version-2byte
+    /// * len-2byte
+    pub fn make_finish_message<'a>(&mut self, session_hash: &[u8], buffer: &'a mut [u8]) -> RlsResult<()> {
+        buffer[13..17].copy_from_slice(&[0x14, 0x00, 0x0, 0xc]);
+        self.prf.prf(&self.master_secret, "client finished", &session_hash, &mut buffer[17..29])?;
+        let layer = self.make_message(RecordType::HandShake, buffer)?;
+
+
         Ok(layer)
     }
 
-    pub fn make_message(&mut self, cty: RecordType, data: Vec<u8>) -> RlsResult<RecordLayer> {
+    pub fn make_message(&mut self, cty: RecordType, buffer: &mut [u8]) -> RlsResult<()> {
+        let payload_len = buffer.len() as u16 - 5;
+        buffer[0] = cty.as_u8();
+        buffer[1..3].copy_from_slice(&(VersionKind::TLS_1_2 as u16).to_be_bytes());
+        buffer[3..5].copy_from_slice(&payload_len.to_be_bytes());
         let mut layer = RecordLayer {
             context_type: cty,
             version: Version::new(VersionKind::TLS_1_2 as u16),
-            len: 0,
-            message: Message::Payload(Bytes::new(data)),
+            len: payload_len,
+            message: Message::Payload(Payload::from_slice(&mut buffer[5..])),
         };
-        self.write.encrypt(&mut layer).unwrap();
-        Ok(layer)
+
+        self.write.encrypt(&mut layer)?;
+        Ok(())
     }
 
-    pub fn read_message(&mut self, layer: RecordLayer) -> RlsResult<Vec<u8>> {
+    pub fn read_message<'a>(&mut self, layer: &'a mut RecordLayer<'a>) -> RlsResult<usize> {
         self.read.decrypt(layer)
     }
 

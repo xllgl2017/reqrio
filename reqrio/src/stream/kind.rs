@@ -1,21 +1,21 @@
-#[cfg(sync)]
-use std::io::{Read, Write};
-#[cfg(sync)]
-use std::net::Shutdown;
-use crate::ALPN;
+#[cfg(feature = "cls_sync")]
+use super::sync_stream::SyncStream;
 use crate::error::HlsResult;
 #[cfg(feature = "cls_async")]
 use crate::stream::astream::AsyncTlsStream;
-#[cfg(aync)]
-use crate::stream::astream::AsyncTcpStream;
-use crate::stream::ConnParam;
-#[cfg(feature = "cls_sync")]
-use super::sync_stream::SyncStream;
-use crate::url::Protocol;
 #[cfg(std_async)]
 use crate::stream::astream::StdAsyncTlsStream;
+#[cfg(aync)]
+use crate::stream::astream::{AsyncTcpStream, TimeoutRW};
 #[cfg(std_sync)]
 use crate::stream::cstream::StdSyncTlsStream;
+use crate::stream::ConnParam;
+use crate::url::Protocol;
+use crate::{Buffer, ALPN};
+#[cfg(sync)]
+use std::io::Write;
+#[cfg(sync)]
+use std::net::Shutdown;
 
 pub enum StreamKind {
     NonConnection,
@@ -88,23 +88,13 @@ impl StreamKind {
         }
     }
 
-    pub async fn async_read(&mut self) -> HlsResult<Vec<u8>> {
+    pub async fn async_read(&mut self, buffer: &mut Buffer) -> HlsResult<()> {
         match self {
-            StreamKind::AsyncHttp(s) => {
-                let mut buffer = [0; 16 * 1024];
-                let len = s.read(&mut buffer).await?;
-                if len == 0 { return Err("Connection Closed".into()); }
-                Ok(buffer[..len].to_vec())
-            }
+            StreamKind::AsyncHttp(s) => s.read(buffer).await,
             #[cfg(cls_async)]
-            StreamKind::AsyncHttps(s) => Ok(s.read().await?),
+            StreamKind::AsyncHttps(s) => Ok(s.read(buffer).await?),
             #[cfg(std_async)]
-            StreamKind::StdAsyncHttps(s) => {
-                let mut buffer = [0; 16 * 1024];
-                let len = s.read(&mut buffer).await?;
-                if len == 0 { return Err("Connection Closed".into()); }
-                Ok(buffer[..len].to_vec())
-            }
+            StreamKind::StdAsyncHttps(s) => s.read(buffer).await,
             _ => Err("Unsupported async read".into()),
         }
     }
@@ -158,7 +148,8 @@ impl StreamKind {
             }
             #[cfg(cls_sync)]
             StreamKind::SyncHttps(s) => {
-                s.write_tls(buf)?;
+                s.write(buf)?;
+                // s.write_tls(buf)?;
                 s.flush()?;
                 Ok(())
             }
@@ -172,23 +163,21 @@ impl StreamKind {
         }
     }
 
-    pub fn sync_read(&mut self) -> HlsResult<Vec<u8>> {
+    pub fn sync_read(&mut self, buffer: &mut Buffer) -> HlsResult<()> {
         match self {
-            StreamKind::SyncHttp(s) => {
-                let mut buffer = [0; 4096];
-                let len = s.read(&mut buffer)?;
-                if len == 0 { return Err("Connection Closed".into()); }
-                Ok(buffer[..len].to_vec())
-            }
+            StreamKind::SyncHttp(s) => buffer.sync_read(s),
             #[cfg(cls_sync)]
-            StreamKind::SyncHttps(s) => Ok(s.read_tls()?),
+            StreamKind::SyncHttps(s) => buffer.sync_read(s),
             #[cfg(std_sync)]
-            StreamKind::StdSyncHttps(s) => {
-                let mut buffer = [0; 16 * 1024];
-                let len = s.read(&mut buffer)?;
-                if len == 0 { return Err("Connection Closed".into()); }
-                Ok(buffer[..len].to_vec())
-            }
+            StreamKind::StdSyncHttps(s) => //buffer.sync_read(s),
+                {
+                    // let mut buffer = [0; 16 * 1024];
+                    let len = s.read(buffer.unfilled_mut())?;
+                    if len == 0 { return Err("Connection Closed".into()); }
+                    buffer.set_len(len);
+                    Ok(())
+                    // Ok(buffer[..len].to_vec())
+                }
             _ => Err("Unsupported async read".into()),
         }
     }

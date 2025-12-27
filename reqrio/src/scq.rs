@@ -85,9 +85,11 @@ impl ScReq {
     pub fn h1_io(&mut self, context: Vec<u8>) -> HlsResult<Response> {
         self.stream.sync_write(context.as_slice())?;
         let mut response = Response::new();
+        let mut buffer = Buffer::with_capacity(16413);
         loop {
-            let rbs = self.stream.sync_read()?;
-            if response.extend(&Buffer::new_bytes(rbs))? { break; }
+            buffer.reset();
+            self.stream.sync_read(&mut buffer)?;
+            if response.extend(&buffer)? { break; }
         }
         Ok(response)
     }
@@ -224,6 +226,7 @@ impl ScReq {
     }
 
     pub fn h2c_io(&mut self, headers: Vec<HeaderKey>, body: Vec<u8>) -> HlsResult<Response> {
+        // std::thread::sleep(std::time::Duration::from_secs(100));
         let hdr_bs = self.hack_coder.encode(headers)?;
         let header_frame = Frame::new_header(hdr_bs, body.len(), self.stream_id);
         self.stream.sync_write(header_frame.to_bytes().as_slice())?;
@@ -231,9 +234,11 @@ impl ScReq {
             self.stream.sync_write(body_frame.to_bytes().as_slice())?;
         }
         let mut response = Response::new();
+        let mut buffer = Buffer::with_capacity(16413);
         loop {
-            let rbs = self.stream.sync_read()?;
-            self.raw_bytes.extend(rbs);
+            buffer.reset();
+            self.stream.sync_read(&mut buffer)?;
+            self.raw_bytes.extend_from_slice(buffer.filled());
             while let Ok(frame) = Frame::from_bytes(&self.raw_bytes) {
                 if frame.frame_type() == &FrameType::Settings && frame.flags().contains(&FrameFlag::ACK) {
                     let mut end_frame = Frame::none_frame();

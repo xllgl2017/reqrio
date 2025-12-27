@@ -1,11 +1,11 @@
-use certificate::{Certificates, CertificateStatus};
+use crate::error::RlsResult;
+use certificate::{CertificateStatus, Certificates};
 use client_hello::ClientHello;
 use key_exchange::{ClientKeyExchange, ServerKeyExchange};
 use server_hello::{ServerHello, ServerHelloDone};
 use session_ticket::SessionTicket;
-use std::mem;
-use crate::error::RlsResult;
-use super::bytes::Bytes;
+use std::fmt::Debug;
+use std::ops::{Index, IndexMut, Range, RangeFrom, RangeTo};
 
 pub mod certificate;
 pub mod client_hello;
@@ -13,8 +13,70 @@ pub mod server_hello;
 pub mod key_exchange;
 mod session_ticket;
 
+
+pub struct Payload<'a>(&'a mut [u8]);
+
+impl<'a> Payload<'a> {
+    pub fn from_slice(bytes: &'a mut [u8]) -> Payload<'a> {
+        Payload(bytes)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<'a> Debug for Payload<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(hex::encode(&self.0).as_str())
+    }
+}
+
+impl<'a> Index<Range<usize>> for Payload<'a> {
+    type Output = [u8];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<'a> IndexMut<Range<usize>> for Payload<'a> {
+    fn index_mut(&mut self, index: Range<usize>) -> &mut [u8] {
+        &mut self.0[index]
+    }
+}
+
+impl<'a> Index<RangeTo<usize>> for Payload<'a> {
+    type Output = [u8];
+
+    fn index(&self, index: RangeTo<usize>) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<'a> IndexMut<RangeTo<usize>> for Payload<'a> {
+    fn index_mut(&mut self, index: RangeTo<usize>) -> &mut [u8] {
+        &mut self.0[index]
+    }
+}
+
+impl<'a> Index<RangeFrom<usize>> for Payload<'a> {
+    type Output = [u8];
+
+    fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<'a> IndexMut<RangeFrom<usize>> for Payload<'a>{
+    fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut [u8] {
+        &mut self.0[index]
+    }
+}
+
+
 #[derive(Debug)]
-pub enum Message {
+pub enum Message<'a> {
     ClientHello(ClientHello),
     ServerHello(ServerHello),
     Certificate(Certificates),
@@ -22,13 +84,13 @@ pub enum Message {
     ServerHelloDone(ServerHelloDone),
     ClientKeyExchange(ClientKeyExchange),
     NewSessionTicket(SessionTicket),
-    Payload(Bytes),
+    Payload(Payload<'a>),
     CertificateStatus(CertificateStatus),
     CipherSpec,
 }
 
-impl Message {
-    pub fn from_bytes(bytes: Vec<u8>, payload: bool) -> RlsResult<Message> {
+impl<'a> Message<'a> {
+    pub fn from_bytes(bytes: &mut [u8], payload: bool) -> RlsResult<Message<'_>> {
         if !payload {
             let handshake_type = HandshakeType::from_byte(bytes[0]).unwrap();
             match handshake_type {
@@ -43,7 +105,7 @@ impl Message {
                 HandshakeType::CipherSpec => Ok(Message::CipherSpec),
             }
         } else {
-            Ok(Message::Payload(Bytes::new(bytes)))
+            Ok(Message::Payload(Payload(bytes)))
         }
     }
 
@@ -58,7 +120,7 @@ impl Message {
             Message::NewSessionTicket(v) => v.as_bytes(),
             Message::CipherSpec => vec![HandshakeType::ClientHello.as_u8()],
             Message::CertificateStatus(v) => v.as_bytes(),
-            Message::Payload(v) => v.as_bytes(),
+            Message::Payload(_) => vec![],
         }
     }
 
@@ -96,21 +158,21 @@ impl Message {
         }
     }
 
-    pub fn take_payload(&mut self) -> Option<Bytes> {
-        match self {
-            Message::Payload(v) => Some(mem::take(v)),
-            _ => None
-        }
-    }
+    // pub fn take_payload(&mut self) -> Option<Bytes> {
+    //     match self {
+    //         Message::Payload(v) => Some(mem::take(v)),
+    //         _ => None
+    //     }
+    // }
 
-    pub fn payload(&self) -> Option<&Bytes> {
+    pub fn payload(&self) -> Option<&Payload<'_>> {
         match self {
             Message::Payload(v) => Some(v),
             _ => None
         }
     }
 
-    pub fn payload_mut(&mut self) -> Option<&mut Bytes> {
+    pub fn payload_mut(&mut self) -> Option<&'a mut Payload<'_>> {
         match self {
             Message::Payload(v) => Some(v),
             _ => None

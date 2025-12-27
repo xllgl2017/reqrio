@@ -16,10 +16,6 @@ impl Bytes {
         self.0.clone()
     }
 
-    // pub fn set_bytes(&mut self, v: Vec<u8>) {
-    //     self.0 = v;
-    // }
-
     pub fn as_mut(&mut self) -> &mut Vec<u8> {
         self.0.as_mut()
     }

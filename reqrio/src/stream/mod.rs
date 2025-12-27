@@ -12,6 +12,8 @@ use crate::stream::kind::StreamKind;
 use crate::timeout::Timeout;
 
 pub use proxy::Proxy;
+#[cfg(anys)]
+use crate::Buffer;
 
 #[cfg(feature = "cls_async")]
 mod async_stream;
@@ -63,8 +65,8 @@ impl Stream {
         self.alpn = alpn;
         Ok(())
     }
-    pub async fn async_read(&mut self) -> HlsResult<Vec<u8>> {
-        self.kind.async_read().await
+    pub async fn async_read(&mut self,buffer: &mut Buffer) -> HlsResult<()> {
+        self.kind.async_read(buffer).await
     }
 
     pub async fn async_write(&mut self, data: &[u8]) -> HlsResult<()> {
@@ -83,8 +85,8 @@ impl Stream {
         self.alpn = alpn;
         Ok(())
     }
-    pub fn sync_read(&mut self) -> HlsResult<Vec<u8>> {
-        self.kind.sync_read()
+    pub fn sync_read(&mut self,buffer: &mut Buffer) -> HlsResult<()> {
+        self.kind.sync_read(buffer)
     }
 
     pub fn sync_write(&mut self, data: &[u8]) -> HlsResult<()> {
