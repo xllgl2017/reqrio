@@ -161,9 +161,13 @@ impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
         let stream = self.get_mut();
         loop {
             let read_len = match stream.read_buffer.len() {
-                0 => 5,
+                0 => {
+                    stream.read_buffer.reset();
+                    5
+                }
                 _ => {
                     let pd_len = u16::from_be_bytes([stream.read_buffer[3], stream.read_buffer[4]]) as usize;
+                    println!("{} {} {:?}", pd_len, stream.read_buffer.len(), &stream.read_buffer[..5]);
                     pd_len + 5 - stream.read_buffer.len()
                 }
             };
@@ -204,28 +208,27 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
             stream.wrote_len = 0;
         }
 
-        loop {
-            if stream.write_range.start == stream.write_range.end { break; }
-            for i in stream.write_range.start..stream.write_range.end {
-                let aead = stream.conn.aead().ok_or(RlsError::AeadNone)?;
-                let record_len = aead.encrypted_payload_len(chucks[i].len()) + 5;
-                if stream.wrote_len % 16384 == i {
-                    stream.write_buffer.reset();
-                    let push_len = stream.write_buffer.push_slice_in(aead.payload_start(), chucks[i]);
-                    // stream.write_buffer.set_len(aead.payload_start() + push_len);
-                    stream.conn.make_message(RecordType::ApplicationData, &mut stream.write_buffer[..], push_len)?;
-                    stream.wrote_len += chucks[i].len();
+        for i in stream.write_range.start..stream.write_range.end {
+            let aead = stream.conn.aead().ok_or(RlsError::AeadNone)?;
+            let record_len = aead.encrypted_payload_len(chucks[i].len()) + 5;
+            // println!("{} {} {}", stream.wrote_len, i, stream.wrote_len % 16384);
+            if stream.wrote_len / 16384 == i {
+                stream.write_buffer.reset();
+                let push_len = stream.write_buffer.push_slice_in(aead.payload_start(), chucks[i]);
+                // stream.write_buffer.set_len(aead.payload_start() + push_len);
+                stream.conn.make_message(RecordType::ApplicationData, &mut stream.write_buffer[..], push_len)?;
+                stream.wrote_len += chucks[i].len();
+            }
+            match Pin::new(&mut stream.stream).poll_write(cx, &stream.write_buffer[..record_len]) {
+                Poll::Ready(Ok(_)) => {
+                    stream.write_range.start = i + 1
                 }
-                match Pin::new(&mut stream.stream).poll_write(cx, &stream.write_buffer[..record_len]) {
-                    Poll::Ready(Ok(_)) => {
-                        stream.write_range.start = i + 1
-                    }
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending,
-                }
+                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                Poll::Pending => return Poll::Pending,
             }
         }
         stream.write_buffer.reset();
+        // println!("{} {}", stream.wrote_len, buf.len());
         Poll::Ready(Ok(stream.wrote_len))
     }
 

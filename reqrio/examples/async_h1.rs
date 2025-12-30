@@ -19,7 +19,7 @@ async fn main() {
 //     let res = resp.extend(&Buffer::new_bytes(header.as_bytes().to_vec())).unwrap();
 //     println!("{} {}", header, res);
 //     println!("{}", res);
-    let mut req = AcReq::new().with_alpn(ALPN::Http20).with_url("https://m.so.com/").await.unwrap();
+    let mut req = AcReq::new().with_alpn(ALPN::Http20).with_url("https://qcaptcha.so.com/?ret=https%3A%2F%2Fm.so.com%2Fs%3Fectk%3Da110b64919076717119405396344853a%26q%3D2132&tk=b6e3d01029076713458758607041971c8").await.unwrap();
     let headers = json::object! {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -43,6 +43,16 @@ async fn main() {
     // req.set_alpn(ALPN::Http11);
     // let content = req.gen_h1().unwrap();
     // println!("{}", String::from_utf8(content).unwrap());
+    let mut res = req.get().await.unwrap();
+    println!("{}", res.header());
+    let mut res = req.get().await.unwrap();
+    println!("{}", res.header());
+    let mut res = req.get().await.unwrap();
+    println!("{}", res.header());
+    let mut res = req.get().await.unwrap();
+    println!("{}", res.header());
+    let mut res = req.get().await.unwrap();
+    println!("{}", res.header());
     let mut res = req.get().await.unwrap();
     println!("{}", res.header());
     // println!("{}", res.decode_body().unwrap().as_string().unwrap());
