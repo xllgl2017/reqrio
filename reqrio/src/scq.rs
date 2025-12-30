@@ -1,27 +1,27 @@
 use crate::alpn::ALPN;
+use crate::body::BodyType;
+use crate::buffer::Buffer;
 use crate::coder::HPackCoding;
 use crate::error::HlsResult;
 use crate::ext::{ReqExt, ReqGenExt, ReqPriExt};
-use crate::file::HttpFile;
 use crate::packet::*;
 use crate::stream::{ConnParam, Proxy, Stream};
 use crate::timeout::Timeout;
+use crate::url::Url;
+use json::JsonValue;
 #[cfg(feature = "cls_sync")]
 use reqtls::Fingerprint;
-use crate::url::Url;
-use crate::buffer::Buffer;
-use json::JsonValue;
+use std::mem;
 
 pub struct ScReq {
     header: Header,
     url: Url,
     hack_coder: HPackCoding,
     stream: Stream,
-    files: Vec<HttpFile>,
+    body: BodyType,
     timeout: Timeout,
     raw_bytes: Vec<u8>,
     stream_id: u32,
-    data: JsonValue,
     alpn: ALPN,
     proxy: Proxy,
     #[cfg(feature = "cls_sync")]
@@ -35,11 +35,10 @@ impl ScReq {
             url: Url::new(),
             hack_coder: HPackCoding::new(),
             stream: Stream::unconnection(),
-            files: vec![],
+            body: BodyType::Text("".to_string()),
             timeout: Timeout::new(),
             raw_bytes: vec![],
             stream_id: 0,
-            data: JsonValue::String("".to_string()),
             alpn: ALPN::Http11,
             proxy: Proxy::Null,
             #[cfg(feature = "cls_sync")]
@@ -188,8 +187,8 @@ impl ScReq {
     }
 
     pub fn set_url(&mut self, url: impl AsRef<str>) -> HlsResult<()> {
-        self.data = JsonValue::Null;
-        self.files.clear();
+        let body = mem::replace(&mut self.body, BodyType::Text("".to_string()));
+        drop(body);
         let old_host = self.url.addr().host().to_string();
         self.url = Url::try_from(url.as_ref())?;
         if self.url.addr().host() != old_host {
@@ -250,7 +249,7 @@ impl ScReq {
                 }
                 if frame.frame_type() == &FrameType::Goaway { return Err("Connection reset by peer".into()); }
                 self.raw_bytes = self.raw_bytes[frame.len() + 9..].to_vec();
-                if response.extend_frame(frame, &mut self.hack_coder)? { return Ok(response); }
+                if response.extend_frame(frame, self.hack_coder.decoder())? { return Ok(response); }
             }
         }
     }
@@ -261,32 +260,12 @@ impl ReqGenExt for ScReq {}
 impl ReqPriExt for ScReq {}
 
 impl ReqExt for ScReq {
-    fn data(&self) -> &JsonValue {
-        &self.data
+    fn body_type(&self) -> &BodyType {
+        &self.body
     }
 
-    fn file_bytes(&mut self) -> &mut Vec<HttpFile> {
-        &mut self.files
-    }
-
-    fn set_data(&mut self, data: JsonValue) {
-        self.data = data;
-        self.header.set_content_type(ContentType::Application(Application::XWwwFormUrlencoded));
-    }
-
-    fn set_text(&mut self, text: String) {
-        self.data = JsonValue::String(text);
-        self.header.set_content_type(ContentType::Text(Text::Plain));
-    }
-
-    fn set_files(&mut self, files: Vec<HttpFile>) {
-        self.files = files;
-        self.header.set_content_type(ContentType::File("".to_string()))
-    }
-
-    fn add_file(&mut self, file: HttpFile) {
-        self.files.push(file);
-        self.header.set_content_type(ContentType::File("".to_string()))
+    fn body_type_mut(&mut self) -> &mut BodyType {
+        &mut self.body
     }
 
     fn header_mut(&mut self) -> &mut Header {

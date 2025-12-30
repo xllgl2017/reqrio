@@ -19,7 +19,7 @@ async fn main() {
 //     let res = resp.extend(&Buffer::new_bytes(header.as_bytes().to_vec())).unwrap();
 //     println!("{} {}", header, res);
 //     println!("{}", res);
-    let mut req = AcReq::new().with_alpn(ALPN::Http20).with_url("https://qcaptcha.so.com/?ret=https%3A%2F%2Fm.so.com%2Fs%3Fectk%3Da110b64919076717119405396344853a%26q%3D2132&tk=b6e3d01029076713458758607041971c8").await.unwrap();
+    let mut req = AcReq::new().with_alpn(ALPN::Http11).with_url("https://m.so.com/").await.unwrap();
     let headers = json::object! {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -27,7 +27,7 @@ async fn main() {
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
         "Cookie": "__guid=15015764.1071255116101212729.1764940193317.2156; env_webp=1; _S=pvc5q7leemba50e4kn4qis4b95; QiHooGUID=4C8051464B2D97668E3B21198B9CA207.1766289287750; count=1; so-like-red=2; webp=1; so_huid=114r0SZFiQcJKtA38GZgwZg%2Fdit1cjUGuRcsIL2jTn4%2FE%3D; __huid=114r0SZFiQcJKtA38GZgwZg%2Fdit1cjUGuRcsIL2jTn4%2FE%3D; gtHuid=1",
-        "Host": "s.ssl.qhres2.com",
+        "Host": "m.so.com",
         "Pragma": "no-cache",
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
@@ -45,16 +45,16 @@ async fn main() {
     // println!("{}", String::from_utf8(content).unwrap());
     let mut res = req.get().await.unwrap();
     println!("{}", res.header());
-    let mut res = req.get().await.unwrap();
-    println!("{}", res.header());
-    let mut res = req.get().await.unwrap();
-    println!("{}", res.header());
-    let mut res = req.get().await.unwrap();
-    println!("{}", res.header());
-    let mut res = req.get().await.unwrap();
-    println!("{}", res.header());
-    let mut res = req.get().await.unwrap();
-    println!("{}", res.header());
+    // let mut res = req.get().await.unwrap();
+    // println!("{}", res.header());
+    // let mut res = req.get().await.unwrap();
+    // println!("{}", res.header());
+    // let mut res = req.get().await.unwrap();
+    // println!("{}", res.header());
+    // let mut res = req.get().await.unwrap();
+    // println!("{}", res.header());
+    // let mut res = req.get().await.unwrap();
+    // println!("{}", res.header());
     // println!("{}", res.decode_body().unwrap().as_string().unwrap());
     // println!("{:#?}", req.header().cookies());
 

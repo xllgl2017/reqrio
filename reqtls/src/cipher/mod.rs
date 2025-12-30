@@ -67,7 +67,7 @@ impl Cipher {
             Aead::ChaCha20_POLY1305 => Nonce::assume_unique_for_key(self.iv.as_array(self.seq)),
             _=> return Err("gen nonce none".into())
         };
-        let len = self.key.decrypt(nonce, aad, payload.decrypting_payload(aead)).unwrap();
+        let len = self.key.decrypt(nonce, aad, payload.decrypting_payload(aead))?;
         self.seq += 1;
         Ok(len)
     }

@@ -32,7 +32,7 @@ cls_sync = ["reqtls"]
 cls_async = ["tokio", "reqtls"]
 std_sync = ["rustls", "webpki-roots"]
 std_async = ["tokio", "tokio-rustls", "rustls", 'webpki-roots']
-export = ["cls_sync", "hex"]
+export = ["std_sync", "hex"]
 
 [build-dependencies]
 cfg_aliases = "0.2.1"

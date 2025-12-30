@@ -1,6 +1,6 @@
 #### reqrio是http请求库，目标是可以使用rust快速、简单、便捷使用http请求
 
-* reqrio支持tls指纹，可以通过tls握手的十六进制或ja3设置,仅cls_sync和cls_async支持,例如:
+* reqrio支持tls指纹，可以通过tls握手的十六进制或ja3设置,仅cls_sync和cls_async支持(**仅订阅**),例如:
 
 * rust示例
 ```rust

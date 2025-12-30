@@ -31,6 +31,10 @@ impl Param {
         &self.value
     }
 
+    pub fn take_value(self) -> String {
+        self.value
+    }
+
     pub fn set_value(&mut self, value: impl ToString) {
         self.value = value.to_string();
     }

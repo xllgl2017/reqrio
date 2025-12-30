@@ -37,6 +37,12 @@ impl Uri {
         }
     }
 
+    pub fn remove_param(&mut self, name: impl ToString) -> Option<String> {
+        let name = name.to_string();
+        let pos = self.params.iter().position(|x| x.name() == &name)?;
+        Some(self.params.remove(pos).take_value())
+    }
+
     pub fn params(&self) -> &Vec<Param> { &self.params }
 
     pub fn clear_params(&mut self) {

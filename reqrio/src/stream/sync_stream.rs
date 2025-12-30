@@ -17,19 +17,17 @@ impl<S: Read + Write> SyncStream<S> {
         let client_random = rand::random::<[u8; 32]>();
         let mut conn = Connection::new(client_random.to_vec());
         let mut client_hello = RecordLayer::from_bytes(param.fingerprint.client_hello_mut(), false)?;
-        client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.set_random(client_random.clone());
-        client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.set_server_name(param.url.addr().host());
-        client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.set_session_id(rand::random());
+        client_hello.messages[0].client_mut().ok_or(HlsError::NonePointer)?.set_random(client_random.clone());
+        client_hello.messages[0].client_mut().ok_or(HlsError::NonePointer)?.set_server_name(param.url.addr().host());
+        client_hello.messages[0].client_mut().ok_or(HlsError::NonePointer)?.set_session_id(rand::random());
         match param.alpn {
-            ALPN::Http20 => client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.add_h2_alpn(),
-            _ => client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.remove_h2_alpn()
+            ALPN::Http20 => client_hello.messages[0].client_mut().ok_or(HlsError::NonePointer)?.add_h2_alpn(),
+            _ => client_hello.messages[0].client_mut().ok_or(HlsError::NonePointer)?.remove_h2_alpn()
         }
-        client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.remove_tls13();
+        client_hello.messages[0].client_mut().ok_or(HlsError::NonePointer)?.remove_tls13();
         let bs = client_hello.handshake_bytes();
         conn.update_session(&bs[5..])?;
         stream.write(&bs)?;
-        // conn.update_session(&client_hello.message.as_bytes())?;
-        // stream.write(&client_hello.as_bytes())?;
         stream.flush()?;
         let mut stream = SyncStream {
             stream,
@@ -65,69 +63,56 @@ impl<S: Read + Write> SyncStream<S> {
 
     fn handle_message(&mut self, param: &mut ConnParam) -> HlsResult<()> {
         let record = RecordLayer::from_bytes(self.buffer.filled_mut(), self.handshake_finished)?;
-        match record.context_type {
-            RecordType::CipherSpec => self.handshake_finished = true,
-            RecordType::Alert => {}
-            RecordType::HandShake => {
-                match record.messages {
-                    Message::ServerHello(v) => self.conn.set_by_server_hello(v),
-                    Message::ServerKeyExchange(v) => {
-                        // println!("{:#?}", v);
-                        self.conn.set_by_exchange_key(v.hellman_param().pub_key().clone(), v.hellman_param().named_curve().clone())
-                    }
-                    Message::ServerHelloDone(_) => {
-                        let keypair = PriKey::new(self.conn.named_curve())?;
-                        let client_pub_key = keypair.pub_key();
-                        let mut client_key_exchange = RecordLayer::from_bytes(param.fingerprint.client_key_exchange_mut(), false)?;
-                        client_key_exchange.messages.client_key_exchange_mut().unwrap().set_pub_key(client_pub_key);
-                        let bs = client_key_exchange.handshake_bytes();
-                        self.conn.update_session(&bs[5..])?;
-                        self.stream.write(&bs)?;
-                        self.stream.flush()?;
+        for message in record.messages {
+            match record.context_type {
+                RecordType::CipherSpec => self.handshake_finished = true,
+                RecordType::Alert => {}
+                RecordType::HandShake => {
+                    match message {
+                        Message::ServerHello(v) => self.conn.set_by_server_hello(v)?,
+                        Message::ServerKeyExchange(v) => {
+                            // println!("{:#?}", v);
+                            self.conn.set_by_exchange_key(v.hellman_param().pub_key().clone(), v.hellman_param().named_curve().clone())
+                        }
+                        Message::ServerHelloDone(_) => {
+                            let keypair = PriKey::new(self.conn.named_curve())?;
+                            let client_pub_key = keypair.pub_key();
+                            let mut client_key_exchange = RecordLayer::from_bytes(param.fingerprint.client_key_exchange_mut(), false)?;
+                            client_key_exchange.messages[0].client_key_exchange_mut().unwrap().set_pub_key(client_pub_key);
+                            let bs = client_key_exchange.handshake_bytes();
+                            self.conn.update_session(&bs[5..])?;
+                            self.stream.write(&bs)?;
+                            self.stream.flush()?;
 
-                        self.stream.write(&param.fingerprint.change_cipher_spec())?;
-                        self.stream.flush()?;
-                        let share_secret = keypair.diffie_hellman(self.conn.server_pub_key().as_ref())?;
-                        let handshake_hash = self.conn.session_hash()?;
-                        self.conn.make_cipher(&share_secret, handshake_hash.clone())?;
+                            self.stream.write(&param.fingerprint.change_cipher_spec())?;
+                            self.stream.flush()?;
+                            let share_secret = keypair.diffie_hellman(self.conn.server_pub_key().as_ref())?;
+                            let handshake_hash = self.conn.session_hash()?;
+                            self.conn.make_cipher(&share_secret, handshake_hash.clone())?;
 
-                        self.buffer.reset();
-                        self.conn.make_finish_message(&handshake_hash, &mut self.buffer[..45])?;
-                        self.stream.write(&self.buffer[..45])?;
-                        self.stream.flush()?;
+                            self.buffer.reset();
+                            let record_len = self.conn.make_finish_message(&handshake_hash, &mut self.buffer[..])?;
+                            self.stream.write(&self.buffer[..record_len])?;
+                            self.stream.flush()?;
+                            break;
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
+                RecordType::ApplicationData => {}
             }
-            RecordType::ApplicationData => {}
         }
+
         Ok(())
     }
 
-    // pub fn write_tls(&mut self, buf: &[u8]) -> HlsResult<()> {
-    //     let layer = self.conn.make_message(RecordType::ApplicationData, buf.to_vec())?;
-    //     self.stream.write(&layer.as_bytes())?;
-    //     Ok(())
-    // }
-    //
-    //
-    // pub fn read_tls(&mut self) -> HlsResult<Vec<u8>> {
-    //     let layer = self.read_packet()?;
-    //     let payload = self.conn.read_message(layer)?;
-    //     Ok(payload)
-    // }
-    //
-    // pub fn flush(&mut self) -> HlsResult<()> {
-    //     self.stream.flush()?;
-    //     Ok(())
-    // }
-
     pub fn shutdown(&mut self) -> HlsResult<()> {
         self.buffer.reset();
-        self.buffer.set_len(31);
-        self.buffer[13..15].copy_from_slice(&[1, 0]);
-        self.conn.make_message(RecordType::Alert, &mut self.buffer[..31])?;
-        self.stream.write(&self.buffer[..31])?;
+        let aead = self.conn.aead().ok_or(RlsError::AeadNone)?;
+        self.buffer.set_len(aead.encrypted_payload_len(2) + 5);
+        self.buffer[aead.payload_start()..aead.payload_start() + 2].copy_from_slice(&[1, 0]);
+        let record_len = self.conn.make_message(RecordType::Alert, &mut self.buffer[..], 2)?;
+        self.stream.write(&self.buffer[..record_len])?;
         self.stream.flush()?;
         Ok(())
     }
@@ -147,7 +132,8 @@ impl<S: Read> Read for SyncStream<S> {
         let mut record = RecordLayer::from_bytes(self.buffer.filled_mut(), self.handshake_finished)?;
         let rt = record.context_type.as_u8();
         let len = self.conn.read_message(&mut record)?;
-        if rt == 0x15 && &self.buffer[13..13 + len] == &[1, 0] {
+        let aead = self.conn.aead().ok_or(RlsError::AeadNone)?;
+        if rt == 0x15 && &self.buffer[aead.payload_start()..aead.payload_start() + len] == &[1, 0] {
             return Err(HlsError::PeerClosedConnection.into());
         }
         buf[..len].copy_from_slice(&self.buffer[13..13 + len]);
@@ -161,12 +147,12 @@ impl<S: Write> Write for SyncStream<S> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut sent = 0;
         for chunk in buf.chunks(16384) {
+            let aead = self.conn.aead().ok_or(RlsError::AeadNone)?;
             self.buffer.reset();
-            let len = 13 + chunk.len() + 16;
-            self.buffer.push_slice_in(13, chunk);
-            self.conn.make_message(RecordType::ApplicationData, &mut self.buffer[..len])?;
-            self.stream.write(&self.buffer[..len])?;
-            sent += len;
+            let pln = self.buffer.push_slice_in(aead.payload_start(), chunk);
+            let record_len = self.conn.make_message(RecordType::ApplicationData, &mut self.buffer[..], pln)?;
+            self.stream.write(&self.buffer[..record_len])?;
+            sent += chunk.len();
         }
         Ok(sent)
     }

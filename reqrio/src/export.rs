@@ -1,7 +1,10 @@
 use crate::error::HlsResult;
-use crate::{Cookie, Fingerprint, Method, Proxy, ReqExt, ScReq, ALPN};
+use crate::{ContentType, Cookie, Method, Proxy, ReqExt, ScReq, ALPN};
+#[cfg(use_cls)]
+use crate::Fingerprint;
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
+use std::slice;
 use std::sync::{LazyLock, Mutex};
 use crate::timeout::Timeout;
 
@@ -56,6 +59,7 @@ pub extern "system" fn set_alpn(id: i32, alpn: *const c_char) -> i32 {
     }().unwrap_or(-1)
 }
 
+#[cfg(use_cls)]
 #[unsafe(no_mangle)]
 pub extern "system" fn set_fingerprint(id: i32, fingerprint: *const c_char) -> i32 {
     || -> HlsResult<i32> {
@@ -67,6 +71,7 @@ pub extern "system" fn set_fingerprint(id: i32, fingerprint: *const c_char) -> i
     }().unwrap_or(-1)
 }
 
+#[cfg(use_cls)]
 #[unsafe(no_mangle)]
 pub extern "system" fn set_ja3(id: i32, ja3: *const c_char) -> i32 {
     || -> HlsResult<i32> {
@@ -129,6 +134,28 @@ pub extern "system" fn set_json(id: i32, data: *const c_char) -> i32 {
         let data = json::from_bytes(data)?;
         let mut params = CONNECTIONS.lock()?;
         params.get_mut(&id).ok_or("id 不存在")?.set_json(data);
+        Ok(0)
+    }().unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn set_bytes(id: i32, bytes: *const c_char, len: usize) -> i32 {
+    || -> HlsResult<i32> {
+        println!("{}", len);
+        let bytes = unsafe { slice::from_raw_parts(bytes as *const u8, len) }.to_vec();
+        let mut params = CONNECTIONS.lock()?;
+        params.get_mut(&id).ok_or("id 不存在")?.set_bytes(bytes);
+        Ok(0)
+    }().unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn set_content_type(id: i32, context_type: *const c_char) -> i32 {
+    || -> HlsResult<i32> {
+        let context_type = unsafe { CStr::from_ptr(context_type) }.to_str()?;
+        let context_type = ContentType::try_from(context_type)?;
+        let mut params = CONNECTIONS.lock()?;
+        params.get_mut(&id).ok_or("id 不存在")?.header_mut().set_content_type(context_type);
         Ok(0)
     }().unwrap_or(-1)
 }

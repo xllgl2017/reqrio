@@ -1,7 +1,7 @@
 use reqrio::{ReqExt, ScReq, ALPN};
 
 fn main() {
-    let mut req = ScReq::new().with_alpn(ALPN::Http20).with_url("https://m.so.com").unwrap();
+    let mut req = ScReq::new().with_alpn(ALPN::Http11).with_url("https://m.so.com").unwrap();
     let headers = json::object! {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Encoding": "gzip, deflate, br, zstd",

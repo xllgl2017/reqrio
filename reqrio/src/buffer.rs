@@ -180,3 +180,10 @@ impl IndexMut<RangeFull> for Buffer {
         &mut self.buffer[i]
     }
 }
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        self.buffer.clear();
+        self.buffer.shrink_to_fit();
+    }
+}

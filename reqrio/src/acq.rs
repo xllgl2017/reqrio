@@ -1,10 +1,10 @@
+use std::mem;
 use crate::alpn::ALPN;
 use crate::coder::HPackCoding;
 use crate::error::HlsResult;
 use crate::ext::ReqExt;
 use crate::ext::{ReqGenExt, ReqPriExt};
-use crate::file::HttpFile;
-use crate::packet::{Application, ContentType, Frame, FrameFlag, FrameType, Header, HeaderKey, Method, Response, Text};
+use crate::packet::{Frame, FrameFlag, FrameType, Header, HeaderKey, Method, Response};
 use crate::stream::{ConnParam, Proxy, Stream};
 use crate::timeout::Timeout;
 use crate::url::Url;
@@ -12,17 +12,17 @@ use crate::Buffer;
 use json::JsonValue;
 #[cfg(use_cls)]
 use reqtls::Fingerprint;
+use crate::body::BodyType;
 
 pub struct AcReq {
     header: Header,
     url: Url,
     hack_coder: HPackCoding,
     stream: Stream,
-    files: Vec<HttpFile>,
     timeout: Timeout,
     raw_bytes: Vec<u8>,
     stream_id: u32,
-    data: JsonValue,
+    body: BodyType,
     alpn: ALPN,
     proxy: Proxy,
     #[cfg(use_cls)]
@@ -36,15 +36,14 @@ impl AcReq {
             url: Url::new(),
             hack_coder: HPackCoding::new(),
             stream: Stream::unconnection(),
-            files: vec![],
             timeout: Timeout::new(),
             raw_bytes: vec![],
             stream_id: 0,
-            data: JsonValue::String("".to_string()),
             alpn: ALPN::Http11,
             proxy: Proxy::Null,
             #[cfg(use_cls)]
             fingerprint: Fingerprint::default(),
+            body: BodyType::Text("".to_string()),
         }
     }
 
@@ -187,8 +186,8 @@ impl AcReq {
     }
 
     pub async fn set_url(&mut self, url: impl AsRef<str>) -> HlsResult<()> {
-        self.data = JsonValue::Null;
-        self.files.clear();
+        let body = mem::replace(&mut self.body, BodyType::Text("".to_string()));
+        drop(body);
         let old_host = self.url.addr().host().to_string();
         self.url = Url::try_from(url.as_ref())?;
         if self.url.addr().host() != old_host {
@@ -259,32 +258,12 @@ impl ReqGenExt for AcReq {}
 impl ReqPriExt for AcReq {}
 
 impl ReqExt for AcReq {
-    fn data(&self) -> &JsonValue {
-        &self.data
+    fn body_type(&self) -> &BodyType {
+        &self.body
     }
 
-    fn file_bytes(&mut self) -> &mut Vec<HttpFile> {
-        &mut self.files
-    }
-
-    fn set_data(&mut self, data: JsonValue) {
-        self.data = data;
-        self.header.set_content_type(ContentType::Application(Application::XWwwFormUrlencoded));
-    }
-
-    fn set_text(&mut self, text: String) {
-        self.data = JsonValue::String(text);
-        self.header.set_content_type(ContentType::Text(Text::Plain));
-    }
-
-    fn set_files(&mut self, files: Vec<HttpFile>) {
-        self.files = files;
-        self.header.set_content_type(ContentType::File("".to_string()))
-    }
-
-    fn add_file(&mut self, file: HttpFile) {
-        self.files.push(file);
-        self.header.set_content_type(ContentType::File("".to_string()))
+    fn body_type_mut(&mut self) -> &mut BodyType {
+        &mut self.body
     }
 
     fn header_mut(&mut self) -> &mut Header {

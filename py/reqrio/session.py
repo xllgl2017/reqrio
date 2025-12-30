@@ -22,11 +22,11 @@ class Session:
         self.dll.set_alpn.argtypes = [c_int, c_char_p]
         self.dll.set_alpn.restype = c_int
 
-        self.dll.set_fingerprint.argtypes = [c_int, c_char_p]
-        self.dll.set_fingerprint.restype = c_int
+        # self.dll.set_fingerprint.argtypes = [c_int, c_char_p]
+        # self.dll.set_fingerprint.restype = c_int
 
-        self.dll.set_ja3.argtypes = [c_int, c_char_p]
-        self.dll.set_ja3.restype = c_int
+        # self.dll.set_ja3.argtypes = [c_int, c_char_p]
+        # self.dll.set_ja3.restype = c_int
 
         self.dll.set_proxy.argtypes = [c_int, c_char_p]
         self.dll.set_proxy = c_int
@@ -39,6 +39,12 @@ class Session:
 
         self.dll.set_json.argtypes = [c_int, c_char_p]
         self.dll.set_json.restype = c_int
+
+        self.dll.set_bytes.argtypes = [c_int, c_char_p, c_uint]
+        self.dll.set_bytes.restype = c_int
+
+        self.dll.set_content_type.argtypes = [c_int, c_char_p]
+        self.dll.set_content_type.restype = c_int
 
         self.dll.set_cookie.argtypes = [c_int, c_char_p]
         self.dll.set_cookie.restype = c_int
@@ -110,20 +116,20 @@ class Session:
         r = self.dll.set_header_json(self.hid, name.encode('utf-8'), value.encode('utf-8'))
         if r == -1: raise Exception('add header error')
 
-    def set_fingerprint(self, fingerprint: str):
-        """指纹数据，是tls握手过程中客户端发出的数据（转十六进制）,包含:
+    # def set_fingerprint(self, fingerprint: str):
+    #     """指纹数据，是tls握手过程中客户端发出的数据（转十六进制）,包含:
+    #
+    #     1.client_hello
+    #
+    #     2.client_key_exchange
+    #
+    #     3.change_cipher_spec"""
+    #     r = self.dll.set_fingerprint(self.hid, fingerprint.encode('utf-8'))
+    #     if r == -1: raise Exception('set fingerprint error')
 
-        1.client_hello
-
-        2.client_key_exchange
-
-        3.change_cipher_spec"""
-        r = self.dll.set_fingerprint(self.hid, fingerprint.encode('utf-8'))
-        if r == -1: raise Exception('set fingerprint error')
-
-    def set_ja3(self, ja3: str):
-        r = self.dll.set_ja3(self.hid, ja3.encode('utf-8'))
-        if r == -1: raise Exception('set ja3 error')
+    # def set_ja3(self, ja3: str):
+    #     r = self.dll.set_ja3(self.hid, ja3.encode('utf-8'))
+    #     if r == -1: raise Exception('set ja3 error')
 
     def set_proxy(self, proxy: str):
         """设置代理，格式:http://127.0.0.1:10000、socks5://127.0.0.1:10001"""
@@ -141,6 +147,14 @@ class Session:
     def set_json(self, data: dict):
         r = self.dll.set_json(self.hid, json.dumps(data).encode('utf-8'))
         if r == -1: raise Exception('set json error')
+
+    def set_bytes(self, bytes: bytes):
+        r = self.dll.set_bytes(self.hid, bytes, len(bytes))
+        if r == -1: raise Exception('set bytes error')
+
+    def set_content_type(self, content_type: str):
+        r = self.dll.set_content_type(self.hid, content_type.encode('utf-8'))
+        if r == -1: raise Exception('set content_type error')
 
     def set_cookie(self, cookie: str):
         r = self.dll.set_cookie(self.hid, cookie.encode('utf-8'))

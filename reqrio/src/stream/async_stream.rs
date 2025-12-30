@@ -167,7 +167,9 @@ impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
                 }
                 _ => {
                     let pd_len = u16::from_be_bytes([stream.read_buffer[3], stream.read_buffer[4]]) as usize;
-                    println!("{} {} {:?}", pd_len, stream.read_buffer.len(), &stream.read_buffer[..5]);
+                    if pd_len+5<stream.read_buffer.len() {
+                        println!("reas {} {} {:?}", pd_len, stream.read_buffer.len(), &stream.read_buffer[..5]);
+                    }
                     pd_len + 5 - stream.read_buffer.len()
                 }
             };
@@ -228,7 +230,9 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
             }
         }
         stream.write_buffer.reset();
-        // println!("{} {}", stream.wrote_len, buf.len());
+        if stream.wrote_len>buf.len() {
+            println!("write {} {}", stream.wrote_len, buf.len());
+        }
         Poll::Ready(Ok(stream.wrote_len))
     }
 
