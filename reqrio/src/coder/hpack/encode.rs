@@ -3,10 +3,14 @@ use super::{HPack, HPackTable};
 use crate::packet::HeaderKey;
 
 #[derive(Clone)]
-pub(crate) struct HackEncode;
+pub struct HackEncode{
+    table: HPackTable,
+}
 
 impl HackEncode {
-    pub fn new() -> Self { HackEncode {} }
+    pub fn new() -> Self { HackEncode {
+        table: HPackTable::new(),
+    } }
 
 
     fn encode_len(&self, len: usize, bit_len: u32) -> Vec<u8> {
@@ -44,9 +48,9 @@ impl HackEncode {
         res
     }
 
-    fn encode_once_filed(&mut self, name: &str, value: String, tables: &mut HPackTable) -> HlsResult<Vec<u8>> {
+    fn encode_once_filed(&mut self, name: &str, value: String) -> HlsResult<Vec<u8>> {
         let mut res = vec![];
-        let packs = tables.filter_by_name(name);
+        let packs = self.table.filter_by_name(name);
         match packs.len() {
             0 => {
                 let mut eb = 0;
@@ -65,20 +69,20 @@ impl HackEncode {
                 res.extend(ebs);
                 res.extend(ehs);
                 let pack = HPack::new(name, value);
-                tables.insert(61, pack);
+                self.table.insert(61, pack);
             }
             _ => {
                 let pack = packs.iter().find(|x| x.value() == value);
                 match pack {
                     Some(pack) => {
-                        let pos = tables.position(pack).unwrap();
+                        let pos = self.table.position(pack).unwrap();
                         // println!("111{} {}", pack, pos);
                         let mut ebs = self.encode_len(pos + 1, 7);
                         ebs[0] |= 128;
                         res.extend(ebs);
                     }
                     None => {
-                        let pos = tables.position(&packs[0]).unwrap();
+                        let pos = self.table.position(&packs[0]).unwrap();
                         let mut ebs = self.encode_len(pos + 1, 6);
                         ebs[0] |= 64;
                         res.extend(ebs);
@@ -90,7 +94,7 @@ impl HackEncode {
                         res.extend(ehs);
                         let pack = packs[0].clone().with_value(value);
                         // println!("111{} {}", pack, value);
-                        tables.insert(61, pack);
+                        self.table.insert(61, pack);
                     }
                 }
             }
@@ -98,18 +102,18 @@ impl HackEncode {
         Ok(res)
     }
 
-    pub fn encode(&mut self, headers: Vec<HeaderKey>, tables: &mut HPackTable) -> HlsResult<Vec<u8>> {
+    pub fn encode(&mut self, headers: Vec<HeaderKey>) -> HlsResult<Vec<u8>> {
         let mut res = vec![];
         for header in headers {
             let ebs = match header.name() {
                 "cookie" => {
                     let mut res = vec![];
                     for cookie in header.cookies().unwrap_or(&vec![]) {
-                        res.extend(self.encode_once_filed("cookie", cookie.as_req(), tables)?);
+                        res.extend(self.encode_once_filed("cookie", cookie.as_req())?);
                     }
                     res
                 }
-                _ => self.encode_once_filed(&header.name().to_lowercase(), header.value().to_string(), tables)?
+                _ => self.encode_once_filed(&header.name().to_lowercase(), header.value().to_string())?
             };
             res.extend(ebs);
         }

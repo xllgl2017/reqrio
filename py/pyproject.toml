@@ -8,7 +8,7 @@ version = "0.0.6"
 license = "MIT"
 requires-python = ">=3.9"
 description = "A http lib"
-readme = "../reqrio/README.md"
+#readme = "../reqrio/README.md"
 
 authors = [
   { name="xllgl2017", email="xinlanxi2017@gmail.com" },

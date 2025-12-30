@@ -76,6 +76,10 @@ impl Certificates {
         res[4..7].copy_from_slice(len.to_be_bytes()[1..].as_ref());
         res
     }
+
+    pub fn len(&self) -> u32 {
+        self.len
+    }
 }
 
 #[derive(Debug)]
@@ -85,8 +89,8 @@ pub struct CertificateStatus {
 }
 
 impl CertificateStatus {
-    pub fn from_bytes(_ht:HandshakeType,bytes: &[u8]) -> CertificateStatus {
-        CertificateStatus{
+    pub fn from_bytes(_ht: HandshakeType, bytes: &[u8]) -> CertificateStatus {
+        CertificateStatus {
             // handshake_type:ht,
             bytes: Bytes::new(bytes.to_vec()),
         }
@@ -94,5 +98,9 @@ impl CertificateStatus {
 
     pub fn as_bytes(&self) -> Vec<u8> {
         self.bytes.as_bytes()
+    }
+
+    pub fn len(&self) -> u32 {
+        (self.bytes.len() - 4) as u32
     }
 }

@@ -1,25 +1,32 @@
-use p256::elliptic_curve::sec1::ToEncodedPoint;
-use crate::error::RlsResult;
 use super::super::message::key_exchange::NamedCurve;
+use crate::error::RlsResult;
+use crate::rand::CryptRand;
+use p256::elliptic_curve::sec1::ToEncodedPoint;
 
 #[allow(non_camel_case_types)]
 pub enum PriKey {
     x25519(x25519_dalek::EphemeralSecret),
     Secp256r1(p256::ecdh::EphemeralSecret),
+    Secp384r1(p384::ecdh::EphemeralSecret),
 }
 
 impl PriKey {
     pub fn new(name_cure: &NamedCurve) -> RlsResult<PriKey> {
         match name_cure {
             NamedCurve::x25519 => {
-                let mut rng = rand::rngs::ThreadRng::default();
+                let mut rng = CryptRand::new();
                 let keypair = x25519_dalek::EphemeralSecret::random_from_rng(&mut rng);
                 Ok(PriKey::x25519(keypair))
             }
             NamedCurve::Secp256r1 => {
-                let mut rng = rand::rngs::ThreadRng::default();
+                let mut rng = CryptRand::new();
                 let keypair = p256::ecdh::EphemeralSecret::try_from_rng(&mut rng)?;
                 Ok(PriKey::Secp256r1(keypair))
+            }
+            NamedCurve::Secp384r1 => {
+                let mut rng = CryptRand::new();
+                let keypair = p384::ecdh::EphemeralSecret::try_from_rng(&mut rng)?;
+                Ok(PriKey::Secp384r1(keypair))
             }
         }
     }
@@ -36,6 +43,11 @@ impl PriKey {
                 let share_secret = v.diffie_hellman(&pub_key);
                 Ok(share_secret.raw_secret_bytes().to_vec())
             }
+            PriKey::Secp384r1(v) => {
+                let pub_key = p384::PublicKey::from_sec1_bytes(pub_key.as_ref())?;
+                let share_secret = v.diffie_hellman(&pub_key);
+                Ok(share_secret.raw_secret_bytes().to_vec())
+            }
         }
     }
 
@@ -46,6 +58,10 @@ impl PriKey {
                 pub_key.to_bytes().to_vec()
             }
             PriKey::Secp256r1(v) => {
+                let pub_key = v.public_key().to_encoded_point(false);
+                pub_key.as_bytes().to_vec()
+            }
+            PriKey::Secp384r1(v) => {
                 let pub_key = v.public_key().to_encoded_point(false);
                 pub_key.as_bytes().to_vec()
             }

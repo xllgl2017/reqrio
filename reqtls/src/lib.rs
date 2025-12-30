@@ -19,4 +19,4 @@ mod bytes;
 mod fingerprint;
 mod secret;
 mod error;
-
+pub mod rand;

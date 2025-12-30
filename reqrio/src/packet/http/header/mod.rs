@@ -326,6 +326,7 @@ impl Header {
                 header.method = Method::try_from(items.next().unwrap_or("GET")).unwrap_or(Method::GET);
                 let _ = header.set_uri(items.next().unwrap_or(""));
                 header.agreement = items.collect::<Vec<_>>().join(" ").to_uppercase();
+                continue;
             }
             let mut items = line.split(": ");
             let name = items.next().unwrap_or("");
@@ -359,6 +360,8 @@ impl Header {
         for pack in packs {
             // println!("{}", pack);
             match pack.name() {
+                ":method" => header.method = Method::try_from(pack.value().to_uppercase())?,
+                ":path" => header.uri = Uri::try_from(pack.value())?,
                 ":status" => header.status = HttpStatus::try_from(pack.value().parse::<i32>()?)?,
                 _ => header.insert(pack.name(), pack.value())?,
             }

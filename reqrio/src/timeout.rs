@@ -25,8 +25,8 @@ impl Timeout {
             read: Duration::from_secs(3),
             write: Duration::from_secs(3),
             handle: Duration::from_secs(30),
-            connect_times: 3,
-            handle_times: 3,
+            connect_times: 1,
+            handle_times: 1,
         }
     }
 

@@ -26,6 +26,7 @@ impl CurveType {
 pub enum NamedCurve {
     x25519 = 0x1d,
     Secp256r1 = 0x17,
+    Secp384r1 = 0x18,
 }
 
 impl NamedCurve {
@@ -33,6 +34,7 @@ impl NamedCurve {
         match v {
             0x1d => Some(Self::x25519),
             0x17 => Some(Self::Secp256r1),
+            0x18 => Some(Self::Secp384r1),
             _ => None
         }
     }
@@ -68,7 +70,7 @@ impl ServerHellmanParam {
         let mut res = ServerHellmanParam::new();
         res.curve_type = CurveType::from_u8(bytes[0]).ok_or("CurveType Unknown")?;
         let v = u16::from_be_bytes([bytes[1], bytes[2]].try_into()?);
-        res.named_curve = NamedCurve::from_u16(v).ok_or("NamedCurve Unknown")?;
+        res.named_curve = NamedCurve::from_u16(v).ok_or(format!("NamedCurve Unknown-{}", v))?;
         res.pub_key_len = bytes[3];
         res.pub_key = Bytes::new(bytes[4..res.pub_key_len as usize + 4].to_vec());
         let index = res.pub_key_len as usize + 4;
@@ -102,7 +104,7 @@ impl ServerHellmanParam {
 #[derive(Debug)]
 pub struct ServerKeyExchange {
     handshake_type: HandshakeType,
-    len: usize,
+    len: u32,
     hellman_param: ServerHellmanParam,
 }
 
@@ -117,20 +119,25 @@ impl ServerKeyExchange {
     pub fn from_bytes(ht: HandshakeType, bytes: &[u8]) -> RlsResult<ServerKeyExchange> {
         let mut res = ServerKeyExchange::new();
         res.handshake_type = ht;
-        res.len = u32::from_be_bytes([0, bytes[1], bytes[2], bytes[3]].try_into()?) as usize;
+        res.len = u32::from_be_bytes([0, bytes[1], bytes[2], bytes[3]].try_into()?);
         res.hellman_param = ServerHellmanParam::from_bytes(&bytes[4..])?;
         Ok(res)
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
         let mut res = vec![self.handshake_type.as_u8()];
-        res.extend_from_slice(&(self.len as u32).to_be_bytes()[1..]);
-        res.extend(self.hellman_param.as_bytes());
+        let vbs = self.hellman_param.as_bytes();
+        res.extend_from_slice(&(vbs.len() as u32).to_be_bytes()[1..]);
+        res.extend(vbs);
         res
     }
 
     pub fn hellman_param(&self) -> &ServerHellmanParam {
         &self.hellman_param
+    }
+
+    pub fn len(&self) -> u32 {
+        self.len
     }
 }
 
@@ -165,7 +172,7 @@ impl ClientHellmanParam {
 #[derive(Debug)]
 pub struct ClientKeyExchange {
     handshake_type: HandshakeType,
-    len: usize,
+    len: u32,
     hellman_param: ClientHellmanParam,
 }
 
@@ -181,7 +188,7 @@ impl ClientKeyExchange {
     pub fn from_bytes(ht: HandshakeType, bytes: &[u8]) -> RlsResult<ClientKeyExchange> {
         let mut res = ClientKeyExchange::new();
         res.handshake_type = ht;
-        res.len = u32::from_be_bytes([0, bytes[1], bytes[2], bytes[3]].try_into()?) as usize;
+        res.len = u32::from_be_bytes([0, bytes[1], bytes[2], bytes[3]].try_into()?);
         res.hellman_param = ClientHellmanParam::from_bytes(&bytes[4..])?;
         Ok(res)
     }
@@ -197,6 +204,10 @@ impl ClientKeyExchange {
     pub fn set_pub_key(&mut self, pub_key: Vec<u8>) {
         self.hellman_param.pub_key = Bytes::new(pub_key);
         self.hellman_param.pub_key_len = self.hellman_param.pub_key.len();
+    }
+
+    pub fn len(&self) -> u32 {
+        self.len
     }
 }
 

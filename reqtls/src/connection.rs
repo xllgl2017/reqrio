@@ -1,19 +1,21 @@
-use std::fs::OpenOptions;
-use std::io::Write;
-use crate::error::RlsResult;
 use super::bytes::Bytes;
 use super::cipher::iv::Iv;
 use super::cipher::key::Key;
-use super::cipher::suite::{CipherSuite, Hasher};
+use super::cipher::suite::CipherSuite;
 use super::cipher::Cipher;
 use super::extend::alps::ALPN;
 use super::message::key_exchange::NamedCurve;
 use super::message::server_hello::ServerHello;
 use super::message::{Message, Payload};
 use super::prf::Prf;
+use super::record::{RecordLayer, RecordType};
 use super::version::Version;
 use super::version::VersionKind;
-use super::record::{RecordType, RecordLayer};
+use crate::error::RlsResult;
+use std::fs::OpenOptions;
+use std::io::Write;
+use crate::extend::Aead;
+use crate::RlsError;
 
 pub struct Connection {
     client_random: Bytes,
@@ -43,16 +45,19 @@ impl Connection {
             alpn: None,
             cipher_suite: CipherSuite::new(0),
             session_bytes: vec![],
-            prf: Prf::from_hasher(&Hasher::None),
+            prf: Prf::default(),
         }
     }
 
-    pub fn set_by_server_hello(&mut self, server_hello: ServerHello) {
+    pub fn set_by_server_hello(&mut self, server_hello: ServerHello) -> RlsResult<()> {
         self.use_ems = server_hello.use_ems();
         self.alpn = server_hello.alpn();
         self.server_random = server_hello.random;
         self.cipher_suite = server_hello.cipher_suite;
-        self.prf = Prf::from_hasher(self.cipher_suite.hasher());
+        self.cipher_suite.init_aead_hasher()?;
+        let hasher = self.cipher_suite.hasher().as_ref().ok_or(RlsError::HasherNone)?;
+        self.prf = Prf::from_hasher(hasher);
+        Ok(())
     }
 
     pub fn set_by_exchange_key(&mut self, server_pub_key: Bytes, named_curve: NamedCurve) {
@@ -70,56 +75,54 @@ impl Connection {
         let mut f = OpenOptions::new().create(true).append(true).open("2.log")?;
         f.write(format!("CLIENT_RANDOM {} {}\r\n", hex::encode(self.client_random.as_ref()), hex::encode(&master_secret)).as_bytes())?;
         f.flush()?;
-        let aead = self.cipher_suite.aead().ok_or("aead none")?;
-        let block_size = (aead.key_len() + 4) * 4 + 8;
+        let aead = self.cipher_suite.aead().ok_or(RlsError::AeadNone)?;
+        let block_size = (aead.key_len() + aead.fix_iv_len()) * 2 + aead.explicit_len();
         let mut key_block = Vec::with_capacity(block_size);
         key_block.resize(block_size, 0);
         let seed = [self.server_random.as_bytes(), self.client_random.as_bytes()].concat();
         self.prf.prf(&master_secret, "key expansion", &seed, key_block.as_mut_slice())?;
-        let wk = key_block.drain(..aead.key_len()).collect::<Vec<_>>();
-        let rk = key_block.drain(..aead.key_len()).collect::<Vec<_>>();
-        let wi = key_block.drain(..4).collect::<Vec<_>>();
-        let ri = key_block.drain(..4).collect::<Vec<_>>();
-        let explicit = key_block.drain(..8).collect::<Vec<_>>();
+        let (wk, remain) = key_block.split_at(aead.key_len());
+        let (rk, remain) = remain.split_at(aead.key_len());
+        let (wi, remain) = remain.split_at(aead.fix_iv_len());
+        let (ri, remain) = remain.split_at(aead.fix_iv_len());
+        let (explicit, _) = remain.split_at(aead.explicit_len());
         self.write.set_key(Key::write(wk, aead)?);
-        self.write.set_iv(Iv::new(wi, explicit));
+        self.write.set_iv(Iv::new(wi, explicit.to_vec()));
         self.read.set_key(Key::read(rk, aead)?);
         self.read.set_iv(Iv::new(ri, vec![]));
         self.master_secret = master_secret.to_vec();
         Ok(())
     }
 
-    ///#### tls Record结构-5bytes(头部)+payload(8byte的explicit+16payload+16byte的tag)
-    /// * type-1bye
-    /// * version-2byte
-    /// * len-2byte
-    pub fn make_finish_message<'a>(&mut self, session_hash: &[u8], buffer: &'a mut [u8]) -> RlsResult<()> {
-        buffer[13..17].copy_from_slice(&[0x14, 0x00, 0x0, 0xc]);
-        self.prf.prf(&self.master_secret, "client finished", &session_hash, &mut buffer[17..29])?;
-        let layer = self.make_message(RecordType::HandShake, buffer)?;
-
-
-        Ok(layer)
+    ///#### tls Record结构-5bytes(头部)
+    /// * aes-gcm: payload(8byte的explicit+16payload+16byte的tag)
+    /// * chacha20_poly1305: payload(16payload+16byte tag)
+    pub fn make_finish_message<'a>(&mut self, session_hash: &[u8], buffer: &'a mut [u8]) -> RlsResult<usize> {
+        let aead = self.cipher_suite.aead().ok_or(RlsError::AeadNone)?;
+        buffer[aead.payload_start()..aead.payload_start() + 4].copy_from_slice(&[0x14, 0x00, 0x0, 0xc]);
+        self.prf.prf(&self.master_secret, "client finished", &session_hash, &mut buffer[aead.payload_start() + 4..aead.payload_start() + 16])?;
+        self.make_message(RecordType::HandShake, buffer, 16)
     }
 
-    pub fn make_message(&mut self, cty: RecordType, buffer: &mut [u8]) -> RlsResult<()> {
-        let payload_len = buffer.len() as u16 - 5;
+    pub fn make_message(&mut self, cty: RecordType, buffer: &mut [u8], payload_len: usize) -> RlsResult<usize> {
+        let aead = self.cipher_suite.aead().ok_or(RlsError::AeadNone)?;
+        let payload_len = aead.encrypted_payload_len(payload_len);
         buffer[0] = cty.as_u8();
         buffer[1..3].copy_from_slice(&(VersionKind::TLS_1_2 as u16).to_be_bytes());
-        buffer[3..5].copy_from_slice(&payload_len.to_be_bytes());
+        buffer[3..5].copy_from_slice(&(payload_len as u16).to_be_bytes());
+        let payload = &mut buffer[5..payload_len + 5];
         let mut layer = RecordLayer {
             context_type: cty,
             version: Version::new(VersionKind::TLS_1_2 as u16),
-            len: payload_len,
-            message: Message::Payload(Payload::from_slice(&mut buffer[5..])),
+            len: payload_len as u16,
+            messages: vec![Message::Payload(Payload::from_slice(payload))],
         };
-
-        self.write.encrypt(&mut layer)?;
-        Ok(())
+        self.write.encrypt(&mut layer, self.cipher_suite.aead().ok_or(RlsError::AeadNone)?)?;
+        Ok(payload_len + 5)
     }
 
     pub fn read_message<'a>(&mut self, layer: &'a mut RecordLayer<'a>) -> RlsResult<usize> {
-        self.read.decrypt(layer)
+        self.read.decrypt(layer, self.cipher_suite.aead().ok_or(RlsError::AeadNone)?)
     }
 
     pub fn named_curve(&self) -> &NamedCurve {
@@ -139,15 +142,19 @@ impl Connection {
             self.session_bytes.extend_from_slice(data.as_ref());
         } else {
             if !self.session_bytes.is_empty() {
-                self.cipher_suite.update(&self.session_bytes)?;
+                self.cipher_suite.update(&self.session_bytes);
                 self.session_bytes.clear();
             }
-            self.cipher_suite.update(data.as_ref())?;
+            self.cipher_suite.update(data.as_ref());
         }
         Ok(())
     }
 
     pub fn session_hash(&self) -> RlsResult<Vec<u8>> {
         self.cipher_suite.session_hash()
+    }
+
+    pub fn aead(&self) -> Option<&Aead> {
+        self.cipher_suite.aead()
     }
 }

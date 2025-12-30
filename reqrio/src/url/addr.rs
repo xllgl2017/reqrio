@@ -1,7 +1,8 @@
-use std::fmt::Display;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::vec::IntoIter;
 use crate::error::{HlsError, HlsResult};
+use std::fmt::Display;
+use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
+use std::str::FromStr;
+use std::vec::IntoIter;
 
 #[derive(Debug, Clone)]
 pub struct Addr {
@@ -20,6 +21,14 @@ impl Addr {
     pub fn new_addr(host: impl ToString, port: u16) -> Addr {
         let mut res = Addr::new();
         res.host = host.to_string();
+        res.port = port;
+        res
+    }
+
+    pub fn new_bits(host: u32, port: u16) -> Addr {
+        let mut res = Addr::new();
+        let ip = Ipv4Addr::from_bits(host);
+        res.host = ip.to_string();
         res.port = port;
         res
     }
@@ -52,6 +61,10 @@ impl Addr {
     pub fn socket_addr_v6(&self) -> HlsResult<SocketAddr> {
         let addr = self.socket_addr()?.find(|x| x.is_ipv6()).ok_or("not found ipv6")?;
         Ok(addr)
+    }
+
+    pub fn to_bits(&self) -> HlsResult<u32> {
+        Ok(Ipv4Addr::from_str(self.host())?.to_bits())
     }
 }
 

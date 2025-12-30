@@ -1,11 +1,11 @@
-use std::{mem, ptr};
-use json::JsonValue;
-use crate::{coder, HeaderValue};
 use crate::buffer::Buffer;
-use crate::coder::HPackCoding;
+use crate::coder::HackDecode;
 use crate::error::HlsResult;
-use crate::packet::{Frame, Header};
 use crate::packet::h2c::{FrameFlag, FrameType};
+use crate::packet::{Frame, Header};
+use crate::{coder, HeaderValue};
+use json::JsonValue;
+use std::{mem, ptr};
 pub enum Body {
     Raw(Vec<u8>),
     Decoded(Vec<u8>),
@@ -148,7 +148,7 @@ impl Response {
         }
     }
 
-    pub fn extend_frame(&mut self, frame: Frame, hpack_coding: &mut HPackCoding) -> HlsResult<bool> {
+    pub fn extend_frame(&mut self, frame: Frame, hpack_coding: &mut HackDecode) -> HlsResult<bool> {
         let ended = frame.flags().contains(&FrameFlag::EndStream) && (frame.frame_type() == &FrameType::Data || frame.frame_type() == &FrameType::Headers);
         match frame.frame_type() {
             FrameType::Data => self.raw.extend(frame.to_payload()),
@@ -173,6 +173,8 @@ impl Response {
     }
 
     pub fn header_mut(&mut self) -> &mut Header { &mut self.header }
+
+    pub fn raw_body(&self) -> &[u8] { &self.raw }
 
     pub fn raw_string(&self) -> String {
         let header = self.header.to_string();

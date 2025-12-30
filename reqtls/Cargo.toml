@@ -11,8 +11,11 @@ repository = "https://github.com/xllgl2017/reqrio"
 hex = "0.4.3"
 aws-lc-rs = "1.15.2"
 md5 = "0.8.0"
-rand = { workspace = true }
+#rand = { workspace = true }
 hmac = "0.13.0-rc.3"
 sha2 = "0.11.0-rc.3"
-p256 = { version = "0.14.0-rc.1", features = ["ecdh"], default-features = false }
-x25519-dalek = "3.0.0-pre.3"
+p256 = { version = "0.14.0-rc.2", features = ["ecdh"], default-features = false }
+p384 = { version = "0.14.0-rc.2", features = ["ecdh"], default-features = false }
+x25519-dalek = { version = "3.0.0-pre.3", default-features = false }
+getrandom = "0.4.0-rc.0"
+bytemuck = "1.24.0"

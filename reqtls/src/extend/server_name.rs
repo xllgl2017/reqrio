@@ -60,4 +60,6 @@ impl ServerName {
         self.value = value.to_string();
         self.len = self.value.len() as u16;
     }
+
+    pub fn value(&self) -> &str { &self.value }
 }

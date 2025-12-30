@@ -64,13 +64,14 @@ impl Aead {
         (*self as u16).to_be_bytes()
     }
 
-    pub fn from_cipher_kind(kind: Option<CipherSuiteKind>) -> Option<Aead> {
-        let kind = kind?;
+    pub fn from_cipher_kind(kind: CipherSuiteKind) -> Option<Aead> {
         let text = format!("{:?}", kind).to_lowercase();
         if text.contains("aes_128_gcm") {
             Some(Aead::AES_128_GCM)
         } else if text.contains("aes_256_gcm") {
             Some(Aead::AES_256_GCM)
+        } else if text.contains("chacha20_poly1305") {
+            Some(Aead::ChaCha20_POLY1305)
         } else {
             None
         }
@@ -80,9 +81,7 @@ impl Aead {
         match self {
             Aead::AES_128_GCM => &aws_lc_rs::aead::AES_128_GCM,
             Aead::AES_256_GCM => &aws_lc_rs::aead::AES_256_GCM,
-            // Aead::ChaCha20_POLY1305 => {}
-            // Aead::AES_128_CCM => {}
-            // Aead::AES_128_CCM_8 => {}
+            Aead::ChaCha20_POLY1305 => &aws_lc_rs::aead::CHACHA20_POLY1305,
             _ => panic!("unknown aead"),
         }
     }
@@ -91,7 +90,40 @@ impl Aead {
         match self {
             Aead::AES_128_GCM => 16,
             Aead::AES_256_GCM => 32,
+            Aead::ChaCha20_POLY1305 => 32,
             _ => 0
+        }
+    }
+
+    pub fn fix_iv_len(&self) -> usize {
+        match self {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => 4,
+            Aead::ChaCha20_POLY1305 => 12,
+            _ => 0
+        }
+    }
+
+    pub fn explicit_len(&self) -> usize {
+        match self {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => 8,
+            Aead::ChaCha20_POLY1305 => 0,
+            _ => 0
+        }
+    }
+
+    pub fn encrypted_payload_len(&self, len: usize) -> usize {
+        match self {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => 8 + len + 16,
+            Aead::ChaCha20_POLY1305 => len + 16,
+            _ => len
+        }
+    }
+
+    pub fn payload_start(&self) -> usize {
+        match self {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => 13,
+            Aead::ChaCha20_POLY1305 => 5,
+            _ => 5
         }
     }
 }

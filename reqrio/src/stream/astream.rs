@@ -1,5 +1,5 @@
 #[cfg(cls_async)]
-use super::async_stream::AsyncStream;
+use super::async_stream::TlsStream;
 use crate::error::HlsResult;
 use crate::stream::ConnParam;
 use crate::Buffer;
@@ -21,6 +21,7 @@ use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
 #[cfg(all(feature = "std_async", not(feature = "cls_sync")))]
 use tokio_rustls::TlsConnector;
+use crate::stream::async_stream::TlsConnector;
 
 pub trait TimeoutRW<S: AsyncReadExt + AsyncWriteExt + Unpin> {
     fn stream(&mut self) -> &mut S;
@@ -88,7 +89,6 @@ impl AsyncTcpStream {
     pub fn set_write_timeout(&mut self, write_timeout: Duration) {
         self.write_timeout = Some(write_timeout);
     }
-
 }
 
 impl TimeoutRW<TcpStream> for AsyncTcpStream {
@@ -189,10 +189,9 @@ impl TimeoutRW<TlsStream<TcpStream>> for StdAsyncTlsStream {
 }
 
 
-
 #[cfg(cls_async)]
 pub struct AsyncTlsStream {
-    stream: AsyncStream<TcpStream>,
+    stream: TlsStream<TcpStream>,
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
 }
@@ -201,7 +200,7 @@ pub struct AsyncTlsStream {
 impl AsyncTlsStream {
     pub async fn connect_timeout(param: ConnParam<'_>, tcp: AsyncTcpStream) -> HlsResult<AsyncTlsStream> {
         let connect_timeout = param.timeout.connect();
-        let stream = AsyncStream::connect(param, tcp.stream);
+        let stream = TlsConnector::from(param).connect(tcp.stream); //TlsStream::connect(param, tcp.stream);
         Ok(AsyncTlsStream {
             stream: tokio::time::timeout(connect_timeout, stream).await??,
             read_timeout: tcp.read_timeout,
@@ -215,8 +214,8 @@ impl AsyncTlsStream {
 }
 
 #[cfg(cls_async)]
-impl TimeoutRW<AsyncStream<TcpStream>> for AsyncTlsStream {
-    fn stream(&mut self) -> &mut AsyncStream<TcpStream> {
+impl TimeoutRW<TlsStream<TcpStream>> for AsyncTlsStream {
+    fn stream(&mut self) -> &mut TlsStream<TcpStream> {
         &mut self.stream
     }
 

@@ -1,7 +1,7 @@
 use super::cipher::suite::Hasher;
+use crate::error::RlsResult;
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Sha256, Sha384};
-use crate::error::RlsResult;
 
 enum PrfKind {
     Sha256,
@@ -40,9 +40,12 @@ pub struct Prf(PrfKind);
 
 
 impl Prf {
+    pub fn default() -> Prf {
+        Prf(PrfKind::Sha256)
+    }
+
     pub fn from_hasher(hasher: &Hasher) -> Prf {
         match hasher {
-            Hasher::None => Prf(PrfKind::Sha256),
             Hasher::Sha256(_) => Prf(PrfKind::Sha256),
             Hasher::Sha384(_) => Prf(PrfKind::Sha384),
         }
@@ -66,17 +69,34 @@ impl Prf {
 
 #[cfg(test)]
 mod tests {
-    use sha2::Sha384;
-    use crate::tls::cipher::suite::Hasher;
-    use crate::tls::prf::Prf;
+    use crate::cipher::suite::Hasher;
+    use crate::prf::Prf;
+    use sha2::Sha256;
 
     #[test]
     fn test_prf() {
-        let share_secret = [169, 119, 121, 220, 226, 211, 115, 229, 118, 182, 165, 43, 9, 136, 95, 237, 216, 241, 71, 247, 72, 223, 183, 53, 243, 149, 13, 126, 86, 226, 73, 95];
-        let session_hash = [47, 194, 65, 138, 4, 178, 140, 144, 105, 216, 222, 186, 55, 208, 73, 132, 233, 163, 32, 184, 75, 137, 96, 106, 244, 67, 10, 4, 37, 134, 240, 9, 92, 7, 59, 8, 159, 230, 44, 28, 212, 227, 128, 20, 130, 244, 73, 60];
-        let mut out = [0; 48];
-        let mut prf = Prf::from_hasher(&Hasher::Sha384(Sha384::default()));
-        prf.prf(&share_secret, "extended master secret", &session_hash, &mut out).unwrap();
-        println!("{:?}", out);
+        println!("{:?}", 1u64.to_be_bytes());
+        let share_secret = [189, 131, 30, 96, 115, 185, 113, 187, 225, 41, 170, 137, 172, 238, 155, 134, 67, 209, 193, 147, 14, 95, 123, 199, 218, 123, 24, 132, 246, 107, 134, 13];
+        let session_hash = [203, 88, 253, 224, 105, 246, 231, 82, 172, 215, 174, 32, 168, 62, 147, 60, 219, 189, 233, 197, 149, 10, 0, 47, 84, 235, 172, 168, 140, 212, 108, 127];
+        let mut master_secret = [0; 48];
+        let mut prf = Prf::from_hasher(&Hasher::Sha256(Sha256::default()));
+        prf.prf(&share_secret, "extended master secret", &session_hash, &mut master_secret).unwrap();
+        println!("{:?}", master_secret);
+        let client_random = [168, 102, 144, 116, 168, 105, 73, 53, 141, 158, 97, 68, 2, 18, 204, 19, 248, 142, 178, 215, 223, 48, 197, 110, 19, 11, 72, 208, 168, 74, 129, 61];
+        let server_random = [164, 16, 246, 211, 195, 19, 199, 151, 186, 4, 30, 216, 157, 252, 162, 77, 8, 173, 21, 113, 194, 5, 185, 227, 68, 79, 87, 78, 71, 82, 68, 1];
+        let seed = [server_random, client_random].concat();
+        let mut key_block = [0; 32 + 32 + 12 + 12];
+        prf.prf(&master_secret, "key expansion", &seed, key_block.as_mut_slice()).unwrap();
+        println!("{:?}", key_block);
+        let (wk, remain) = key_block.split_at(32);
+        let (rk, remain) = remain.split_at(32);
+        let (wi, remain) = remain.split_at(12);
+        let (ri, remain) = remain.split_at(12);
+        let (explicit, _) = remain.split_at(0);
+        println!("{:?}", wk);
+        println!("{:?}", rk);
+        println!("{:?}", wi);
+        println!("{:?}", ri);
+        println!("{:?}", explicit);
     }
 }

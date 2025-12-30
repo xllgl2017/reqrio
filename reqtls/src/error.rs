@@ -15,6 +15,10 @@ pub enum RlsError {
     EncrypterNone,
     DecrypterNone,
     PayloadNone,
+    GenKeyFromAeadNone,
+    HasherNone,
+    AeadNone,
+    InvalidCipherSuite,
     StdError(Box<dyn Error>),
     Currently(String),
 }
@@ -26,6 +30,10 @@ impl Display for RlsError {
             RlsError::EncrypterNone => f.write_str("Encrypter none"),
             RlsError::DecrypterNone => f.write_str("Decrypter none"),
             RlsError::PayloadNone => f.write_str("Payload none"),
+            RlsError::GenKeyFromAeadNone => f.write_str("get key from aead none"),
+            RlsError::AeadNone => f.write_str("Aead none"),
+            RlsError::HasherNone => f.write_str("Hasher none"),
+            RlsError::InvalidCipherSuite=>f.write_str("Invalid cipher suite"),
             RlsError::StdError(e) => f.write_fmt(format_args!("{:?}", e)),
             RlsError::Currently(e) => f.write_str(e),
         }

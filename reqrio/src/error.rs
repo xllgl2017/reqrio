@@ -3,6 +3,7 @@ use std::convert::Infallible;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io;
+use std::net::AddrParseError;
 use std::num::ParseIntError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
@@ -144,6 +145,11 @@ impl From<HlsError> for io::Error {
     }
 }
 
+impl From<AddrParseError> for HlsError {
+    fn from(value: AddrParseError) -> Self {
+        HlsError::StdErr(Box::new(value))
+    }
+}
 impl Error for HlsError {}
 
 unsafe impl Send for HlsError {}

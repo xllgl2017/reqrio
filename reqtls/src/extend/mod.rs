@@ -30,7 +30,7 @@ use crate::error::RlsResult;
 pub struct ExtensionType(u16);
 
 impl ExtensionType {
-    pub fn new(value: u16) -> ExtensionType {ExtensionType(value)}
+    pub fn new(value: u16) -> ExtensionType { ExtensionType(value) }
     pub fn kind(&self) -> Option<ExtensionKind> {
         ExtensionKind::from_u16(self.0)
     }
@@ -306,7 +306,21 @@ impl Extension {
         }
     }
 
-    pub fn remove_tls13(&mut self){
+    pub fn server_name(&self) -> Option<&ServerName> {
+        match self.value {
+            ExtensionValue::ServerName(ref v) => Some(v),
+            _ => None
+        }
+    }
+
+    pub fn alps(&self) -> Option<&ALPS> {
+        match self.value {
+            ExtensionValue::ApplicationLayerProtocolNegotiation(ref v) => Some(v),
+            _ => None
+        }
+    }
+
+    pub fn remove_tls13(&mut self) {
         match self.value {
             ExtensionValue::SupportedVersions(ref mut v) => v.remove_tls13(),
             _ => {}

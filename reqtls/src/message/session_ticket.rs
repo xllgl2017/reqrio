@@ -65,4 +65,8 @@ impl SessionTicket {
         res.extend(tbs);
         res
     }
+
+    pub fn len(&self) -> u32 {
+        self.len
+    }
 }

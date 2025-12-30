@@ -1,8 +1,8 @@
 #[derive(PartialEq, Clone)]
 pub enum ALPN {
-    Http10,
-    Http11,
     Http20,
+    Http11,
+    Http10,
     Unknown,
 }
 

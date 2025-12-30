@@ -1,51 +1,37 @@
 use std::fmt::{Debug, Formatter};
 use sha2::{Digest, Sha256, Sha384};
 use crate::error::RlsResult;
+use crate::RlsError;
 use super::super::extend::Aead;
 
 pub enum Hasher {
-    None,
     Sha256(Sha256),
     Sha384(Sha384),
 }
 
 impl Hasher {
-    fn update(&mut self, data: &[u8]) -> RlsResult<()> {
+    fn update(&mut self, data: &[u8]) {
         match self {
-            Hasher::None => Err("HasherNonePointer".into()),
-            Hasher::Sha256(v) => Ok(v.update(data)),
-            Hasher::Sha384(v) => Ok(v.update(data)),
+            Hasher::Sha256(v) => v.update(data),
+            Hasher::Sha384(v) => v.update(data),
         }
     }
 
-    fn finalize(&self) -> RlsResult<Vec<u8>> {
+    fn finalize(&self) -> Vec<u8> {
         match self {
-            Hasher::None => Err("HasherNonePointer".into()),
-            Hasher::Sha256(v) => Ok(v.clone().finalize().to_vec()),
-            Hasher::Sha384(v) => Ok(v.clone().finalize().to_vec()),
+            Hasher::Sha256(v) => v.clone().finalize().to_vec(),
+            Hasher::Sha384(v) => v.clone().finalize().to_vec(),
         }
     }
 
-    fn from_kind(kind: Option<&CipherSuiteKind>) -> Hasher {
-        match kind {
-            None => Hasher::None,
-            Some(kind) => {
-                let text = format!("{:?}", kind).to_lowercase();
-                if text.contains("sha256") {
-                    Hasher::Sha256(Sha256::new())
-                } else if text.contains("sha384") {
-                    Hasher::Sha384(Sha384::new())
-                } else {
-                    Hasher::None
-                }
-            }
-        }
-    }
-
-    pub fn is_none(&self) -> bool {
-        match self {
-            Hasher::None => true,
-            _ => false,
+    fn from_kind(suite: &CipherSuiteKind) -> Option<Hasher> {
+        let text = format!("{:?}", suite).to_lowercase();
+        if text.contains("sha256") {
+            Some(Hasher::Sha256(Sha256::new()))
+        } else if text.contains("sha384") {
+            Some(Hasher::Sha384(Sha384::new()))
+        } else {
+            None
         }
     }
 }
@@ -53,17 +39,16 @@ impl Hasher {
 
 pub struct CipherSuite {
     kind: u16,
-    hasher: Hasher,
+    hasher: Option<Hasher>,
     aead: Option<Aead>,
 }
 
 impl CipherSuite {
     pub fn new(v: u16) -> CipherSuite {
-        let kind = CipherSuiteKind::from_u16(v);
         CipherSuite {
             kind: v,
-            hasher: Hasher::from_kind(kind.as_ref()),
-            aead: Aead::from_cipher_kind(kind),
+            hasher: None,
+            aead: None,
         }
     }
 
@@ -88,19 +73,28 @@ impl CipherSuite {
         self.kind
     }
 
-    pub fn update(&mut self, data: impl AsRef<[u8]>) -> RlsResult<()> {
-        self.hasher.update(data.as_ref())
+    pub fn update(&mut self, data: impl AsRef<[u8]>) {
+        if let Some(ref mut hasher) = self.hasher { hasher.update(data.as_ref()); }
     }
 
     pub fn session_hash(&self) -> RlsResult<Vec<u8>> {
-        self.hasher.finalize()
+        Ok(self.hasher.as_ref().ok_or(RlsError::HasherNone)?.finalize())
     }
 
     pub fn aead(&self) -> Option<&Aead> {
         self.aead.as_ref()
     }
 
-    pub fn hasher(&self) -> &Hasher {
+    pub fn init_aead_hasher(&mut self) -> RlsResult<()> {
+        let kind = CipherSuiteKind::from_u16(self.kind).ok_or(RlsError::InvalidCipherSuite)?;
+        //当hasher为空时需要把这个错误抛出，初始化hasher后一定不能为空
+        self.hasher = Some(Hasher::from_kind(&kind).ok_or(RlsError::HasherNone)?);
+        //aead同理
+        self.aead = Some(Aead::from_cipher_kind(kind).ok_or(RlsError::AeadNone)?);
+        Ok(())
+    }
+
+    pub fn hasher(&self) -> &Option<Hasher> {
         &self.hasher
     }
 }
@@ -187,5 +181,26 @@ impl CipherSuiteKind {
 
             _ => None
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use sha2::Sha256;
+    use crate::cipher::suite::Hasher;
+
+    #[test]
+    fn test_hasher() {
+        let mut hasher = Hasher::Sha256(Sha256::default());
+        hasher.update(&fs::read("../ClientHello").unwrap());
+        hasher.update(&fs::read("../ServerHello").unwrap());
+        hasher.update(&fs::read("../Certificate").unwrap());
+        hasher.update(&fs::read("../ServerKeyExchange").unwrap());
+        hasher.update(&fs::read("../ServerHelloDone").unwrap());
+        hasher.update(&fs::read("../ClientKeyExchange").unwrap());
+        let res = hasher.finalize().to_vec();
+        println!("{:?}", res);
     }
 }

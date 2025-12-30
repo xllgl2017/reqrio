@@ -7,7 +7,6 @@ members = [
 
 [workspace.dependencies]
 reqtls = { path = "reqtls", version = "0.0.6" }
-rand = "0.10.0-rc.5"
 
 [profile.release]
 strip = "symbols"

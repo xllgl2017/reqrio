@@ -6,6 +6,7 @@ use server_hello::{ServerHello, ServerHelloDone};
 use session_ticket::SessionTicket;
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut, Range, RangeFrom, RangeTo};
+use crate::extend::Aead;
 
 pub mod certificate;
 pub mod client_hello;
@@ -17,8 +18,40 @@ mod session_ticket;
 pub struct Payload<'a>(&'a mut [u8]);
 
 impl<'a> Payload<'a> {
+    pub fn explicit(&self, aead: &Aead) -> &[u8] {
+        match aead {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => &self.0[..8],
+            _ => &self.0[..0]
+        }
+    }
+
+    pub fn insert_explicit(&mut self, aead: &Aead, explicit: &[u8]) {
+        match aead {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => self.0[..8].copy_from_slice(explicit),
+            _ => {}
+        }
+    }
+
+
     pub fn from_slice(bytes: &'a mut [u8]) -> Payload<'a> {
         Payload(bytes)
+    }
+
+    pub fn encrypting_payload(&mut self, aead: &Aead) -> &mut [u8] {
+        let len = self.0.len();
+        match aead {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => &mut self.0[8..len - 16],
+            Aead::ChaCha20_POLY1305 => &mut self.0[..len - 16],
+            _ => self.0
+        }
+    }
+
+    pub fn decrypting_payload(&mut self, aead: &Aead) -> &mut [u8] {
+        match aead {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => &mut self.0[8..],
+            Aead::ChaCha20_POLY1305 => &mut self.0,
+            _ => self.0
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -68,7 +101,7 @@ impl<'a> Index<RangeFrom<usize>> for Payload<'a> {
     }
 }
 
-impl<'a> IndexMut<RangeFrom<usize>> for Payload<'a>{
+impl<'a> IndexMut<RangeFrom<usize>> for Payload<'a> {
     fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut [u8] {
         &mut self.0[index]
     }
@@ -109,6 +142,21 @@ impl<'a> Message<'a> {
         }
     }
 
+    pub fn payload_len(&self) -> u32 {
+        match self {
+            Message::ClientHello(v) => v.len(),
+            Message::ServerHello(v) => v.len(),
+            Message::Certificate(v) => v.len(),
+            Message::ServerKeyExchange(v) => v.len(),
+            Message::ServerHelloDone(v) => v.len(),
+            Message::ClientKeyExchange(v) => v.len(),
+            Message::NewSessionTicket(v) => v.len(),
+            Message::Payload(v) => v.len() as u32,
+            Message::CertificateStatus(v) => v.len(),
+            Message::CipherSpec => 0
+        }
+    }
+
     pub fn as_bytes(&self) -> Vec<u8> {
         match self {
             Message::ClientHello(v) => v.as_bytes(),
@@ -130,12 +178,12 @@ impl<'a> Message<'a> {
             _ => None
         }
     }
-    // pub fn client(&self) -> Option<&ClientHello> {
-    //     match self {
-    //         Message::ClientHello(v) => Some(v),
-    //         _ => None
-    //     }
-    // }
+    pub fn client(&self) -> Option<&ClientHello> {
+        match self {
+            Message::ClientHello(v) => Some(v),
+            _ => None
+        }
+    }
 
     // pub fn server(&self) -> Option<&ServerHello> {
     //     match self {

@@ -34,6 +34,13 @@ impl TryFrom<&str> for Method {
     }
 }
 
+impl TryFrom<String> for Method {
+    type Error = HlsError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Method::try_from(value.as_bytes())
+    }
+}
+
 impl TryFrom<&[u8]> for Method {
     type Error = HlsError;
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
@@ -48,12 +55,5 @@ impl TryFrom<&[u8]> for Method {
             b"TRACH" => Ok(Method::TRACH),
             _ => Err("Invalid HTTP method".into())
         }
-    }
-}
-
-impl TryFrom<String> for Method {
-    type Error = HlsError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Method::try_from(value.as_str())
     }
 }

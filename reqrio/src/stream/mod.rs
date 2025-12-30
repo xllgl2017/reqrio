@@ -14,6 +14,8 @@ use crate::timeout::Timeout;
 pub use proxy::Proxy;
 #[cfg(anys)]
 use crate::Buffer;
+#[cfg(feature = "cls_async")]
+pub use async_stream::{TlsStream, TlsConnector};
 
 #[cfg(feature = "cls_async")]
 mod async_stream;
@@ -65,7 +67,7 @@ impl Stream {
         self.alpn = alpn;
         Ok(())
     }
-    pub async fn async_read(&mut self,buffer: &mut Buffer) -> HlsResult<()> {
+    pub async fn async_read(&mut self, buffer: &mut Buffer) -> HlsResult<()> {
         self.kind.async_read(buffer).await
     }
 
@@ -85,7 +87,7 @@ impl Stream {
         self.alpn = alpn;
         Ok(())
     }
-    pub fn sync_read(&mut self,buffer: &mut Buffer) -> HlsResult<()> {
+    pub fn sync_read(&mut self, buffer: &mut Buffer) -> HlsResult<()> {
         self.kind.sync_read(buffer)
     }
 

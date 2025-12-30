@@ -44,16 +44,19 @@ pub use ext::{ReqExt, ReqGenExt};
 pub use json;
 pub use packet::{
     Application, Body, ContentType, Cookie, Font, Frame, FrameFlag, FrameType, Header, HeaderValue,
-    HttpStatus, Method, Response, Text,
+    HttpStatus, Method, Response, Text, HeaderKey,
 };
 #[cfg(use_cls)]
 pub use reqtls::Fingerprint;
 #[cfg(sync)]
 pub use scq::ScReq;
 pub use stream::Proxy;
+#[cfg(feature = "cls_async")]
+pub use stream::{TlsStream, TlsConnector};
 #[cfg(feature = "tokio")]
 pub use tokio;
 pub use url::{Addr, Protocol, Uri, Url};
+pub use error::HlsError;
 
 #[cfg(aync)]
 mod acq;

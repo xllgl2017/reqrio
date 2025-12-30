@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use crate::error::HlsResult;
+use crate::HlsError;
 use super::param::Param;
 
 #[derive(Debug, Clone)]
@@ -51,5 +52,16 @@ impl Display for Uri {
         } else {
             f.write_str(&format!("{}?{}", self.uri, param))
         }
+    }
+}
+
+impl TryFrom<&str> for Uri {
+    type Error = HlsError;
+    fn try_from(value: &str) -> HlsResult<Uri> {
+        let mut items = value.split("?");
+        let mut res = Uri::new();
+        res.uri = items.next().unwrap_or("").to_string();
+        res.parse_param(items.next().unwrap_or(""))?;
+        Ok(res)
     }
 }

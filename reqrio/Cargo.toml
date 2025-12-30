@@ -23,13 +23,13 @@ tokio = { version = "1.48.0", features = ["time", "net", "io-util", "macros", 'r
 rustls = { version = "0.23.35", optional = true }
 tokio-rustls = { version = "0.26.4", optional = true }
 webpki-roots = { version = "1.0.4", optional = true }
-rand = { workspace = true, optional = true }
+#rand = { workspace = true, optional = true }
 reqtls = { workspace = true, optional = true }
 
 [features]
 # 自定义tls，支持自定义指纹
-cls_sync = ["reqtls", "rand"]
-cls_async = ["tokio", "reqtls", "rand"]
+cls_sync = ["reqtls"]
+cls_async = ["tokio", "reqtls"]
 std_sync = ["rustls", "webpki-roots"]
 std_async = ["tokio", "tokio-rustls", "rustls", 'webpki-roots']
 export = ["cls_sync", "hex"]

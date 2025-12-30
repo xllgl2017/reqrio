@@ -43,7 +43,7 @@ impl ScReq {
             alpn: ALPN::Http11,
             proxy: Proxy::Null,
             #[cfg(feature = "cls_sync")]
-            fingerprint: Fingerprint::default().unwrap(),
+            fingerprint: Fingerprint::default(),
         }
     }
 

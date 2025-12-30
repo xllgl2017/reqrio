@@ -2,11 +2,15 @@ use crate::error::HlsResult;
 use super::{HPack, HPackTable};
 
 #[derive(Clone)]
-pub(crate) struct HackDecode;
+pub struct HackDecode {
+    table: HPackTable,
+}
 
 impl HackDecode {
     pub fn new() -> Self {
-        HackDecode {}
+        HackDecode {
+            table: HPackTable::new(),
+        }
     }
 
     fn decode_huffman(&self, context: &[u8], flag: u8) -> HlsResult<String> {
@@ -28,7 +32,7 @@ impl HackDecode {
         }))
     }
 
-    fn decode_fields(&mut self, context: &[u8], index: usize, name: bool, tables: &mut HPackTable) -> HlsResult<(HPack, usize)> {
+    fn decode_fields(&mut self, context: &[u8], index: usize, name: bool) -> HlsResult<(HPack, usize)> {
         let mut res = HPack::new("", "");
         let (value_len, use_len) = self.decode_len(context, 0b1111111, 7);
         let decode = self.decode_huffman(&context[use_len..value_len + use_len], context[0])?;
@@ -36,7 +40,7 @@ impl HackDecode {
             true => res.set_name(decode),
             false => res.set_value(decode),
         }
-        match tables.get(index) {
+        match self.table.get(index) {
             None => {}
             Some(table) => {
                 if !name { res.set_name(table.name()); }
@@ -69,16 +73,17 @@ impl HackDecode {
         panic!("hpack")
     }
 
-    pub fn decode(&mut self, context: &[u8], tables: &mut HPackTable) -> HlsResult<Vec<HPack>> {
+    pub fn decode(&mut self, context: impl AsRef<[u8]>) -> HlsResult<Vec<HPack>> {
+        let context = context.as_ref();
         let mut current = 0;
         let mut res = vec![];
         while current < context.len() {
             let b = context[current];
             if b & 0b10000000 == 0b10000000 {
                 let (index, len) = self.decode_len(&context[current..], 0b1111111, 7);
-                let table_len = tables.len();
+                let table_len = self.table.len();
                 res.push(if index - 1 >= table_len { HPack::new(format!("none-{}", table_len), format!("none-{}", index)) } else {
-                    tables.get(index - 1).unwrap().clone()
+                    self.table.get(index - 1).unwrap().clone()
                 });
                 current += len;
             } else if b & 0b01000000 == 0b01000000 {
@@ -86,28 +91,28 @@ impl HackDecode {
                 current += len;
                 if index > 0 {
                     //save value
-                    let (value, len) = self.decode_fields(&context[current..], index - 1, false, tables)?;
+                    let (value, len) = self.decode_fields(&context[current..], index - 1, false)?;
                     res.push(value.clone());
-                    tables.insert(61, value);
+                    self.table.insert(61, value);
                     current += len
                 } else if index == 0 {
                     //save key and value
-                    let table_len = tables.len();
-                    let (mut name, len) = self.decode_fields(&context[current..], table_len, true, tables)?;
+                    let table_len = self.table.len();
+                    let (mut name, len) = self.decode_fields(&context[current..], table_len, true)?;
                     current += len;
-                    let (value, len) = self.decode_fields(&context[current..], table_len, false, tables)?;
+                    let (value, len) = self.decode_fields(&context[current..], table_len, false)?;
                     current += len;
                     name.set_value(value.value());
                     // name.2 = value.2.clone();
                     res.push(name.clone());
-                    tables.insert(61, name);
+                    self.table.insert(61, name);
                 }
             } else if b & 0b00100000 == 0b00100000 {
                 let (table_size, len) = self.decode_len(&context[current..], 0b00011111, 5);
-                let mut current_table_size = tables.len();
+                let mut current_table_size = self.table.len();
                 while current_table_size - 61 > table_size {
-                    tables.remove(current_table_size - 1);
-                    current_table_size = tables.len();
+                    self.table.remove(current_table_size - 1);
+                    current_table_size = self.table.len();
                 }
                 current += len;
             } else if b & 0b00010000 == 0b00010000 {
@@ -115,17 +120,17 @@ impl HackDecode {
                 current += len;
                 if index == 0 {
                     //unsaved key and value
-                    let table_len = tables.len();
-                    let (mut name, len) = self.decode_fields(&context[current..], table_len, true, tables)?;
+                    let table_len = self.table.len();
+                    let (mut name, len) = self.decode_fields(&context[current..], table_len, true)?;
                     current += len;
-                    let (value, len) = self.decode_fields(&context[current..], table_len, false, tables)?;
+                    let (value, len) = self.decode_fields(&context[current..], table_len, false)?;
                     current += len;
                     name.set_value(value.value());
                     // name.2 = value.2.clone();
                     res.push(name.clone());
                 } else {
                     //unsaved value
-                    let (value, len) = self.decode_fields(&context[current..], index - 1, false, tables)?;
+                    let (value, len) = self.decode_fields(&context[current..], index - 1, false)?;
                     res.push(value.clone());
                     current += len;
                 }
@@ -134,15 +139,15 @@ impl HackDecode {
                 current += len;
                 if index != 0 {
                     //unsaved value
-                    let (value, len) = self.decode_fields(&context[current..], index - 1, false, tables)?;
+                    let (value, len) = self.decode_fields(&context[current..], index - 1, false)?;
                     res.push(value);
                     current += len;
                 } else {
                     //unsaved key and value
-                    let table_len = tables.len();
-                    let (mut name, len) = self.decode_fields(&context[current..], table_len, true, tables)?;
+                    let table_len = self.table.len();
+                    let (mut name, len) = self.decode_fields(&context[current..], table_len, true)?;
                     current += len;
-                    let (value, len) = self.decode_fields(&context[current..], table_len, false, tables)?;
+                    let (value, len) = self.decode_fields(&context[current..], table_len, false)?;
                     current += len;
                     name.set_value(value.value());
                     // name.2 = value.2.clone();

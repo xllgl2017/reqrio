@@ -17,14 +17,14 @@ impl<S: Read + Write> SyncStream<S> {
         let client_random = rand::random::<[u8; 32]>();
         let mut conn = Connection::new(client_random.to_vec());
         let mut client_hello = RecordLayer::from_bytes(param.fingerprint.client_hello_mut(), false)?;
-        client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.set_random(client_random.clone());
-        client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.set_server_name(param.url.addr().host());
-        client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.set_session_id(rand::random());
+        client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.set_random(client_random.clone());
+        client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.set_server_name(param.url.addr().host());
+        client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.set_session_id(rand::random());
         match param.alpn {
-            ALPN::Http20 => client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.add_h2_alpn(),
-            _ => client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.remove_h2_alpn()
+            ALPN::Http20 => client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.add_h2_alpn(),
+            _ => client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.remove_h2_alpn()
         }
-        client_hello.message.client_mut().ok_or(HlsError::NonePointer)?.remove_tls13();
+        client_hello.messages.client_mut().ok_or(HlsError::NonePointer)?.remove_tls13();
         let bs = client_hello.handshake_bytes();
         conn.update_session(&bs[5..])?;
         stream.write(&bs)?;
@@ -69,7 +69,7 @@ impl<S: Read + Write> SyncStream<S> {
             RecordType::CipherSpec => self.handshake_finished = true,
             RecordType::Alert => {}
             RecordType::HandShake => {
-                match record.message {
+                match record.messages {
                     Message::ServerHello(v) => self.conn.set_by_server_hello(v),
                     Message::ServerKeyExchange(v) => {
                         // println!("{:#?}", v);
@@ -79,7 +79,7 @@ impl<S: Read + Write> SyncStream<S> {
                         let keypair = PriKey::new(self.conn.named_curve())?;
                         let client_pub_key = keypair.pub_key();
                         let mut client_key_exchange = RecordLayer::from_bytes(param.fingerprint.client_key_exchange_mut(), false)?;
-                        client_key_exchange.message.client_key_exchange_mut().unwrap().set_pub_key(client_pub_key);
+                        client_key_exchange.messages.client_key_exchange_mut().unwrap().set_pub_key(client_pub_key);
                         let bs = client_key_exchange.handshake_bytes();
                         self.conn.update_session(&bs[5..])?;
                         self.stream.write(&bs)?;

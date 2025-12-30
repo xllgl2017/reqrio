@@ -15,7 +15,7 @@ pub struct ServerHello {
     pub(crate) random: Bytes,
     session_id_len: u8,
     session_id: Bytes,
-    pub(crate) cipher_suite: CipherSuite,
+    pub cipher_suite: CipherSuite,
     compress_method: u8,
     extend_len: u16,
     extensions: Vec<Extension>,
@@ -85,13 +85,15 @@ impl ServerHello {
         res
     }
 
-
+    pub fn len(&self) -> u32 {
+        self.len
+    }
 }
 
 #[derive(Debug)]
 pub struct ServerHelloDone {
     handshake_type: HandshakeType,
-    len: usize,
+    len: u32,
 }
 
 impl ServerHelloDone {
@@ -105,13 +107,17 @@ impl ServerHelloDone {
     pub fn from_bytes(ht: HandshakeType, bytes: &[u8]) -> RlsResult<ServerHelloDone> {
         let mut res = ServerHelloDone::new();
         res.handshake_type = ht;
-        res.len = u32::from_be_bytes([0, bytes[1], bytes[2], bytes[3]].try_into()?) as usize;
+        res.len = u32::from_be_bytes([0, bytes[1], bytes[2], bytes[3]].try_into()?);
         Ok(res)
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
         let mut res = vec![self.handshake_type.as_u8()];
-        res.extend_from_slice(&(self.len as u32).to_be_bytes()[1..]);
+        res.extend_from_slice(&self.len.to_be_bytes()[1..]);
         res
+    }
+
+    pub fn len(&self) -> u32 {
+        self.len
     }
 }

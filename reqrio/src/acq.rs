@@ -44,7 +44,7 @@ impl AcReq {
             alpn: ALPN::Http11,
             proxy: Proxy::Null,
             #[cfg(use_cls)]
-            fingerprint: Fingerprint::default().unwrap(),
+            fingerprint: Fingerprint::default(),
         }
     }
 
@@ -248,7 +248,7 @@ impl AcReq {
                 }
                 if frame.frame_type() == &FrameType::Goaway { return Err("Connection reset by peer".into()); }
                 self.raw_bytes = self.raw_bytes[frame.len() + 9..].to_vec();
-                if response.extend_frame(frame, &mut self.hack_coder)? { return Ok(response); }
+                if response.extend_frame(frame, self.hack_coder.decoder())? { return Ok(response); }
             }
         }
     }

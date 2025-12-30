@@ -1,13 +1,13 @@
 use crate::error::{HlsResult, HlsError};
 use std::ffi::c_void;
 use std::io::Read;
-use std::ops::{Index, IndexMut, Range, RangeFrom, RangeTo};
+use std::ops::{Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo};
 use std::ptr;
 #[cfg(feature = "tokio")]
 use tokio::io::AsyncReadExt;
 
 pub struct Buffer {
-    buffer: Vec<u8>,
+    pub buffer: Vec<u8>,
     len: usize,
 }
 
@@ -92,18 +92,21 @@ impl Buffer {
 
     pub fn push_slice(&mut self, slice: &[u8]) {
         unsafe {
-            let dst = self.buffer.as_mut_ptr().add(self.buffer.len());
+            let dst = self.buffer.as_mut_ptr().add(self.len);
             ptr::copy_nonoverlapping(slice.as_ref().as_ptr(), dst, slice.len());
-            self.buffer.set_len(self.buffer.len() + slice.len());
+            self.buffer.set_len(self.len + slice.len());
+            self.len += slice.len();
         }
     }
 
-    ///必须手动管理len
-    pub fn push_slice_in(&mut self, place: usize, slice: &[u8]) {
+    ///必须手动管理len, 返回已push的长度
+    #[must_use]
+    pub fn push_slice_in(&mut self, place: usize, slice: &[u8]) -> usize {
         unsafe {
             let dst = self.buffer.as_mut_ptr().add(place);
             ptr::copy_nonoverlapping(slice.as_ref().as_ptr(), dst, slice.len());
         }
+        slice.len()
     }
 
     pub fn filled(&self) -> &[u8] {
@@ -162,5 +165,18 @@ impl Index<usize> for Buffer {
     type Output = u8;
     fn index(&self, i: usize) -> &u8 {
         &self.buffer[i]
+    }
+}
+
+impl Index<RangeFull> for Buffer {
+    type Output = [u8];
+    fn index(&self, i: RangeFull) -> &[u8] {
+        &self.buffer[i]
+    }
+}
+
+impl IndexMut<RangeFull> for Buffer {
+    fn index_mut(&mut self, i: RangeFull) -> &mut [u8] {
+        &mut self.buffer[i]
     }
 }

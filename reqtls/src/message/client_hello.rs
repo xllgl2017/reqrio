@@ -1,4 +1,5 @@
 use crate::error::RlsResult;
+use crate::extend::alps::ALPS;
 use super::super::bytes::Bytes;
 use super::super::cipher::suite::CipherSuite;
 use super::super::extend::Extension;
@@ -59,7 +60,7 @@ impl ClientHello {
         let index = index + res.compress_method_len as usize + 1;
         res.extend_len = u16::from_be_bytes([bytes[index], bytes[index + 1]].try_into()?);
         res.extensions = Extension::from_bytes(&bytes[index + 2..index + 2 + res.extend_len as usize])?;
-        println!("{}", res.ja3());
+        // println!("{}", res.ja3());
         Ok(res)
     }
 
@@ -147,6 +148,16 @@ impl ClientHello {
         self.extensions = extension;
     }
 
+    pub fn server_name(&self) -> Option<&str> {
+        let extension = self.extensions.iter().find(|x| x.extension_type().as_u16() == ExtensionKind::ServerName as u16)?;
+        Some(extension.server_name()?.value())
+    }
+
+    pub fn alps(&self)->Option<&ALPS>{
+        let extension=self.extensions.iter().find(|x|x.extension_type().as_u16()==ExtensionKind::ApplicationLayerProtocolNegotiation as u16)?;
+        extension.alps()
+    }
+
     pub fn remove_h2_alpn(&mut self) {
         let extend = self.extensions.iter_mut().find(|x| x.extension_type().as_u16() == ExtensionKind::ApplicationLayerProtocolNegotiation as u16);
         if let Some(ext) = extend {
@@ -174,6 +185,10 @@ impl ClientHello {
         if let Some(ext) = extend {
             ext.add_h2_alpn();
         }
+    }
+
+    pub fn len(&self) -> u32 {
+        self.len
     }
 }
 
