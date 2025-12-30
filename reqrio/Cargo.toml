@@ -1,6 +1,6 @@
 [package]
 name = "reqrio"
-version = "0.0.6"
+version = "0.0.7"
 edition = "2024"
 readme = "README.md"
 description = "A http lib"
