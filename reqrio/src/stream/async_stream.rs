@@ -3,7 +3,6 @@ use crate::stream::ConnParam;
 use crate::{Buffer, ALPN};
 use reqtls::*;
 use std::io::Error;
-use std::ops::Range;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
@@ -49,7 +48,7 @@ pub struct TlsStream<S> {
     write_buffer: Buffer,
     shutdown_wrote: bool,
     wrote_len: usize,
-    write_range: Range<usize>,
+    pending: Vec<usize>,
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> TlsStream<S> {
@@ -78,7 +77,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> TlsStream<S> {
             write_buffer: Buffer::with_capacity(16413),
             shutdown_wrote: false,
             wrote_len: 0,
-            write_range: 0..0,
+            pending: vec![],
         };
         while !stream.handshake_finished {
             stream.read_packet().await?;
@@ -158,44 +157,41 @@ impl<S: AsyncRead + AsyncWrite + Unpin> TlsStream<S> {
 
 impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+        if self.shutdown_wrote { return Poll::Ready(Ok(())); }
         let stream = self.get_mut();
         loop {
-            let read_len = match stream.read_buffer.len() {
-                0 => {
-                    stream.read_buffer.reset();
-                    5
-                }
-                _ => {
-                    let pd_len = u16::from_be_bytes([stream.read_buffer[3], stream.read_buffer[4]]) as usize;
-                    if pd_len+5<stream.read_buffer.len() {
-                        println!("reas {} {} {:?}", pd_len, stream.read_buffer.len(), &stream.read_buffer[..5]);
-                    }
-                    pd_len + 5 - stream.read_buffer.len()
-                }
-            };
-            if read_len == 0 { break; }
-            let mut rd = ReadBuf::new(&mut stream.read_buffer.unfilled_mut()[..read_len]);
+            let mut rd = ReadBuf::new(stream.read_buffer.unfilled_mut());
             match Pin::new(&mut stream.stream).poll_read(cx, &mut rd) {
                 Poll::Ready(Ok(_)) => {
-                    let fill_len = rd.filled().len();
-                    if fill_len == 0 { return Poll::Ready(Ok(())); }
-                    stream.read_buffer.set_len(stream.read_buffer.len() + fill_len);
+                    let fl = rd.filled().len();
+                    if fl == 0 { return Poll::Ready(Ok(())); }
+                    let nl = stream.read_buffer.len() + fl;
+                    stream.read_buffer.set_len(nl);
+                    let pdl = u16::from_be_bytes([stream.read_buffer[3], stream.read_buffer[4]]) as usize;
+                    if stream.read_buffer.len() >= pdl + 5 { break; }
                 }
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
-            };
+            }
         }
-        let len = u16::from_be_bytes([stream.read_buffer[3], stream.read_buffer[4]]) as usize;
-        if stream.read_buffer.len() < len + 5 { return Poll::Ready(Ok(())); }
-        let mut record = RecordLayer::from_bytes(stream.read_buffer.filled_mut(), stream.handshake_finished)?;
-        let rt = record.context_type.as_u8();
-        let len = stream.conn.read_message(&mut record)?;
-        let aead = stream.conn.aead().ok_or(RlsError::AeadNone)?;
-        if rt == 0x15 && &stream.read_buffer[aead.payload_start()..aead.payload_start() + len] == &[1, 0] {
-            return Poll::Ready(Err(HlsError::PeerClosedConnection.into()));
+        let mut read = 0;
+        while let Ok(mut record) = RecordLayer::from_bytes(&mut stream.read_buffer.filled_mut()[read..], stream.handshake_finished) {
+            let rt = record.context_type.as_u8();
+            let rl = record.len;
+            let pdl = stream.conn.read_message(&mut record)?;
+            let aead = stream.conn.aead().ok_or(RlsError::AeadNone)?;
+            if rt == 0x15 && &stream.read_buffer[aead.payload_start()..aead.payload_start() + pdl] == &[1, 0] {
+                return Poll::Ready(Ok(()));
+            }
+            buf.put_slice(&stream.read_buffer[read + aead.payload_start()..read + aead.payload_start() + pdl]);
+            read += rl as usize + 5;
         }
-        buf.put_slice(&stream.read_buffer.filled()[aead.payload_start()..aead.payload_start() + len]);
-        stream.read_buffer.reset();
+        if read < stream.read_buffer.len() {
+            stream.read_buffer.copy_within(read..stream.read_buffer.len(), 0);
+            stream.read_buffer.set_len(stream.read_buffer.len() - read);
+        } else {
+            stream.read_buffer.reset();
+        }
         Poll::Ready(Ok(()))
     }
 }
@@ -205,32 +201,31 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, Error>> {
         let stream = self.get_mut();
         let chucks = buf.chunks(16384).collect::<Vec<_>>();
-        if stream.write_range.start == stream.write_range.end {
-            stream.write_range = 0..chucks.len();
+        if stream.pending.is_empty() {
             stream.wrote_len = 0;
+            stream.pending = (0..chucks.len()).collect();
         }
-
-        for i in stream.write_range.start..stream.write_range.end {
+        loop {
+            if stream.pending.len() == 0 { break; }
             let aead = stream.conn.aead().ok_or(RlsError::AeadNone)?;
-            let record_len = aead.encrypted_payload_len(chucks[i].len()) + 5;
-            // println!("{} {} {}", stream.wrote_len, i, stream.wrote_len % 16384);
-            if stream.wrote_len / 16384 == i {
-                stream.write_buffer.reset();
-                let push_len = stream.write_buffer.push_slice_in(aead.payload_start(), chucks[i]);
-                // stream.write_buffer.set_len(aead.payload_start() + push_len);
+            let record_len = aead.encrypted_payload_len(chucks[stream.pending[0]].len()) + 5;
+            if stream.write_buffer.len() == 0 {
+                let push_len = stream.write_buffer.push_slice_in(aead.payload_start(), chucks[stream.pending[0]]);
+                let record_len = aead.encrypted_payload_len(push_len) + 5;
+                stream.write_buffer.set_len(record_len);
                 stream.conn.make_message(RecordType::ApplicationData, &mut stream.write_buffer[..], push_len)?;
-                stream.wrote_len += chucks[i].len();
+                stream.wrote_len += chucks[stream.pending[0]].len();
             }
             match Pin::new(&mut stream.stream).poll_write(cx, &stream.write_buffer[..record_len]) {
                 Poll::Ready(Ok(_)) => {
-                    stream.write_range.start = i + 1
+                    stream.pending.remove(0);
+                    stream.write_buffer.reset();
                 }
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
             }
         }
-        stream.write_buffer.reset();
-        if stream.wrote_len>buf.len() {
+        if stream.wrote_len > buf.len() {
             println!("write {} {}", stream.wrote_len, buf.len());
         }
         Poll::Ready(Ok(stream.wrote_len))
@@ -240,22 +235,15 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
         Pin::new(&mut self.stream).poll_flush(cx)
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        let stream = self.get_mut();
-
-        if stream.write_buffer.len() == 0 {
-            stream.write_buffer.reset();
-            let aead = stream.conn.aead().ok_or(RlsError::AeadNone)?;
-            // stream.write_buffer.set_len(31);
-            stream.write_buffer[aead.payload_start()..aead.payload_start() + 2].copy_from_slice(&[1, 0]);
-            stream.conn.make_message(RecordType::Alert, &mut stream.write_buffer[..], 2)?;
-        }
-        if stream.shutdown_wrote {
-            Pin::new(&mut stream.stream).poll_shutdown(cx)
-        } else {
-            match Pin::new(&mut stream.stream).poll_write(cx, &stream.write_buffer[..31]) {
-                Poll::Ready(Ok(_)) => Pin::new(&mut stream.stream).poll_shutdown(cx),
-                Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        match self.shutdown_wrote {
+            true => Pin::new(&mut self.stream).poll_shutdown(cx),
+            false => match self.as_mut().poll_write(cx, &[1, 0]) {
+                Poll::Ready(Ok(_)) => {
+                    self.shutdown_wrote = true;
+                    Pin::new(&mut self.stream).poll_shutdown(cx)
+                }
+                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Pending => Poll::Pending,
             }
         }

@@ -1,7 +1,9 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use reqrio::{ReqExt, ScReq, ALPN};
 
 fn main() {
-    let mut req = ScReq::new().with_alpn(ALPN::Http11).with_url("https://m.so.com").unwrap();
+    let mut req = ScReq::new().with_alpn(ALPN::Http20).with_url("https://m.so.com").unwrap();
     let headers = json::object! {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -22,6 +24,15 @@ fn main() {
         "sec-ch-ua-platform": r#""Windows""#
     };
     req.set_headers_json(headers).unwrap();
+    let mut len = Rc::new(RefCell::new(0));
+    let ll = len.clone();
+    req.set_callback(move |bs| {
+        *len.borrow_mut() += bs.len();
+        // len += bs.len();
+        println!("{}", bs.len());
+        Ok(())
+    });
+
     // let content = req.gen_h1().unwrap();
     // println!("{:?}", String::from_utf8(content).unwrap());
     // req.send_check_json(Method::GET, "code", "0", vec!["msg", "message"]).unwrap();
@@ -29,4 +40,5 @@ fn main() {
     println!("{}", res.header());
     println!("{:#?}", req.header().cookies());
     println!("{}", res.to_string().unwrap());
+    println!("{}", ll.borrow());
 }

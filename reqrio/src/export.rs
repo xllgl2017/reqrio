@@ -139,10 +139,10 @@ pub extern "system" fn set_json(id: i32, data: *const c_char) -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn set_bytes(id: i32, bytes: *const c_char, len: usize) -> i32 {
+pub extern "system" fn set_bytes(id: i32, bytes: *const c_char, len: u32) -> i32 {
     || -> HlsResult<i32> {
         println!("{}", len);
-        let bytes = unsafe { slice::from_raw_parts(bytes as *const u8, len) }.to_vec();
+        let bytes = unsafe { slice::from_raw_parts(bytes as *const u8, len as usize) }.to_vec();
         let mut params = CONNECTIONS.lock()?;
         params.get_mut(&id).ok_or("id 不存在")?.set_bytes(bytes);
         Ok(0)
@@ -212,11 +212,11 @@ fn send(id: i32, method: Method) -> *mut c_char {
     };
     match res() {
         Ok(res) => {
-            println!("res: {}", res.len());
+            // println!("res: {}", res.len());
             CString::new(res).unwrap().into_raw()
         }
         Err(e) => {
-            println!("{}", e.to_string());
+            // println!("{}", e.to_string());
             CString::new(hex::encode(e.to_string())).unwrap().into_raw()
         }
     }
@@ -272,3 +272,29 @@ pub extern "system" fn free_pointer(ptr: *mut c_char) {
     if ptr.is_null() { return; }
     unsafe { let _ = CString::from_raw(ptr); }
 }
+
+pub type Callback = extern "C" fn(*const c_char, u32);
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn register(id: i32, callback: Callback) -> i32 {
+    || -> HlsResult<i32> {
+        let mut params = CONNECTIONS.lock()?;
+        params.get_mut(&id).ok_or("id 不存在")?.set_callback(move |bs| {
+            callback(bs.as_ptr() as *const c_char, bs.len() as u32);
+            Ok(())
+        });
+        Ok(0)
+    }().unwrap_or(-1)
+}
+
+
+
+
+
+
+
+
+
+
+

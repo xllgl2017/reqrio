@@ -62,15 +62,23 @@ headers = {
 # 默认没有任何请求头，需要自己设置
 session.set_header_json(headers)
 # 设置超时
-session.set_timeout(3,3,3,3)
-session.set_url('https://m.so.com')
-resp = session.get()
+session.set_timeout(3, 3, 3, 3)
+resp = session.get('https://m.so.com')
 # 获取响应头
 print(resp.header.__dict__)
 # 获取响应体
 print(resp.text())
 # 尝试解码到json
 print(resp.json())
+
+#这里接续发送不再建立新的连接，而是复用之前的tcp
+stream = session.open_stream('https://m.so.com/', reqrio.Method.GET)
+for bs in stream:
+    # 处理数据流
+    print(len(bs))
+# 获取返回的响应头
+print(stream.response.header.__dict__)
+
 # 关闭连接资源，记得调用
 session.close()
 ```

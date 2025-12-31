@@ -1,4 +1,5 @@
 use crate::error::RlsResult;
+use crate::RlsError;
 use super::message::{Message, Payload};
 use super::version::Version;
 
@@ -46,12 +47,14 @@ impl<'a> RecordLayer<'a> {
         }
     }
     pub fn from_bytes(bytes: &mut [u8], payload: bool) -> RlsResult<RecordLayer<'_>> {
-        let (head, mut messages) = bytes.split_at_mut(5);
+        if bytes.len() < 5 { return Err(RlsError::MessageTooShort); }
+        let (head, messages) = bytes.split_at_mut(5);
         let mut res = RecordLayer::new();
         res.context_type = RecordType::from_byte(head[0]).ok_or("LayerType Unknown")?;
         res.version = Version::new(u16::from_be_bytes([head[1], head[2]]));
         res.len = u16::from_be_bytes([head[3], head[4]]);
-        if messages.len() != res.len as usize { return Err("record body not enough".into()); }
+        if messages.len() < res.len as usize { return Err("record body not enough".into()); }
+        let (mut messages, _) = messages.split_at_mut(res.len as usize);
         let mut index = 0;
         let total_len = messages.len();
 

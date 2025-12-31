@@ -1,6 +1,12 @@
 import json
 from ctypes import *
+from queue import Queue
+from threading import Thread
+
+from _queue import Empty
+
 from reqrio.alpn import ALPN
+from reqrio.method import Method
 from reqrio.util import _load_dll
 from reqrio.response import Response
 
@@ -40,7 +46,7 @@ class Session:
         self.dll.set_json.argtypes = [c_int, c_char_p]
         self.dll.set_json.restype = c_int
 
-        self.dll.set_bytes.argtypes = [c_int, c_char_p, c_uint]
+        self.dll.set_bytes.argtypes = [c_int, c_char_p, c_uint32]
         self.dll.set_bytes.restype = c_int
 
         self.dll.set_content_type.argtypes = [c_int, c_char_p]
@@ -79,6 +85,10 @@ class Session:
         self.dll.destroy.argtypes = [c_int]
 
         self.dll.free_pointer.argtypes = [c_void_p]
+
+        self.callback = CFUNCTYPE(None, POINTER(c_char), c_uint32)
+        self.dll.register.argtypes = [c_int, self.callback]
+        self.dll.register.restype = c_int
 
         self.hid = self.dll.init_http()
         if self.hid == -1: raise Exception('init fail')
@@ -173,7 +183,9 @@ class Session:
         r = self.dll.add_param(self.hid, name.encode('utf-8'), value.encode('utf-8'))
         if r == -1: raise Exception('add param error')
 
-    def get(self) -> Response:
+    def get(self, url: str = None) -> Response:
+        if url is not None:
+            self.set_url(url)
         resp = self.dll.get(self.hid)
         bs = string_at(resp).decode('utf-8')
         self.dll.free_pointer(resp)
@@ -183,7 +195,9 @@ class Session:
         except Exception as _:
             raise Exception(bs)
 
-    def post(self) -> Response:
+    def post(self, url: str = None) -> Response:
+        if url is not None:
+            self.set_url(url)
         resp = self.dll.post(self.hid)
         bs = string_at(resp).decode('utf-8')
         self.dll.free_pointer(resp)
@@ -193,7 +207,9 @@ class Session:
         except Exception as _:
             raise Exception(bs)
 
-    def options(self) -> Response:
+    def options(self, url: str = None) -> Response:
+        if url is not None:
+            self.set_url(url)
         resp = self.dll.options(self.hid)
         bs = string_at(resp).decode('utf-8')
         self.dll.free_pointer(resp)
@@ -203,7 +219,9 @@ class Session:
         except Exception as _:
             raise Exception(bs)
 
-    def put(self) -> Response:
+    def put(self, url: str = None) -> Response:
+        if url is not None:
+            self.set_url(url)
         resp = self.dll.put(self.hid)
         bs = string_at(resp).decode('utf-8')
         self.dll.free_pointer(resp)
@@ -213,7 +231,9 @@ class Session:
         except Exception as _:
             raise Exception(bs)
 
-    def head(self) -> Response:
+    def head(self, url: str = None) -> Response:
+        if url is not None:
+            self.set_url(url)
         resp = self.dll.head(self.hid)
         bs = string_at(resp).decode('utf-8')
         self.dll.free_pointer(resp)
@@ -223,7 +243,9 @@ class Session:
         except Exception as _:
             raise Exception(bs)
 
-    def delete(self) -> Response:
+    def delete(self, url: str = None) -> Response:
+        if url is not None:
+            self.set_url(url)
         resp = self.dll.delete(self.hid)
         bs = string_at(resp).decode('utf-8')
         self.dll.free_pointer(resp)
@@ -233,7 +255,9 @@ class Session:
         except Exception as _:
             raise Exception(bs)
 
-    def trach(self) -> Response:
+    def trach(self, url: str = None) -> Response:
+        if url is not None:
+            self.set_url(url)
         resp = self.dll.trach(self.hid)
         bs = string_at(resp).decode('utf-8')
         self.dll.free_pointer(resp)
@@ -243,6 +267,61 @@ class Session:
         except Exception as _:
             raise Exception(bs)
 
+    def open_stream(self, url: str, method: Method):
+        self.set_url(url)
+        return Stream(self, method)
+
     def close(self):
         """记得关闭资源，否则容易造成内存溢出"""
         self.dll.destroy(self.hid)
+
+
+class Stream:
+    def __init__(self, session: Session, method: Method):
+        self.session = session
+        self.q = Queue()
+        self._cb = session.callback(self._callback)
+        self.thread = Thread(target=self.__start_stream)
+        self.method = method
+        self.response = None
+        self.start()
+
+    def __start_stream(self):
+        if self.method == Method.GET:
+            self.response = self.session.get()
+        elif self.method == Method.POST:
+            self.response = self.session.get()
+        elif self.method == Method.PUT:
+            self.response = self.session.put()
+        elif self.method == Method.HEAD:
+            self.response = self.session.head()
+        elif self.method == Method.OPTIONS:
+            self.response = self.session.options(),
+        elif self.method == Method.TRACH:
+            self.response = self.session.trach()
+
+    # 这个是 ctypes 回调
+    def _callback(self, p, l):
+        data = bytes(p[:l])
+        self.q.put(data)
+        return 0
+
+    # 开始接收数据
+    def start(self):
+        r = self.session.dll.register(self.session.hid, self._cb)
+        if r != 0:
+            raise RuntimeError("register failed")
+        self.thread.start()
+        return self
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if not self.thread.is_alive():
+            raise StopIteration
+        try:
+            item = self.q.get(timeout=0.1)
+        except Empty:
+            return self.__next__()
+        return item

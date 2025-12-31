@@ -18,6 +18,12 @@
 //! }
 //! //默认没有任何请求头，需要自己设置
 //! req.set_headers_json(header);
+//! let mut len = Rc::new(RefCell::new(0));
+//! //这里设置回调函数
+//! req.set_callback(move|bs|{
+//!     *len.borrow_mut() += bs.len();
+//!     println!("{}",bs.len());
+//! })
 //! let res=req.get().unwrap();
 //! //获取响应头
 //! let header=res.header();
@@ -57,6 +63,11 @@ pub use stream::{TlsStream, TlsConnector};
 pub use tokio;
 pub use url::{Addr, Protocol, Uri, Url};
 pub use error::HlsError;
+use crate::error::HlsResult;
+
+#[cfg(anys)]
+pub type ReqCallback = Box<dyn FnMut(&[u8]) -> HlsResult<()>>;
+
 
 #[cfg(aync)]
 mod acq;

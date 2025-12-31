@@ -27,7 +27,6 @@ pub enum StreamKind {
     #[cfg(std_sync)]
     StdSyncHttps(StdSyncTlsStream),
     //异步
-
     #[cfg(aync)]
     AsyncHttp(AsyncTcpStream),
     #[cfg(std_async)]
@@ -123,7 +122,7 @@ impl StreamKind {
             }
             #[cfg(std_sync)]
             Protocol::Https => {
-                let tls_stream = crate::stream::cstream::StdSyncTlsStream::connect(param, stream)?;
+                let tls_stream = StdSyncTlsStream::connect(param, stream)?;
                 let alpn = tls_stream.alpn().unwrap_or(ALPN::Http11);
                 *self = StreamKind::StdSyncHttps(tls_stream);
                 Ok(alpn)
@@ -169,15 +168,7 @@ impl StreamKind {
             #[cfg(cls_sync)]
             StreamKind::SyncHttps(s) => buffer.sync_read(s),
             #[cfg(std_sync)]
-            StreamKind::StdSyncHttps(s) => //buffer.sync_read(s),
-                {
-                    // let mut buffer = [0; 16 * 1024];
-                    let len = s.read(buffer.unfilled_mut())?;
-                    if len == 0 { return Err("Connection Closed".into()); }
-                    buffer.set_len(len);
-                    Ok(())
-                    // Ok(buffer[..len].to_vec())
-                }
+            StreamKind::StdSyncHttps(s) => buffer.sync_read(s),
             _ => Err("Unsupported async read".into()),
         }
     }

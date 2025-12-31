@@ -149,7 +149,7 @@ impl Response {
     }
 
     pub fn extend_frame(&mut self, frame: Frame, hpack_coding: &mut HackDecode) -> HlsResult<bool> {
-        let ended = frame.flags().contains(&FrameFlag::EndStream) && (frame.frame_type() == &FrameType::Data || frame.frame_type() == &FrameType::Headers);
+        let ended = frame.is_end_frame();
         match frame.frame_type() {
             FrameType::Data => self.raw.extend(frame.to_payload()),
             FrameType::Headers => {
@@ -181,6 +181,8 @@ impl Response {
         let body = String::from_utf8_lossy(&self.raw).to_string();
         header + &body
     }
+
+    pub fn clear_raw(&mut self) { self.raw.clear() }
 
     pub fn decode_body(&mut self) -> HlsResult<&mut Body> {
         if !self.body.is_raw() { return Ok(&mut self.body); }

@@ -34,18 +34,6 @@ impl StdSyncTlsStream {
         Ok(StdSyncTlsStream { stream: StreamOwned::new(conn, stream) })
     }
 
-    pub fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.stream.read(buf)
-    }
-
-    pub fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.stream.write(buf)
-    }
-
-    pub fn flush(&mut self) -> std::io::Result<()> {
-        self.stream.flush()
-    }
-
     pub fn shutdown(&mut self) -> std::io::Result<()> {
         self.stream.conn.send_close_notify();
         self.stream.conn.complete_io(&mut self.stream.sock)?;
@@ -60,18 +48,18 @@ impl StdSyncTlsStream {
     }
 }
 
-// impl Read for StdSyncTlsStream {
-//     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-//         self.stream.read(buf)
-//     }
-// }
-//
-// impl Write for StdSyncTlsStream {
-//     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-//         self.stream.write(buf)
-//     }
-//
-//     fn flush(&mut self) -> std::io::Result<()> {
-//         self.stream.flush()
-//     }
-// }
+impl Read for StdSyncTlsStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.stream.read(buf)
+    }
+}
+
+impl Write for StdSyncTlsStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.stream.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.stream.flush()
+    }
+}

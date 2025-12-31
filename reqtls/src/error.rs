@@ -19,6 +19,7 @@ pub enum RlsError {
     HasherNone,
     AeadNone,
     InvalidCipherSuite,
+    MessageTooShort,
     StdError(Box<dyn Error>),
     Currently(String),
 }
@@ -34,6 +35,7 @@ impl Display for RlsError {
             RlsError::AeadNone => f.write_str("Aead none"),
             RlsError::HasherNone => f.write_str("Hasher none"),
             RlsError::InvalidCipherSuite=>f.write_str("Invalid cipher suite"),
+            RlsError::MessageTooShort=>f.write_str("Message too short"),
             RlsError::StdError(e) => f.write_fmt(format_args!("{:?}", e)),
             RlsError::Currently(e) => f.write_str(e),
         }

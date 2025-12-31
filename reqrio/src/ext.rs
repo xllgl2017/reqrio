@@ -1,13 +1,14 @@
-use json::JsonValue;
-use crate::{coder, Proxy, ALPN};
-#[cfg(use_cls)]
-use reqtls::Fingerprint;
 use crate::body::BodyType;
 use crate::error::HlsResult;
 use crate::file::HttpFile;
 use crate::packet::*;
 use crate::timeout::Timeout;
 use crate::url::Url;
+use crate::{coder, Buffer, Proxy, ReqCallback, ALPN};
+use json::JsonValue;
+#[cfg(use_cls)]
+use reqtls::Fingerprint;
+use crate::coder::HackDecode;
 
 pub trait ReqExt: Sized {
     fn body_type(&self) -> &BodyType;
@@ -60,6 +61,7 @@ pub trait ReqExt: Sized {
         self.set_alpn(alpn);
         self
     }
+    fn set_callback(&mut self, callback: impl FnMut(&[u8]) -> HlsResult<()> + 'static);
     #[cfg(use_cls)]
     fn set_fingerprint(&mut self, fingerprint: Fingerprint);
     #[cfg(use_cls)]
@@ -114,14 +116,50 @@ pub trait ReqExt: Sized {
 
 
 pub(crate) trait ReqPriExt: ReqExt {
-    // fn format_file_header(&mut self, md5: &str, body_len: usize) -> HlsResult<Vec<u8>> {
-    //     self.header_mut().set_content_type(ContentType::File(md5.to_string()));
-    //     let mut headers = self.header_mut().as_raw(body_len)?;
-    //     headers.insert(0, format!("{} {} HTTP/1.1", self.header().method(), self.url().uri()));
-    //     headers.push("".to_string());
-    //     headers.push("".to_string());
-    //     Ok(headers.join("\r\n").into_bytes())
-    // }
+    fn callback(&mut self) -> &mut Option<ReqCallback>;
+
+    fn hack_decoder(&mut self) -> &mut HackDecode;
+
+    fn handle_h1_res(&mut self, buffer: &Buffer, response: &mut Response, rd: &mut usize) -> HlsResult<bool> {
+        match self.callback() {
+            None => response.extend(&buffer),
+            Some(callback) => {
+                if response.header().is_empty() {
+                    response.extend(&buffer)?;
+                    if !response.header().is_empty() {
+                        callback(response.raw_body())?;
+                        *rd += response.raw_body().len();
+                        response.clear_raw();
+                    }
+                } else {
+                    callback(buffer.filled())?;
+                    *rd += buffer.filled().len();
+                }
+                if response.header().is_empty() { return Ok(false); }
+                match response.header().content_length() {
+                    None => Ok(buffer.filled().ends_with(&[48, 13, 10, 13, 10])),
+                    Some(len) => Ok(*rd >= len)
+                }
+            }
+        }
+    }
+
+    fn handle_h2_res(&mut self, frame: Frame, response: &mut Response) -> HlsResult<bool> {
+        if frame.frame_type() == &FrameType::Goaway { return Err("Connection reset by peer".into()); }
+        match self.callback() {
+            None => response.extend_frame(frame, self.hack_decoder()),
+            Some(callback) => {
+                match frame.frame_type() {
+                    FrameType::Data => {
+                        callback(frame.payload())?;
+                        Ok(frame.is_end_frame())
+                    }
+                    FrameType::Headers => Ok(response.extend_frame(frame, self.hack_decoder())?),
+                    _ => Ok(false),
+                }
+            }
+        }
+    }
 
     fn format_file_body((data, files): &(JsonValue, Vec<HttpFile>), md5: &str) -> HlsResult<Vec<u8>> {
         let mut body = vec![];
@@ -145,14 +183,6 @@ pub(crate) trait ReqPriExt: ReqExt {
         body.append(&mut format!("--{}--\r\n", md5).as_bytes().to_vec());
         Ok(body)
     }
-
-    // fn format_file_bytes(&mut self) -> HlsResult<Vec<u8>> {
-    //     let md5 = "abcde12345abcdebbeeaaccafeacb454";
-    //     let body_bytes = self.format_file_body(&md5)?;
-    //     let mut header_bytes = self.format_file_header(&md5, body_bytes.len())?;
-    //     header_bytes.extend(body_bytes);
-    //     Ok(header_bytes)
-    // }
 
     fn format_body(&mut self, md5: &str) -> HlsResult<Vec<u8>> {
         match self.body_type() {
@@ -197,14 +227,6 @@ pub(crate) trait ReqPriExt: ReqExt {
         Ok(headers.join("\r\n").into_bytes())
     }
 
-    // fn format_common_bytes(&mut self) -> HlsResult<Vec<u8>> {
-    //     let md5 = "abcde12345abcdebbeeaaccafeacb454";
-    //     let body = self.format_body(md5)?;
-    //     let mut header = self.format_header(md5, body.len())?;
-    //     header.extend(body);
-    //     Ok(header)
-    // }
-
     #[cfg(anys)]
     fn update_cookie(&mut self, response: &Response) {
         for cookie in response.header().cookies().unwrap_or(&vec![]) {
@@ -247,11 +269,6 @@ pub trait ReqGenExt: ReqPriExt {
         let mut content = self.format_header(md5, body.len())?;
         content.extend(body);
         Ok(content)
-        // self.format_common_bytes()
-        // match self.header_mut().content_type().unwrap_or(&ContentType::Application(Application::XWwwFormUrlencoded)) {
-        //     ContentType::File(_) => self.format_file_bytes(),
-        //     _ => self.format_common_bytes()
-        // }
     }
 
     fn gen_h2_header(&mut self) -> HlsResult<Vec<HeaderKey>> {
@@ -264,13 +281,6 @@ pub trait ReqGenExt: ReqPriExt {
 
 
     fn gen_h2_body(&mut self) -> HlsResult<Vec<u8>> {
-        // match self.header_mut().content_type().unwrap_or(&ContentType::Application(Application::XWwwFormUrlencoded)) {
-        //     ContentType::File(_) => {
-        //         self.header_mut().set_content_type(ContentType::File("abcde12345abcdebbeeaaccafeacb454".to_string()));
-        //         self.format_file_body("abcde12345abcdebbeeaaccafeacb454")
-        //     }
-        //     _ => Ok(self.format_body("abcde12345abcdebbeeaaccafeacb454")?.into_bytes()),
-        // }
         self.format_body("abcde12345abcdebbeeaaccafeacb454")
     }
 }

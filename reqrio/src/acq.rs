@@ -1,6 +1,6 @@
 use std::mem;
 use crate::alpn::ALPN;
-use crate::coder::HPackCoding;
+use crate::coder::{HPackCoding, HackDecode};
 use crate::error::HlsResult;
 use crate::ext::ReqExt;
 use crate::ext::{ReqGenExt, ReqPriExt};
@@ -8,7 +8,7 @@ use crate::packet::{Frame, FrameFlag, FrameType, Header, HeaderKey, Method, Resp
 use crate::stream::{ConnParam, Proxy, Stream};
 use crate::timeout::Timeout;
 use crate::url::Url;
-use crate::Buffer;
+use crate::{Buffer, ReqCallback};
 use json::JsonValue;
 #[cfg(use_cls)]
 use reqtls::Fingerprint;
@@ -20,7 +20,7 @@ pub struct AcReq {
     hack_coder: HPackCoding,
     stream: Stream,
     timeout: Timeout,
-    raw_bytes: Vec<u8>,
+    callback: Option<ReqCallback>,
     stream_id: u32,
     body: BodyType,
     alpn: ALPN,
@@ -37,7 +37,7 @@ impl AcReq {
             hack_coder: HPackCoding::new(),
             stream: Stream::unconnection(),
             timeout: Timeout::new(),
-            raw_bytes: vec![],
+            callback: None,
             stream_id: 0,
             alpn: ALPN::Http11,
             proxy: Proxy::Null,
@@ -86,10 +86,11 @@ impl AcReq {
         self.stream.async_write(context.as_slice()).await?;
         let mut response = Response::new();
         let mut buffer = Buffer::with_capacity(16413);
+        let mut read_len = 0;
         loop {
             buffer.reset();
             self.stream.async_read(&mut buffer).await?;
-            if response.extend(&buffer)? { break; }
+            if self.handle_h1_res(&buffer, &mut response, &mut read_len)? { break; }
         }
         Ok(response)
     }
@@ -107,6 +108,7 @@ impl AcReq {
             }
         }?;
         self.update_cookie(&response);
+        self.callback = None;
         if let ALPN::Http20 = self.stream.alpn() { self.stream_id += 2; }
         Ok(response)
     }
@@ -138,7 +140,6 @@ impl AcReq {
     pub async fn re_conn(&mut self) -> HlsResult<()> {
         self.hack_coder = HPackCoding::new();
         self.stream_id = 0;
-        self.raw_bytes.clear();
         for i in 0..self.timeout.connect_times() {
             let param = ConnParam {
                 url: &self.url,
@@ -231,23 +232,18 @@ impl AcReq {
             self.stream.async_write(body_frame.to_bytes().as_slice()).await?;
         }
         let mut response = Response::new();
-        let mut buffer = Buffer::with_capacity(16413);
+        let mut buffer = Buffer::with_capacity(0xFFFF);
         loop {
-            buffer.reset();
             self.stream.async_read(&mut buffer).await?;
-            self.raw_bytes.extend_from_slice(buffer.filled());
-            while let Ok(frame) = Frame::from_bytes(&self.raw_bytes) {
+            while let Ok(frame) = Frame::from_bytes(&mut buffer) {
                 if frame.frame_type() == &FrameType::Settings && frame.flags().contains(&FrameFlag::ACK) {
                     let mut end_frame = Frame::none_frame();
                     end_frame.set_frame_type(FrameType::Settings);
                     end_frame.set_flags(vec![FrameFlag::EndStream]);
                     self.stream.async_write(end_frame.to_bytes().as_ref()).await?;
-                    self.raw_bytes = self.raw_bytes[frame.len() + 9..].to_vec();
                     continue;
                 }
-                if frame.frame_type() == &FrameType::Goaway { return Err("Connection reset by peer".into()); }
-                self.raw_bytes = self.raw_bytes[frame.len() + 9..].to_vec();
-                if response.extend_frame(frame, self.hack_coder.decoder())? { return Ok(response); }
+                if self.handle_h2_res(frame, &mut response)? { return Ok(response); };
             }
         }
     }
@@ -255,7 +251,15 @@ impl AcReq {
 
 impl ReqGenExt for AcReq {}
 
-impl ReqPriExt for AcReq {}
+impl ReqPriExt for AcReq {
+    fn callback(&mut self) -> &mut Option<ReqCallback> {
+        &mut self.callback
+    }
+
+    fn hack_decoder(&mut self) -> &mut HackDecode {
+        self.hack_coder.decoder()
+    }
+}
 
 impl ReqExt for AcReq {
     fn body_type(&self) -> &BodyType {
@@ -296,6 +300,10 @@ impl ReqExt for AcReq {
 
     fn set_alpn(&mut self, alpn: ALPN) {
         self.alpn = alpn;
+    }
+
+    fn set_callback(&mut self, callback: impl FnMut(&[u8]) -> HlsResult<()> + 'static) {
+        self.callback = Some(Box::new(callback));
     }
 
     #[cfg(use_cls)]

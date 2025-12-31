@@ -7,6 +7,8 @@ mod typo;
 mod flag;
 
 use std::fmt::{Debug, Display, Formatter};
+use std::ptr;
+use crate::Buffer;
 use crate::error::HlsResult;
 
 #[derive(Clone, Debug)]
@@ -43,19 +45,29 @@ impl Frame {
             settings: vec![],
         }
     }
-    pub fn from_bytes(bytes: &[u8]) -> HlsResult<Frame> {
-        if bytes.len() < 9 { return Err("byte not enough".into()); }
-        let len = u32::from_be_bytes([0, bytes[0], bytes[1], bytes[2]]) as usize;
-        let frame_type = FrameType::from_u8(bytes[3])?;
-        let flags = FrameFlag::from_u8(bytes[4]);
-        let mut stream_identifier = u32::from_be_bytes(bytes[5..9].try_into()?);
+    pub fn from_bytes(buffer: &mut Buffer) -> HlsResult<Frame> {
+        if buffer.len() < 9 { return Err("byte not enough".into()); }
+        let len = u32::from_be_bytes([0, buffer[0], buffer[1], buffer[2]]) as usize;
+        let frame_type = FrameType::from_u8(buffer[3])?;
+        let flags = FrameFlag::from_u8(buffer[4]);
+        let mut stream_identifier = u32::from_be_bytes(buffer[5..9].try_into()?);
         stream_identifier &= !2147483648;
-        if bytes.len() < 9 + len { return Err("byte not enough".into()); }
-        let (dependency, weight, payload) = if flags.contains(&FrameFlag::Priority) {
-            (u32::from_be_bytes(bytes[9..13].try_into()?), bytes[13], bytes[14..9 + len].to_vec())
+        if buffer.len() < 9 + len { return Err("byte not enough".into()); }
+        let (dependency, weight, payload_range) = if flags.contains(&FrameFlag::Priority) {
+            (u32::from_be_bytes(buffer[9..13].try_into()?), buffer[13], 14..9 + len)
         } else {
-            (0, 0, bytes[9..9 + len].to_vec())
+            (0, 0, 9..9 + len)
         };
+        let mut payload: Vec<u8> = Vec::with_capacity(payload_range.end - payload_range.start);
+        unsafe {
+            let dst = payload.as_mut_ptr().add(0);
+            ptr::copy_nonoverlapping(buffer[payload_range].as_ptr(), dst, len);
+            payload.set_len(len);
+        }
+        buffer.copy_within(9 + len..buffer.len(), 0);
+        buffer.set_len(buffer.len() - payload.len() - 9);
+
+
         let mut settings = vec![];
         if frame_type == FrameType::Settings {
             let mut cl = 0;
@@ -65,6 +77,7 @@ impl Frame {
                 cl += 6;
             }
         }
+
 
         Ok(Frame {
             len,
@@ -208,5 +221,10 @@ impl Frame {
 
     pub fn stream_identifier(&self) -> u32 {
         self.stream_identifier
+    }
+
+    pub fn is_end_frame(&self) -> bool {
+        self.flags.contains(&FrameFlag::EndStream) &&
+            (self.frame_type == FrameType::Data || self.frame_type == FrameType::Headers)
     }
 }

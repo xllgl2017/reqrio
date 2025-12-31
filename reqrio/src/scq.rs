@@ -1,7 +1,7 @@
 use crate::alpn::ALPN;
 use crate::body::BodyType;
 use crate::buffer::Buffer;
-use crate::coder::HPackCoding;
+use crate::coder::{HPackCoding, HackDecode};
 use crate::error::HlsResult;
 use crate::ext::{ReqExt, ReqGenExt, ReqPriExt};
 use crate::packet::*;
@@ -12,6 +12,7 @@ use json::JsonValue;
 #[cfg(feature = "cls_sync")]
 use reqtls::Fingerprint;
 use std::mem;
+use crate::ReqCallback;
 
 pub struct ScReq {
     header: Header,
@@ -19,8 +20,8 @@ pub struct ScReq {
     hack_coder: HPackCoding,
     stream: Stream,
     body: BodyType,
+    callback: Option<ReqCallback>,
     timeout: Timeout,
-    raw_bytes: Vec<u8>,
     stream_id: u32,
     alpn: ALPN,
     proxy: Proxy,
@@ -36,8 +37,8 @@ impl ScReq {
             hack_coder: HPackCoding::new(),
             stream: Stream::unconnection(),
             body: BodyType::Text("".to_string()),
+            callback: None,
             timeout: Timeout::new(),
-            raw_bytes: vec![],
             stream_id: 0,
             alpn: ALPN::Http11,
             proxy: Proxy::Null,
@@ -85,10 +86,11 @@ impl ScReq {
         self.stream.sync_write(context.as_slice())?;
         let mut response = Response::new();
         let mut buffer = Buffer::with_capacity(16413);
+        let mut read_len = 0;
         loop {
             buffer.reset();
             self.stream.sync_read(&mut buffer)?;
-            if response.extend(&buffer)? { break; }
+            if self.handle_h1_res(&buffer, &mut response, &mut read_len)? { break; }
         }
         Ok(response)
     }
@@ -106,6 +108,7 @@ impl ScReq {
             }
         }?;
         self.update_cookie(&response);
+        self.callback = None;
         if let ALPN::Http20 = self.alpn { self.stream_id += 2; }
         Ok(response)
     }
@@ -138,7 +141,6 @@ impl ScReq {
     pub fn re_conn(&mut self) -> HlsResult<()> {
         self.hack_coder = HPackCoding::new();
         self.stream_id = 0;
-        self.raw_bytes.clear();
         for i in 0..self.timeout.connect_times() {
             let param = ConnParam {
                 url: &self.url,
@@ -150,7 +152,7 @@ impl ScReq {
             };
             match self.stream.sync_connect(param) {
                 Ok(_) => {
-                    println!("{}", self.stream.alpn().alpn_str());
+                    // println!("{}", self.stream.alpn().alpn_str());
                     self.header.init_by_alpn(self.stream.alpn());
                     if self.stream.alpn() == &ALPN::Http20 { self.handle_h2_setting()?; }
                     return Ok(());
@@ -225,7 +227,6 @@ impl ScReq {
     }
 
     pub fn h2c_io(&mut self, headers: Vec<HeaderKey>, body: Vec<u8>) -> HlsResult<Response> {
-        // std::thread::sleep(std::time::Duration::from_secs(100));
         let hdr_bs = self.hack_coder.encode(headers)?;
         let header_frame = Frame::new_header(hdr_bs, body.len(), self.stream_id);
         self.stream.sync_write(header_frame.to_bytes().as_slice())?;
@@ -233,23 +234,18 @@ impl ScReq {
             self.stream.sync_write(body_frame.to_bytes().as_slice())?;
         }
         let mut response = Response::new();
-        let mut buffer = Buffer::with_capacity(16413);
+        let mut buffer = Buffer::with_capacity(0xFFFF);
         loop {
-            buffer.reset();
             self.stream.sync_read(&mut buffer)?;
-            self.raw_bytes.extend_from_slice(buffer.filled());
-            while let Ok(frame) = Frame::from_bytes(&self.raw_bytes) {
+            while let Ok(frame) = Frame::from_bytes(&mut buffer) {
                 if frame.frame_type() == &FrameType::Settings && frame.flags().contains(&FrameFlag::ACK) {
                     let mut end_frame = Frame::none_frame();
                     end_frame.set_frame_type(FrameType::Settings);
                     end_frame.set_flags(vec![FrameFlag::EndStream]);
                     self.stream.sync_write(end_frame.to_bytes().as_ref())?;
-                    self.raw_bytes = self.raw_bytes[frame.len() + 9..].to_vec();
                     continue;
                 }
-                if frame.frame_type() == &FrameType::Goaway { return Err("Connection reset by peer".into()); }
-                self.raw_bytes = self.raw_bytes[frame.len() + 9..].to_vec();
-                if response.extend_frame(frame, self.hack_coder.decoder())? { return Ok(response); }
+                if self.handle_h2_res(frame, &mut response)? { return Ok(response); };
             }
         }
     }
@@ -257,7 +253,15 @@ impl ScReq {
 
 impl ReqGenExt for ScReq {}
 
-impl ReqPriExt for ScReq {}
+impl ReqPriExt for ScReq {
+    fn callback(&mut self) -> &mut Option<ReqCallback> {
+        &mut self.callback
+    }
+
+    fn hack_decoder(&mut self) -> &mut HackDecode {
+        self.hack_coder.decoder()
+    }
+}
 
 impl ReqExt for ScReq {
     fn body_type(&self) -> &BodyType {
@@ -300,6 +304,10 @@ impl ReqExt for ScReq {
         self.alpn = alpn;
     }
 
+    fn set_callback(&mut self, callback: impl FnMut(&[u8]) -> HlsResult<()> + 'static) {
+        self.callback = Some(Box::new(callback));
+    }
+
     #[cfg(use_cls)]
     fn set_fingerprint(&mut self, fingerprint: Fingerprint) {
         self.fingerprint = fingerprint;
@@ -311,3 +319,6 @@ impl Drop for ScReq {
         let _ = self.stream.sync_shutdown();
     }
 }
+
+#[cfg(feature = "export")]
+unsafe impl Send for ScReq {}

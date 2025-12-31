@@ -543,7 +543,7 @@ checksum = "f66ee92bc15280519ef199a274fe0cafff4245d31bc39aaa31c011ad56cb1f05"
 
 [[package]]
 name = "reqrio"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "brotli",
  "cfg_aliases",
@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "reqtls"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "aws-lc-rs",
  "bytemuck",

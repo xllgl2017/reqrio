@@ -120,6 +120,10 @@ impl Buffer {
     pub fn unfilled_mut(&mut self) -> &mut [u8] {
         &mut self.buffer[self.len..]
     }
+
+    pub fn copy_within(&mut self, r: Range<usize>, pos: usize) {
+        self.buffer.copy_within(r,pos);
+    }
 }
 
 impl Index<RangeTo<usize>> for Buffer {
