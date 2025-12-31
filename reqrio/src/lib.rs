@@ -46,6 +46,7 @@
 pub use acq::AcReq;
 pub use alpn::ALPN;
 pub use buffer::Buffer;
+#[cfg(anys)]
 pub use ext::{ReqExt, ReqGenExt};
 pub use json;
 pub use packet::{
@@ -77,6 +78,7 @@ pub mod coder;
 mod error;
 #[cfg(feature = "export")]
 mod export;
+#[cfg(anys)]
 mod ext;
 mod file;
 mod packet;

@@ -1,6 +1,6 @@
 [package]
 name = "reqtls"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2024"
 #readme = "README.md"
 description = "A tls lib"
