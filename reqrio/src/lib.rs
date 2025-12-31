@@ -64,6 +64,7 @@ pub use stream::{TlsStream, TlsConnector};
 pub use tokio;
 pub use url::{Addr, Protocol, Uri, Url};
 pub use error::HlsError;
+#[cfg(anys)]
 use crate::error::HlsResult;
 
 #[cfg(anys)]
@@ -80,6 +81,7 @@ mod error;
 mod export;
 #[cfg(anys)]
 mod ext;
+#[cfg(anys)]
 mod file;
 mod packet;
 #[cfg(sync)]
@@ -87,4 +89,5 @@ mod scq;
 mod stream;
 mod timeout;
 mod url;
+#[cfg(anys)]
 mod body;
