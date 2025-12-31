@@ -1,6 +1,7 @@
+from reqrio.alpn import ALPN
 from reqrio.response import Response
 from reqrio.session import Session
-from reqrio.alpn import ALPN
+from reqrio.method import Method
 
 
 def get(url: str, headers: dict, params: dict = None, data: dict = None, json: dict = None,
