@@ -82,3 +82,14 @@ print(stream.response.header.__dict__)
 # 关闭连接资源，记得调用
 session.close()
 ```
+
+* java示例
+```java
+public class Main {
+    public static void main(String[] args) throws Exception {
+        Reqrio reqrio = new Reqrio();
+        Response response = reqrio.get("https://www.baidu.com");
+        IO.println(response.toString());
+    }
+}
+```

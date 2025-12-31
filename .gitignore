@@ -10,3 +10,5 @@ Certificate
 ServerKeyExchange
 ServerHelloDone
 ClientKeyExchange
+java/target
+java/.idea
