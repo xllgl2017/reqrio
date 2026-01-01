@@ -7,7 +7,7 @@ use std::ptr;
 use tokio::io::AsyncReadExt;
 
 pub struct Buffer {
-    pub buffer: Vec<u8>,
+    buffer: Vec<u8>,
     len: usize,
 }
 

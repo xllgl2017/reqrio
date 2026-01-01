@@ -1,14 +1,21 @@
-#### reqrio是http请求库，目标是可以使用rust快速、简单、便捷使用http请求
-
+#### reqrio是http请求库，目标是可以快速、简单、便捷使用http请求
+* reqrio特性: 低拷贝、高并发、低损耗
 * reqrio支持tls指纹，可以通过tls握手的十六进制或ja3设置,仅cls_sync和cls_async支持(**仅订阅**),
 * reqrio默认对请求头的顺序会默认和浏览器一致(会对请求头进行重排序)
+
+#### reqrio默认不开启http请求，仅作为http数据数据流解析库导出，请求需要打开features
+* std_sync: 标准的tls库([rustls](https://github.com/rustls/rustls)，同步请求
+* std_async: 标准的tls库([tokio-rustls](https://github.com/rustls/tokio-rustls))，异步请求
+* cls_sync: 自研tls库(**算法不完善，不校验服务端证书，请勿用于生产模式**)[reqtls](https://github.com/xllgl2017/reqrio/tree/master/reqtls), 同步请求
+* cls_async: 自研tls库(**算法不完善，不校验服务端证书，请勿用于生产模式**)[reqtls](https://github.com/xllgl2017/reqrio/tree/master/reqtls), 异步请求
+
+**注意**: std和cls不可以同时存在，sync和async可以同时存在
 
 ### 使用示例(支持rust、python、java):
 
 * rust示例
 
 ```rust
-
 use reqrio::{Fingerprint, ScReq, ALPN};
 
 fn ff() {
@@ -19,8 +26,24 @@ fn ff() {
         .with_alpn(ALPN::Http20)
         .with_fingerprint(fingerprint)
         .with_url("https://www.baidu.com").unwrap();
-    let header = json::object! {
-        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+    let headers = json::object! {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Cookie": "__guid=15015764.1071255116101212729.1764940193317.2156; env_webp=1; _S=pvc5q7leemba50e4kn4qis4b95; QiHooGUID=4C8051464B2D97668E3B21198B9CA207.1766289287750; count=1; so-like-red=2; webp=1; so_huid=114r0SZFiQcJKtA38GZgwZg%2Fdit1cjUGuRcsIL2jTn4%2FE%3D; __huid=114r0SZFiQcJKtA38GZgwZg%2Fdit1cjUGuRcsIL2jTn4%2FE%3D; gtHuid=1",
+        "Host": "m.so.com",
+        "Pragma": "no-cache",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": 1,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0",
+        "sec-ch-ua": r#""Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24""#,
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": r#""Windows""#
     };
     //默认没有任何请求头，需要自己设置
     req.set_headers_json(header);
