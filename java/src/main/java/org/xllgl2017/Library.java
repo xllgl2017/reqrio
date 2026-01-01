@@ -72,7 +72,6 @@ interface ReqrioLibrary extends Library {
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-                ;
 
             }
             return Native.load(dll_file.getAbsolutePath(), ReqrioLibrary.class);

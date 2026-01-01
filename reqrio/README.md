@@ -1,36 +1,41 @@
 #### reqrio是http请求库，目标是可以使用rust快速、简单、便捷使用http请求
 
-* reqrio支持tls指纹，可以通过tls握手的十六进制或ja3设置,仅cls_sync和cls_async支持(**仅订阅**),例如:
+* reqrio支持tls指纹，可以通过tls握手的十六进制或ja3设置,仅cls_sync和cls_async支持(**仅订阅**),
+* reqrio默认对请求头的顺序会默认和浏览器一致(会对请求头进行重排序)
+
+### 使用示例(支持rust、python、java):
 
 * rust示例
+
 ```rust
 
 use reqrio::{Fingerprint, ScReq, ALPN};
 
-fn ff(){
-    let fingerprint=Fingerprint::default().unwrap();
+fn ff() {
+    let fingerprint = Fingerprint::default().unwrap();
     fingerprint.set_ja3("771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,13-11-65037-17613-45-18-16-5-43-10-0-27-23-35-51-65281,4588-29-23-24,0");
-    let req=ScReq::new()
+    let req = ScReq::new()
         //默认使用http/1.1
         .with_alpn(ALPN::Http20)
         .with_fingerprint(fingerprint)
         .with_url("https://www.baidu.com").unwrap();
-    let header=json::object! {
+    let header = json::object! {
         "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
     };
     //默认没有任何请求头，需要自己设置
     req.set_headers_json(header);
-    let res=req.get().unwrap();
+    let res = req.get().unwrap();
     //获取响应头
-    let header=res.header();
+    let header = res.header();
     //获取响应体,这里的body已经解编码
-    let body=res.decode_body().unwrap();
+    let body = res.decode_body().unwrap();
     //尝试解码到json
-    let json=res.to_json().unwrap();
+    let json = res.to_json().unwrap();
 }
 ```
 
 * python示例
+
 ```python
 import reqrio
 
@@ -71,7 +76,7 @@ print(resp.text())
 # 尝试解码到json
 print(resp.json())
 
-#这里接续发送不再建立新的连接，而是复用之前的tcp
+# 这里接续发送不再建立新的连接，而是复用之前的tcp
 stream = session.open_stream('https://m.so.com/', reqrio.Method.GET)
 for bs in stream:
     # 处理数据流
@@ -84,6 +89,7 @@ session.close()
 ```
 
 * java示例
+
 ```java
 import com.google.gson.Gson;
 import org.xllgl2017.*;

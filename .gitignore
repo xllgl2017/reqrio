@@ -12,3 +12,5 @@ ServerHelloDone
 ClientKeyExchange
 java/target
 java/.idea
+c++/cmake-build-debug-visual-studio
+c++/.idea

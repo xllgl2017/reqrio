@@ -4,6 +4,8 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/py.iml" filepath="$PROJECT_DIR$/.idea/py.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/reqrio.iml" filepath="$PROJECT_DIR$/.idea/reqrio.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/c++.iml" filepath="$PROJECT_DIR$/.idea/c++.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/java.iml" filepath="$PROJECT_DIR$/.idea/java.iml" />
     </modules>
   </component>
 </project>
