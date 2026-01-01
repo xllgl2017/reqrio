@@ -5,7 +5,7 @@ edition = "2024"
 readme = "README.md"
 description = "A http lib"
 license-file = "../LICENSE-APACHE"
-repository = "https://github.com/xllgl2017/reqrio"
+repository = "https://github.com/xllgl2017/reqrio/tree/master/reqrio"
 
 [lib]
 name = "reqrio"
