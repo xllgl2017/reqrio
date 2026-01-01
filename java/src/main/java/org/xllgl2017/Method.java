@@ -1,4 +1,4 @@
-package org.example;
+package org.xllgl2017;
 
 public enum Method {
     GET,

@@ -1,4 +1,4 @@
-package org.example;
+package org.xllgl2017;
 
 public enum ALPN {
     HTTP10("http/1.0"),
@@ -11,7 +11,7 @@ public enum ALPN {
         this.value = value;
     }
 
-    public String get_value() {
+    public String getValue() {
         return this.value;
     }
 }

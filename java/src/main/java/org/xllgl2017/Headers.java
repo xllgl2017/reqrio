@@ -1,4 +1,4 @@
-package org.example;
+package org.xllgl2017;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -7,7 +7,6 @@ import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class Headers {
     private String uri;
@@ -49,12 +48,31 @@ public class Headers {
         this.keys.add(header);
     }
 
+    public void addHeader(String name, String value) {
+        this.keys.add(new Header(name, value));
+    }
+
     public List<Cookie> getCookies() {
         return cookies;
     }
 
-    public void add_cookie(Cookie cookie) {
+    public void addCookie(Cookie cookie) {
         this.cookies.add(cookie);
     }
 
+    public void setCookies(String cookies) {
+        String[] items = cookies.split("; ");
+        for (String item : items) {
+            String[] kvs = item.split("=");
+            if (kvs.length > 1) {
+                this.addCookie(new Cookie(kvs[0], kvs[1]));
+            } else {
+                this.addCookie(new Cookie(kvs[0], ""));
+            }
+        }
+    }
+
+    public List<Header> getKeys() {
+        return keys;
+    }
 }

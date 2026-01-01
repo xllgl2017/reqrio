@@ -1,4 +1,4 @@
-package org.example;
+package org.xllgl2017;
 
 public class Timeout {
     public int connect = 3;

@@ -1,8 +1,6 @@
-package org.example;
+package org.xllgl2017;
 
 public class Header {
-
-
     private final String name;
     private final String value;
 

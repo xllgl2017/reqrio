@@ -1,11 +1,18 @@
-package org.example;
+package org.xllgl2017;
 
+import com.google.gson.Gson;
 import com.sun.jna.Pointer;
 import org.apache.commons.codec.DecoderException;
 
 public class Reqrio {
     private final ReqrioLibrary lib;
     private int hid = -1;
+
+    public Reqrio(ALPN alpn) {
+        this.lib = ReqrioLibrary.INSTANCE;
+        this.hid = this.lib.init_http();
+        this.lib.set_alpn(this.hid, alpn.getValue());
+    }
 
     public Reqrio() {
         this.lib = ReqrioLibrary.INSTANCE;
@@ -17,13 +24,22 @@ public class Reqrio {
         if (res == -1) throw new Exception("set header json error");
     }
 
+    public void setHeaders(Headers headers) {
+        for (Header header : headers.getKeys()) {
+            this.lib.add_header(this.hid, header.getName(), header.getValue());
+        }
+        for (Cookie cookie : headers.getCookies()) {
+            this.lib.add_cookie(this.hid, cookie.getName(), cookie.getValue());
+        }
+    }
+
     public void addHeader(Header header) throws Exception {
         int res = this.lib.add_header(this.hid, header.getName(), header.getValue());
         if (res == -1) throw new Exception("add header error");
     }
 
     public void setALPN(ALPN alpn) throws Exception {
-        int res = this.lib.set_alpn(this.hid, alpn.get_value());
+        int res = this.lib.set_alpn(this.hid, alpn.getValue());
         if (res == -1) throw new Exception("set alpn error");
     }
 
@@ -68,7 +84,8 @@ public class Reqrio {
     }
 
     public void setTimeout(Timeout timeout) throws Exception {
-        int res = this.lib.set_timeout(this.hid, "");
+        Gson gson = new Gson();
+        int res = this.lib.set_timeout(this.hid, gson.toJson(timeout));
         if (res == -1) throw new Exception("set timeout error");
     }
 
