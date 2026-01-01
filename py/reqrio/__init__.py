@@ -3,6 +3,12 @@ from reqrio.response import Response
 from reqrio.session import Session
 from reqrio.method import Method
 
+# pyinstaller.exe -F --collect-binaries reqrio .\1.py
+
+def _pyinstaller_hooks_dir():
+    from pathlib import Path
+    return [str(Path(__file__).with_name("hooks").resolve())]
+
 
 def get(url: str, headers: dict, params: dict = None, data: dict = None, json: dict = None,
         alpn=ALPN.HTTP11) -> Response:

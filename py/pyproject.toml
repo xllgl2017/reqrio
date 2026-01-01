@@ -15,10 +15,15 @@ authors = [
 ]
 
 [tool.setuptools]
-packages = ["reqrio"]
+packages = ["reqrio","reqrio.hooks"]
+include-package-data = true
 
 [tool.setuptools.package-data]
-reqrio = ["*.dll"]
+reqrio = ["*.dll", "**/*.dll","**/*.so"]
+
+[project.entry-points."pyinstaller40"]
+hook-dirs = "reqrio:_pyinstaller_hooks_dir"
+
 
 [project.urls]
 Homepage = "https://github.com/xllgl2017/reqrio"

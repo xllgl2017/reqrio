@@ -2,89 +2,16 @@ import json
 from ctypes import *
 
 from reqrio.alpn import ALPN
+from reqrio.bindings import DLL, CALLBACK
 from reqrio.method import Method
 from reqrio.response import Response
-from reqrio.util import _load_dll
 
 
 class Session:
     # alpn值是字符串['http/1.1','h2']
     def __init__(self, alpn: ALPN = ALPN.HTTP11):
-        self.dll = _load_dll()
-        # self.dll = cdll.LoadLibrary(r"D:\projects\rust\reqrio\target\debug\reqrio.dll")
-        # 初始化函数
-        self.dll.init_http.restype = c_int
-
-        self.dll.set_header_json.argtypes = [c_int, c_char_p]
-        self.dll.set_header_json.restype = c_int
-
-        self.dll.add_header.argtypes = [c_int, c_char_p, c_char_p]
-        self.dll.add_header.restype = c_int
-
-        self.dll.set_alpn.argtypes = [c_int, c_char_p]
-        self.dll.set_alpn.restype = c_int
-
-        # self.dll.set_fingerprint.argtypes = [c_int, c_char_p]
-        # self.dll.set_fingerprint.restype = c_int
-
-        # self.dll.set_ja3.argtypes = [c_int, c_char_p]
-        # self.dll.set_ja3.restype = c_int
-
-        self.dll.set_proxy.argtypes = [c_int, c_char_p]
-        self.dll.set_proxy.restype = c_int
-
-        self.dll.set_url.argtypes = [c_int, c_char_p]
-        self.dll.set_url.restype = c_int
-
-        self.dll.set_data.argtypes = [c_int, c_char_p]
-        self.dll.set_data.restype = c_int
-
-        self.dll.set_json.argtypes = [c_int, c_char_p]
-        self.dll.set_json.restype = c_int
-
-        self.dll.set_bytes.argtypes = [c_int, c_char_p, c_uint32]
-        self.dll.set_bytes.restype = c_int
-
-        self.dll.set_content_type.argtypes = [c_int, c_char_p]
-        self.dll.set_content_type.restype = c_int
-
-        self.dll.set_cookie.argtypes = [c_int, c_char_p]
-        self.dll.set_cookie.restype = c_int
-
-        self.dll.add_cookie.argtypes = [c_int, c_char_p, c_char_p]
-        self.dll.add_cookie.restype = c_int
-
-        self.dll.set_timeout.argtypes = [c_int, c_char_p]
-        self.dll.set_timeout.restype = c_int
-
-        self.dll.add_param.argtypes = [c_int, c_char_p]
-        self.dll.add_param.restype = c_int
-
-        self.dll.get.argtypes = [c_int]
-        self.dll.get.restype = c_void_p
-
-        self.dll.post.argtypes = [c_int]
-        self.dll.post.restype = c_void_p
-
-        self.dll.options.argtypes = [c_int]
-        self.dll.options.restype = c_void_p
-
-        self.dll.put.argtypes = [c_int]
-        self.dll.put.restype = c_void_p
-
-        self.dll.head.argtypes = [c_int]
-        self.dll.head.restype = c_void_p
-
-        self.dll.trach.argtypes = [c_int]
-        self.dll.trach.restype = c_void_p
-
-        self.dll.destroy.argtypes = [c_int]
-
-        self.dll.free_pointer.argtypes = [c_void_p]
-
-        self.callback = CFUNCTYPE(None, POINTER(c_char), c_uint32)
-        self.dll.register.argtypes = [c_int, self.callback]
-        self.dll.register.restype = c_int
+        self.dll = DLL
+        self.callback=CALLBACK
 
         self.hid = self.dll.init_http()
         if self.hid == -1: raise Exception('init fail')
