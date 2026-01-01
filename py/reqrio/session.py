@@ -31,7 +31,7 @@ class Session:
         # self.dll.set_ja3.restype = c_int
 
         self.dll.set_proxy.argtypes = [c_int, c_char_p]
-        self.dll.set_proxy = c_int
+        self.dll.set_proxy.restype = c_int
 
         self.dll.set_url.argtypes = [c_int, c_char_p]
         self.dll.set_url.restype = c_int
