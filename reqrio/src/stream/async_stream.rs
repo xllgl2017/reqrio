@@ -97,7 +97,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> TlsStream<S> {
         self.read_buffer.async_read_limit(&mut self.stream, 5).await?;
         if self.read_buffer.len() < 5 { return Err(HlsError::InvalidHeadSize)?; }
         let payload_len = u16::from_be_bytes([self.read_buffer[3], self.read_buffer[4]]) as usize;
+        // if payload_len > self.read_buffer.capacity() - self.read_buffer.len() {
+        //
+        // }
         while self.read_buffer.len() - 5 < payload_len {
+            // println!("{} {} {:?} {}", payload_len, self.read_buffer.len(), &self.read_buffer[..10],String::from_utf8_lossy(&self.read_buffer[..10]).to_string());
             self.read_buffer.async_read_limit(&mut self.stream, payload_len + 5 - self.read_buffer.len()).await?;
         }
         if !self.handshake_finished { self.conn.update_session(&self.read_buffer.filled()[5..])?; }
