@@ -9,4 +9,8 @@ members = [
 reqtls = { path = "reqtls", version = "0.0.9" }
 
 [profile.release]
+opt-level = "z"
 strip = "symbols"
+lto = true
+codegen-units = 1
+panic = "abort"

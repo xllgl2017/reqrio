@@ -183,13 +183,21 @@ impl Header {
         Ok(())
     }
 
+    ///cookie请使用set_cookie/add_cookie
     pub fn insert(&mut self, k: impl AsRef<str>, v: impl ToString) -> HlsResult<()> {
         let lower_key = k.as_ref().to_lowercase().replace("contentlength", "content-length")
             .replace("contenttype", "ccontent-type");
         let header = self.keys.iter_mut().find(|x| x.name_lower() == lower_key);
         if let Some(header) = header {
             match header.name_lower().as_str() {
-                "cookie" => self.set_cookie(v.to_string())?,
+                "cookie" => {
+                    let mut cookies = Cookie::from_req(v.to_string())?;
+                    match cookies.len() {
+                        2.. => header.set_value(HeaderValue::Cookies(cookies)),
+                        1 => header.value_mut().add_cookie(cookies.remove(0)),
+                        0 => {}
+                    }
+                }
                 "content-length" => header.set_value(HeaderValue::Number(v.to_string().parse()?)),
                 "content-type" => header.set_value(HeaderValue::ContextType(ContentType::try_from(&v.to_string())?)),
                 "upgrade-insecure-requests" => header.set_value(HeaderValue::Bool(v.to_string() == "1")),
@@ -203,8 +211,8 @@ impl Header {
                     self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::Cookies(vec![cookie])));
                 }
                 "cookie" => {
-                    self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::Cookies(vec![])));
-                    self.set_cookie(v.to_string())?
+                    let cookies = Cookie::from_req(v.to_string())?;
+                    self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::Cookies(cookies)));
                 }
                 "content-length" => self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::Number(v.to_string().parse()?))),
                 _ => self.keys.push(HeaderKey::new(k.as_ref(), HeaderValue::String(v.to_string()))),
@@ -390,7 +398,10 @@ impl Header {
 
     pub fn set_by_json(&mut self, headers: JsonValue) -> HlsResult<()> {
         for (k, v) in headers.entries() {
-            self.insert(k, v.dump())?;
+            match k.to_lowercase().as_str() {
+                "cookie" => self.set_cookie(v.dump())?,
+                _ => self.insert(k, v.dump())?
+            }
         }
         Ok(())
     }

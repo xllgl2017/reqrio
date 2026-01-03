@@ -67,7 +67,10 @@ impl TryFrom<&str> for Uri {
         let mut items = value.split("?");
         let mut res = Uri::new();
         res.uri = items.next().unwrap_or("").to_string();
-        res.parse_param(items.next().unwrap_or(""))?;
+        if let Some(param) = items.next() {
+            res.parse_param(param)?;
+        }
+
         Ok(res)
     }
 }

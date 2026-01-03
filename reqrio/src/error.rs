@@ -8,7 +8,7 @@ use std::num::ParseIntError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::PoisonError;
-use httlib_huffman::EncoderError;
+use httlib_hpack::{DecoderError, EncoderError};
 use json::JsonError;
 #[cfg(feature = "rustls")]
 use rustls::pki_types::InvalidDnsNameError;
@@ -25,7 +25,7 @@ pub enum HlsError {
     PayloadNone,
     DecrypterNone,
     EncrypterNone,
-    StdErr(Box<dyn Error>),
+    // StdErr(Box<dyn Error>),
     Currently(String),
 }
 
@@ -43,20 +43,19 @@ impl From<String> for HlsError {
 
 impl From<FromUtf8Error> for HlsError {
     fn from(e: FromUtf8Error) -> Self {
-        HlsError::StdErr(Box::new(e))
+        HlsError::Currently(e.to_string())
     }
 }
 
 impl From<ParseIntError> for HlsError {
     fn from(e: ParseIntError) -> Self {
-        HlsError::StdErr(Box::new(e))
+        HlsError::Currently(e.to_string())
     }
 }
 
 impl Display for HlsError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            HlsError::StdErr(e) => f.write_str(&e.to_string()),
             HlsError::Currently(e) => f.write_str(e),
             HlsError::InvalidHeadSize => f.write_str("InvalidHeadSize"),
             HlsError::PeerClosedConnection => f.write_str("PeerClosedConnection"),
@@ -70,13 +69,13 @@ impl Display for HlsError {
 
 impl From<TryFromSliceError> for HlsError {
     fn from(value: TryFromSliceError) -> Self {
-        Self::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
 impl From<io::Error> for HlsError {
     fn from(value: io::Error) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
@@ -84,7 +83,7 @@ impl From<io::Error> for HlsError {
 #[cfg(feature = "rustls")]
 impl From<InvalidDnsNameError> for HlsError {
     fn from(value: InvalidDnsNameError) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
@@ -97,45 +96,51 @@ impl From<rustls::Error> for HlsError {
 
 impl From<Infallible> for HlsError {
     fn from(value: Infallible) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
 impl From<EncoderError> for HlsError {
     fn from(value: EncoderError) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
+    }
+}
+
+impl From<DecoderError> for HlsError {
+    fn from(value: DecoderError) -> Self {
+        HlsError::Currently(value.to_string())
     }
 }
 
 impl From<JsonError> for HlsError {
     fn from(value: JsonError) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
 impl<T: 'static> From<PoisonError<T>> for HlsError {
     fn from(value: PoisonError<T>) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
 impl From<Utf8Error> for HlsError {
     fn from(value: Utf8Error) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
 #[cfg(use_cls)]
 impl From<RlsError> for HlsError {
     fn from(value: RlsError) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
 #[cfg(aync)]
 impl From<Elapsed> for HlsError {
     fn from(value: Elapsed) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
 
@@ -147,9 +152,22 @@ impl From<HlsError> for io::Error {
 
 impl From<AddrParseError> for HlsError {
     fn from(value: AddrParseError) -> Self {
-        HlsError::StdErr(Box::new(value))
+        HlsError::Currently(value.to_string())
     }
 }
+
+// impl From<super::coder::EncoderError> for HlsError {
+//     fn from(value: super::coder::EncoderError) -> Self {
+//         HlsError::StdErr(Box::new(value))
+//     }
+// }
+//
+// impl From<super::coder::DecoderError> for HlsError {
+//     fn from(value: super::coder::DecoderError) -> Self {
+//         HlsError::StdErr(Box::new(value))
+//     }
+// }
+
 impl Error for HlsError {}
 
 unsafe impl Send for HlsError {}

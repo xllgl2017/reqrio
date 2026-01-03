@@ -1,13 +1,16 @@
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::Index;
 
 #[derive(Clone)]
-pub struct HPack(String, String);
+pub struct HPack {
+    name: String,
+    value: String,
+    flag: u8,
+}
 
 
 impl Display for HPack {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("HPack(\"{}\",\"{}\")", self.0, self.1).as_str())
+        f.write_str(format!("HPack(\"{}\",\"{}\",{})", self.name, self.value, self.flag).as_str())
     }
 }
 
@@ -19,24 +22,34 @@ impl Debug for HPack {
 
 impl HPack {
     pub fn new(name: impl ToString, value: impl ToString) -> HPack {
-        HPack(name.to_string(), value.to_string())
+        HPack {
+            name: name.to_string(),
+            value: value.to_string(),
+            flag: 0x2 | 0x4 | 0x10,
+        }
     }
+
+    pub fn new_flag(name: impl ToString, value: impl ToString, flag: u8) -> HPack {
+        let mut res = HPack::new(name, value);
+        res.flag = flag;
+        res
+    }
+
     pub fn name_value(&self) -> String {
-        format!("{}: {}", self.0, self.1)
+        format!("{}: {}", self.name, self.value)
     }
     pub fn with_value(mut self, value: impl ToString) -> HPack {
-        self.1 = value.to_string();
+        self.value = value.to_string();
         self
     }
     pub fn set_name(&mut self, name: impl ToString) {
-        self.0 = name.to_string();
+        self.name = name.to_string();
     }
     pub fn set_value(&mut self, value: impl ToString) {
-        self.1 = value.to_string();
+        self.value = value.to_string();
     }
-    pub fn to_h1_bytes(self) -> Vec<u8> { format!("{}: {}\r\n", self.0, self.1).into_bytes() }
-    pub fn name(&self) -> &str { &self.0 }
-    pub fn value(&self) -> &str { &self.1 }
+    pub fn name(&self) -> &str { &self.name }
+    pub fn value(&self) -> &str { &self.value }
     pub fn static_table() -> Vec<HPack> {
         vec![
             HPack::new(":authority", ""),
@@ -102,38 +115,42 @@ impl HPack {
             HPack::new("www-authenticate", ""),
         ]
     }
-}
 
-#[derive(Clone)]
-pub struct HPackTable {
-    tables: Vec<HPack>,
-}
-
-impl HPackTable {
-    pub fn new() -> Self { HPackTable { tables: HPack::static_table() } }
-    pub fn len(&self) -> usize { self.tables.len() }
-    pub fn get(&self, index: usize) -> Option<&HPack> { self.tables.get(index) }
-    pub fn insert(&mut self, index: usize, value: HPack) { self.tables.insert(index, value); }
-    pub fn remove(&mut self, index: usize) -> HPack { self.tables.remove(index) }
-
-    pub fn filter_by_name(&self, name: &str) -> Vec<&HPack> {
-        self.tables.iter().filter_map(|t| if t.name() == name {
-            Some(t)
-        } else { None }).collect()
-    }
-
-    pub fn position(&self, pack: &HPack) -> Option<usize> {
-        for (index, table) in self.tables.iter().enumerate() {
-            if table.0 == pack.0 && table.1 == pack.1 { return Some(index); }
-        }
-        None
+    pub fn flag(&self) -> u8 {
+        self.flag
     }
 }
 
-impl Index<usize> for HPackTable {
-    type Output = HPack;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.tables[index]
-    }
-}
+// #[derive(Clone)]
+// pub struct HPackTable {
+//     tables: Vec<HPack>,
+// }
+//
+// impl HPackTable {
+//     pub fn new() -> Self { HPackTable { tables: HPack::static_table() } }
+//     pub fn len(&self) -> usize { self.tables.len() }
+//     pub fn get(&self, index: usize) -> Option<&HPack> { self.tables.get(index) }
+//     pub fn insert(&mut self, index: usize, value: HPack) { self.tables.insert(index, value); }
+//     pub fn remove(&mut self, index: usize) -> HPack { self.tables.remove(index) }
+//
+//     pub fn filter_by_name(&self, name: &str) -> Vec<&HPack> {
+//         self.tables.iter().filter_map(|t| if t.name() == name {
+//             Some(t)
+//         } else { None }).collect()
+//     }
+//
+//     pub fn position(&self, pack: &HPack) -> Option<usize> {
+//         for (index, table) in self.tables.iter().enumerate() {
+//             if table.0 == pack.0 && table.1 == pack.1 { return Some(index); }
+//         }
+//         None
+//     }
+// }
+//
+// impl Index<usize> for HPackTable {
+//     type Output = HPack;
+//
+//     fn index(&self, index: usize) -> &Self::Output {
+//         &self.tables[index]
+//     }
+// }

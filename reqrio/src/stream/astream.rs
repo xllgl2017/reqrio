@@ -90,6 +90,9 @@ impl AsyncTcpStream {
     pub fn set_write_timeout(&mut self, write_timeout: Duration) {
         self.write_timeout = Some(write_timeout);
     }
+    pub fn into_inner(self) -> TcpStream {
+        self.stream
+    }
 }
 
 impl TimeoutRW<TcpStream> for AsyncTcpStream {

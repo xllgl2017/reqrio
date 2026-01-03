@@ -156,8 +156,8 @@ impl Response {
                 if frame.flags().contains(&FrameFlag::EndHeaders) {
                     let mut payload = self.frames.drain(..).map(|x| x.to_payload()).collect::<Vec<_>>();
                     payload.push(frame.to_payload());
-                    let hdr_bs = payload.concat();
-                    let res = hpack_coding.decode(hdr_bs)?;
+                    let mut hdr_bs = payload.concat();
+                    let res = hpack_coding.decode(&mut hdr_bs)?;
                     self.header = Header::parse_h2(res)?;
                 } else {
                     self.frames.push(frame);
@@ -166,6 +166,10 @@ impl Response {
             _ => {}
         }
         Ok(ended)
+    }
+
+    pub fn push_raw(&mut self, raw: Vec<u8>) {
+        self.raw.extend(raw)
     }
 
     pub fn header(&self) -> &Header {

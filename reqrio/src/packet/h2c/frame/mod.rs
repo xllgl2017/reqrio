@@ -45,6 +45,7 @@ impl Frame {
             settings: vec![],
         }
     }
+
     pub fn from_bytes(buffer: &mut Buffer) -> HlsResult<Frame> {
         if buffer.len() < 9 { return Err("byte not enough".into()); }
         let len = u32::from_be_bytes([0, buffer[0], buffer[1], buffer[2]]) as usize;
@@ -65,7 +66,7 @@ impl Frame {
             payload.set_len(len);
         }
         buffer.copy_within(9 + len..buffer.len(), 0);
-        buffer.set_len(buffer.len() - payload.len() - 9);
+        buffer.set_len(buffer.len() - len - 9);
 
 
         let mut settings = vec![];

@@ -115,7 +115,7 @@ mod tests {
         let url4 = "https://cn.bing.com/search?q=abogus%E8%A1%A5%E7%8E%AF%E5%A2%83&qs=UT&pq=abogus&sk=OS1LT1&sc=5-6&cvid=50BFA522127149719EEDBC510E8F26D2&sp=3&ghc=1&lq=0&ajf=60&mkt=zh-CN&FPIG=078354D7800D43BBA67D7529C688C765&first=10&FORM=PORE1&ajf=70&dayref=1&ajf=10";
         let url = Url::try_from(url4).unwrap();
         println!("{:#?} {}", url, url.to_string() == url4);
-        let url5 = "https://www.baidu.com";
+        let url5 = "https://www.baidu.com/";
         let url = Url::try_from(url5).unwrap();
         println!("{:#?} {}", url, url.to_string() == url5);
         let url6 = "socks5://127.0.0.1:1023";
@@ -128,8 +128,7 @@ mod tests {
         let url = Url::try_from(url8).unwrap();
         println!("{:#?} {}", url, url.to_string() == url8);
 
-        let mut uri = Uri::new();
-        uri.set_uri("美国02【vip1】");
+        let uri = Uri::try_from("/").unwrap();
         println!("{}", uri);
     }
 }
