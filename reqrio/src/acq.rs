@@ -169,7 +169,7 @@ impl AcReq {
                     }
                     Err(e) => Err(e.into()),
                 },
-                Err(_) => Err(format!("connect timeout, handle:{}; timeout: {:?}", self.timeout.handle_times(), self.timeout.handle()).into())
+                Err(_) => Err(format!("connect timeout, handle:{}; timeout: {:?}", self.timeout.handle_times(), self.timeout.connect()).into())
             };
         }
         Err("[AcReq] connection error".into())
@@ -226,7 +226,9 @@ impl AcReq {
 
     pub async fn h2c_io(&mut self, headers: Vec<HeaderKey>, body: Vec<u8>) -> HlsResult<Response> {
         let hdr_bs = self.hack_coder.encode(headers)?;
-        let header_frame = Frame::new_header(hdr_bs, body.len(), self.stream_id);
+        let mut header_frame = Frame::new_header(hdr_bs, body.len(), self.stream_id);
+        header_frame.set_weight(146);
+        header_frame.add_flag(FrameFlag::Priority);
         self.stream.async_write(header_frame.to_bytes().as_slice()).await?;
         for body_frame in Frame::new_body(body, self.stream_id) {
             self.stream.async_write(body_frame.to_bytes().as_slice()).await?;
@@ -311,3 +313,7 @@ impl ReqExt for AcReq {
         self.fingerprint = fingerprint;
     }
 }
+
+unsafe impl Send for AcReq {}
+
+unsafe impl Sync for AcReq {}

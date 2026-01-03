@@ -229,6 +229,8 @@ impl ScReq {
     pub fn h2c_io(&mut self, headers: Vec<HeaderKey>, body: Vec<u8>) -> HlsResult<Response> {
         let hdr_bs = self.hack_coder.encode(headers)?;
         let header_frame = Frame::new_header(hdr_bs, body.len(), self.stream_id);
+        header_frame.set_weight(146);
+        header_frame.add_flag(FrameFlag::Priority);
         self.stream.sync_write(header_frame.to_bytes().as_slice())?;
         for body_frame in Frame::new_body(body, self.stream_id) {
             self.stream.sync_write(body_frame.to_bytes().as_slice())?;
