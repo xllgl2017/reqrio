@@ -21,6 +21,7 @@ pub trait ReqExt: Sized {
         *self.body_type_mut() = BodyType::Text(text.to_string());
         self.header_mut().set_content_type(ContentType::Text(Text::Plain));
     }
+
     fn set_bytes(&mut self, bs: Vec<u8>) {
         *self.body_type_mut() = BodyType::Bytes(bs);
     }
@@ -82,7 +83,7 @@ pub trait ReqExt: Sized {
     }
 
     fn set_json(&mut self, data: JsonValue) {
-        self.set_data(data);
+        *self.body_type_mut() = BodyType::Json(data);
         self.header_mut().set_content_type(ContentType::Application(Application::Json))
     }
 
@@ -198,22 +199,6 @@ pub(crate) trait ReqPriExt: ReqExt {
             }).collect::<Vec<_>>().join("&").into_bytes()),
             BodyType::Json(jd) => Ok(jd.dump().into_bytes()),
         }
-
-
-        // let content_type = self.header().content_type();
-        // Ok(match content_type {
-        //     Some(content_type) => match content_type {
-        //         ContentType::Application(Application::Json) | ContentType::Text(Text::Plain) => self.data().dump(),
-        //         ContentType::Application(Application::XWwwFormUrlencoded) => {
-        //             self.data().entries().map(|(k, v)| {
-        //                 let v = coder::url_encode(v.dump());
-        //                 format!("{}={}", k, v)
-        //             }).collect::<Vec<_>>().join("&")
-        //         }
-        //         _ => "".to_string()
-        //     }
-        //     _ => "".to_string()
-        // })
     }
 
     fn format_header(&mut self, md5: &str, body_len: usize) -> HlsResult<Vec<u8>> {
