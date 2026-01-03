@@ -89,6 +89,7 @@ pub use url::{Addr, Protocol, Uri, Url};
 pub use error::HlsError;
 #[cfg(anys)]
 use crate::error::HlsResult;
+pub use timeout::Timeout;
 
 #[cfg(anys)]
 pub type ReqCallback = Box<dyn FnMut(&[u8]) -> HlsResult<()>>;
