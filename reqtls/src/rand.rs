@@ -1,8 +1,8 @@
 use bytemuck::{Pod, Zeroable};
 use p256::elliptic_curve::rand_core::{CryptoRng, RngCore};
 use std::cell::RefCell;
+use std::rc::Rc;
 
-#[derive(Clone)]
 pub struct Random {
     state: [u32; 16],
     buffer: [u32; 16],
@@ -91,7 +91,7 @@ fn quarter_round(s: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
 }
 
 pub struct CryptRand {
-    rng: RefCell<Random>,
+    rng: Rc<RefCell<Random>>,
 }
 
 impl CryptRand {
@@ -147,7 +147,7 @@ pub fn random<T: RandomValue>() -> T {
 }
 
 thread_local! {
-    static RANDOM: RefCell<Random> = RefCell::new(Random::new());
+    static RANDOM: Rc<RefCell<Random>> = Rc::new(RefCell::new(Random::new()));
 }
 
 
@@ -184,5 +184,22 @@ where
         let bytes: &mut [u8] = bytemuck::cast_slice_mut(&mut res);
         rng.fill_bytes(bytes);
         res
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::rand::random;
+
+    #[test]
+    fn test_random() {
+        println!("{:?}", random::<[u8; 32]>());
+        println!("{:?}", random::<[u8; 32]>());
+        println!("{:?}", random::<[u8; 32]>());
+        println!("{:?}", random::<[u8; 32]>());
+        println!("{:?}", random::<[u8; 32]>());
+        println!("{:?}", random::<[u8; 32]>());
+        println!("{:?}", random::<[u8; 32]>());
+        println!("{:?}", random::<[u8; 32]>());
     }
 }

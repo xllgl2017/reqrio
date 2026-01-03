@@ -92,8 +92,12 @@ impl Proxy {
                 stream.write(context.join("\r\n").as_bytes()).await?;
                 stream.flush().await?;
                 let mut buffer = Buffer::with_capacity(1024);
+                while !buffer.filled().ends_with(b"\r\n\r\n") {
+                    stream.read(&mut buffer).await?;
+                    println!("{:?}", String::from_utf8_lossy(buffer.filled()));
+                }
                 // let mut buf = [0; 1024];
-                stream.read(&mut buffer).await?;
+
                 let res = String::from_utf8(buffer.filled().to_vec())?;
                 if !res.starts_with("HTTP/1.1 200") { return Err("connect to proxy error".into()); }
                 Ok(stream)
@@ -121,14 +125,20 @@ impl Proxy {
             }
         }
     }
+
+    pub fn is_null(&self) -> bool {
+        if let Proxy::Null = self {
+            true
+        } else { false }
+    }
 }
 
 impl Display for Proxy {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Proxy::Null => f.write_str(""),
-            Proxy::HttpPlain(addr) => f.write_str(&addr.to_string()),
-            Proxy::Socks5(addr) => f.write_str(&addr.to_string()),
+            Proxy::HttpPlain(addr) => f.write_str(&format!("http://{}", addr)),
+            Proxy::Socks5(addr) => f.write_str(&format!("socks5://{}", addr)),
         }
     }
 }
