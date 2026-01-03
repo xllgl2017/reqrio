@@ -39,7 +39,7 @@ pub enum StreamKind {
 impl StreamKind {
     pub async fn async_conn(&mut self, param: ConnParam<'_>) -> HlsResult<ALPN> {
         let _ = self.async_shutdown().await;
-        let stream = param.proxy.create_async_stream(param.url.addr(), param.timeout).await?;
+        let stream = tokio::time::timeout(param.timeout.connect(),param.proxy.create_async_stream(param.url.addr(), param.timeout)).await??;
         match param.url.protocol() {
             Protocol::Http => {
                 *self = StreamKind::AsyncHttp(stream);
