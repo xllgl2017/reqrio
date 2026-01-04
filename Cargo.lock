@@ -562,6 +562,7 @@ dependencies = [
  "reqrio-json",
  "reqtls",
  "rustls",
+ "serde",
  "tokio",
  "tokio-rustls",
  "urlencoding",

@@ -2,6 +2,7 @@
 use json::JsonValue;
 use crate::error::HlsResult;
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Cookie {
     name: String,

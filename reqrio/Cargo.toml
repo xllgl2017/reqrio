@@ -20,6 +20,7 @@ httlib-hpack = "0.1.3"
 #httlib-huffman = "0.3.4"
 urlencoding = "2.1.3"
 hex = { version = "0.4.3", optional = true }
+serde = { version = "1.0.228", features = ["derive"], optional = true }
 tokio = { version = "1.48.0", features = ["time", "net", "io-util", "macros", 'rt-multi-thread'], optional = true }
 rustls = { version = "0.23.35", optional = true }
 tokio-rustls = { version = "0.26.4", optional = true }
