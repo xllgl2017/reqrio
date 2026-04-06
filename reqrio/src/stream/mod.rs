@@ -11,14 +11,12 @@ use std::io::Write;
 pub use sync_stream::SyncStream;
 pub use ws::{WebSocket, WebSocketBuilder};
 
-#[cfg(feature = "aync")]
-mod async_stream;
-
 mod sync_stream;
 
 mod proxy;
 mod ws;
 mod config;
+#[cfg(feature = "aync")]
 mod aync;
 
 pub struct ConnParam<'a> {
@@ -69,16 +67,8 @@ impl Stream {
 
     pub async fn async_write(&mut self, buf: &[u8]) -> HlsResult<()> {
         match self {
-            Stream::AsyncHttp(s) => {
-                s.write(buf).await?;
-                s.flush().await?;
-                Ok(())
-            }
-            Stream::AsyncHttps(s) => {
-                s.write(buf).await?;
-                s.flush().await?;
-                Ok(())
-            }
+            Stream::AsyncHttp(s) => s.write_all(buf).await,
+            Stream::AsyncHttps(s) => s.write_all(buf).await,
             _ => Err("Unsupported aync write".into()),
         }
     }

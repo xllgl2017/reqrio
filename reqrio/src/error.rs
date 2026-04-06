@@ -198,6 +198,12 @@ impl From<UrlError> for HlsError {
     }
 }
 
+impl From<io::ErrorKind> for HlsError {
+    fn from(value: io::ErrorKind) -> Self {
+        HlsError::Currently(value.to_string())
+    }
+}
+
 impl Error for HlsError {}
 
 

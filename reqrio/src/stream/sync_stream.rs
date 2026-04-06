@@ -37,10 +37,6 @@ impl<S: Read + Write> SyncStream<S> {
         Ok(stream)
     }
     pub fn connect(config: ClientConfig, stream: S) -> HlsResult<SyncStream<S>> {
-        // let mut write_buffer = Buffer::with_capacity(0xFFFF);
-        // let conn = Self::handle_client_hello(&mut config, &mut write_buffer)?;
-        // stream.write_all(write_buffer.filled())?;
-        // write_buffer.reset();
         SyncStream::new(stream, Connection::default().with_verify(config.verify), Config::Client(config), Buffer::default())
     }
 

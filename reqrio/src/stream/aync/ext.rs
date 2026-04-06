@@ -2,7 +2,7 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::Buffer;
 use super::read::ReadTimeout;
-use super::write::WriteTimeout;
+use super::write::{WriteTimeout, WriteAll};
 use super::shutdown::ShutdownTimeout;
 use super::flush::FlushTimeout;
 
@@ -25,6 +25,7 @@ pub trait TimeoutRW<S: AsyncReadExt + AsyncWriteExt + Unpin> {
         }
     }
 
+    #[allow(dead_code)]
     #[inline]
     fn write<'a, 'b: 'a>(&'a mut self, buf: &'b [u8]) -> WriteTimeout<'a, S> {
         let timeout = self.write_timeout();
@@ -38,6 +39,7 @@ pub trait TimeoutRW<S: AsyncReadExt + AsyncWriteExt + Unpin> {
         }
     }
 
+    #[allow(dead_code)]
     #[inline]
     fn flush(&mut self) -> FlushTimeout<'_, S> {
         let timeout = self.write_timeout();
@@ -51,7 +53,7 @@ pub trait TimeoutRW<S: AsyncReadExt + AsyncWriteExt + Unpin> {
     }
 
     #[inline]
-    fn shutdown(&mut self) ->ShutdownTimeout<'_, S> {
+    fn shutdown(&mut self) -> ShutdownTimeout<'_, S> {
         let timeout = self.write_timeout();
         ShutdownTimeout {
             timeout: timeout.is_some(),
@@ -59,6 +61,19 @@ pub trait TimeoutRW<S: AsyncReadExt + AsyncWriteExt + Unpin> {
                 tokio::time::sleep(timeout)
             } else { tokio::time::sleep(Duration::from_secs(0)) },
             stream: self.stream(),
+        }
+    }
+
+    #[inline]
+    fn write_all<'a, 'b: 'a>(&'a mut self, buf: &'b [u8]) -> WriteAll<'a, S> {
+        let timeout = self.write_timeout();
+        WriteAll {
+            stream: self.stream(),
+            timeout: timeout.is_some(),
+            sleep: if let Some(timeout) = timeout {
+                tokio::time::sleep(timeout)
+            } else { tokio::time::sleep(Duration::from_secs(0)) },
+            buf,
         }
     }
 }

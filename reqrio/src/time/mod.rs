@@ -133,6 +133,7 @@ impl Time {
         }
     }
 
+    ///Sat, 04 Apr 2026 13:42:35 GMT
     pub fn rfc1123(&self) -> String {
         let mut res = String::with_capacity(32);
         res.push_str(Time::WEEKDAY[self.weekday as usize]);
@@ -151,7 +152,8 @@ impl Time {
         res.push_str(" GMT");
         res
     }
-
+    
+    ///2026-03-26T10:02:19.911Z
     pub fn rfc3339(&self) -> String {
         let mut res = String::with_capacity(32);
         self.push_num(&mut res, self.year, 4);
