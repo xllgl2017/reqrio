@@ -277,7 +277,7 @@ pub use boring::{base64, certificate::BasicConstraint, certificate::CertExtend, 
                  RsaPadding, SignatureAlgorithm};
 pub use buffer::{WriteExt, BufferError};
 pub use connection::Connection;
-pub use error::RlsError;
+pub use error::{RlsError, HandShakeError};
 pub use extend::{formats::EcPointFormat, group::GroupType, CompressionType, Extension, ExtensionType, SupportVersions};
 pub use hash::{HashType, Hasher, Hmac};
 pub use hex;

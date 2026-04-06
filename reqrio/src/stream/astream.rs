@@ -96,15 +96,14 @@ impl AsyncTlsStream {
             verify: param.verify,
             ca_certs: param.ca_cert,
         };
-        let stream = TlsStream::connect(tcp, config);
         Ok(AsyncTlsStream {
-            stream: tokio::time::timeout(connect_timeout, stream).await??,
+            stream: tokio::time::timeout(connect_timeout, TlsStream::connect(tcp, config)).await??,
             read_timeout: Some(read_timeout),
             write_timeout: Some(write_timeout),
         })
     }
 
-    pub fn alpn(&self) -> Option<&str> {
+    pub fn alpn(&self) -> Option<&ALPN> {
         self.stream.alpn()
     }
 }

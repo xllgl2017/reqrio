@@ -40,7 +40,7 @@ pub struct Connection {
 impl Default for Connection {
     fn default() -> Self {
         Connection {
-            client_random: [0; 32],
+            client_random: rand::random(),
             server_random: [0; 32],
             read: TlsCipher::none(),
             write: TlsCipher::none(),
@@ -63,9 +63,8 @@ impl Default for Connection {
 }
 
 impl Connection {
-    pub fn with_client_random(mut self, client_random: [u8; 32]) -> Connection {
-        self.client_random = client_random;
-        self
+    pub fn client_random(&self) -> &[u8] {
+        &self.client_random
     }
 
     pub fn with_verify(mut self, verify: bool) -> Connection {

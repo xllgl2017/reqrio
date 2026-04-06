@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter};
 pub enum HandShakeError {
     ClockSlow,
     ClockFast,
+    PollWhileFinish,
     HasherNone(String),
 }
 
@@ -13,6 +14,7 @@ impl Display for HandShakeError {
             HandShakeError::ClockSlow => write!(f, "the clock is slow"),
             HandShakeError::ClockFast => write!(f, "the clock is fast"),
             HandShakeError::HasherNone(hasher) => write!(f, "unsupported hasher-{}", hasher),
+            HandShakeError::PollWhileFinish => write!(f, "call poll while in finish"),
         }
     }
 }

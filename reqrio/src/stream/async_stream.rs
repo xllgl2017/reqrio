@@ -1,11 +1,159 @@
-use std::io;
 use crate::stream::config::{ClientConfig, Config, ServerConfig};
+use crate::stream::TlsStreamHandle;
 use crate::*;
 use std::io::Error;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
-use crate::stream::TlsStreamHandle;
+use std::{io, mem};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+
+
+enum Handshake<S> {
+    Handshaking(Box<TlsStream<S>>),
+    Finished,
+}
+
+
+pub struct Connecting<'a, S> {
+    handshake: Handshake<S>,
+    config: Config<'a>,
+    sent_client_hello: bool,
+}
+
+impl<'a, S: AsyncRead + AsyncWrite + Unpin> Connecting<'a, S> {
+    fn handle_message(tls_stream: &mut TlsStream<S>, config: &mut Config<'_>, cx: &mut Context<'_>) -> Poll<HlsResult<bool>> {
+        let record = RecordLayer::from_bytes(tls_stream.read_buffer.filled_mut(), tls_stream.handshake_finished, Some(tls_stream.conn.cipher_suite()))?;
+        match record.context_type {
+            RecordType::CipherSpec => tls_stream.handshake_finished = true,
+            RecordType::Alert => {
+                let record_len = record.len as usize + 5;
+                return Poll::Ready(Err(tls_stream.handle_by_alert(tls_stream.handshake_finished, record_len)?.into()));
+            }
+            RecordType::HandShake => {
+                for message in record.messages {
+                    match message {
+                        Message::ServerHello(v) => tls_stream.conn.set_by_server_hello(&v)?,
+                        Message::Certificate(v) => {
+                            let config = config.client_mut().ok_or("missing config")?;
+                            tls_stream.conn.set_by_certificate(v, config.ca_certs, config.sni)?;
+                        }
+                        Message::ServerKeyExchange(v) => tls_stream.conn.set_by_server_exchange_key(v)?,
+                        Message::ServerHelloDone(_) => {
+                            if tls_stream.write_buffer.is_empty() {
+                                tls_stream.handle_by_server_hello_done(config)?;
+                            }
+                            return match tls_stream.write_buffer(cx)? {
+                                Poll::Ready(_) => Poll::Ready(Ok(true)),
+                                Poll::Pending => Poll::Pending,
+                            };
+                        }
+                        Message::ClientHello(v) => {
+                            if tls_stream.write_buffer.is_empty() {
+                                let random = rand::random::<[u8; 32]>();
+                                let server = config.server_mut().ok_or("missing config")?;
+                                let mut record = tls_stream.conn.gen_server_hello(v, server.server_cert, server.cert_key, &random)?;
+                                let session_id = rand::random::<[u8; 32]>();
+                                record.messages[0].server_mut().ok_or(HlsError::NullPointer)?.set_session_id(&session_id);
+
+                                record.write_to(&mut tls_stream.write_buffer, 1)?;
+                                tls_stream.conn.update_session(&tls_stream.write_buffer.filled()[5..])?;
+                            }
+                            if tls_stream.client_hello.is_empty() {
+                                let len = record.len as usize + 5;
+                                tls_stream.client_hello.extend_from_slice(tls_stream.read_buffer[..len].as_ref());
+                            }
+                            match tls_stream.write_buffer(cx)? {
+                                Poll::Ready(_) => break,
+                                Poll::Pending => return Poll::Pending,
+                            }
+                        }
+                        Message::ClientKeyExchange(v) => {
+                            tls_stream.conn.set_by_client_exchange_key(v);
+                            tls_stream.conn.make_cipher(true)?;
+                        }
+                        Message::Payload(_) => {
+                            if tls_stream.write_buffer.is_empty() {
+                                let record_len = record.len as usize + 5;
+                                let mut out = vec![0; record_len];
+                                let len = tls_stream.conn.read_message(&tls_stream.read_buffer[..record_len], &mut out)?;
+                                tls_stream.conn.verify_finish(&out[..len], false)?;
+
+                                let mut ticket = SessionTicket::default();
+                                let tbs = rand::random::<[u8; 276]>();
+                                ticket.tls_ticket_mut().set_value(&tbs);
+                                tls_stream.write_buffer.write_slice(&[22, 3, 3])?;
+                                tls_stream.write_buffer.write_u16(ticket.len() as u16)?;
+                                ticket.write_to(&mut tls_stream.write_buffer)?;
+                                tls_stream.conn.update_session(&tls_stream.write_buffer.filled()[5..])?;
+                                tls_stream.write_buffer.write_slice(&[20, 3, 3, 0, 1, 1])?;
+                                let record_len = tls_stream.conn.make_finish_message(tls_stream.write_buffer.unfilled_mut(), true)?;
+                                tls_stream.write_buffer.add_len(record_len);
+                            }
+                            return match tls_stream.write_buffer(cx)? {
+                                Poll::Ready(_) => Poll::Ready(Ok(true)),
+                                Poll::Pending => Poll::Pending,
+                            };
+                        }
+                        Message::CertificateRequest(v) => {
+                            let config = config.client_mut().ok_or("missing config")?;
+                            tls_stream.conn.set_by_cert_req(v, config.client_cert.first_mut())?;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            RecordType::ApplicationData => {}
+        }
+        Poll::Ready(Ok(false))
+    }
+}
+
+
+impl<'a, S: AsyncRead + AsyncWrite + Unpin> Future for Connecting<'a, S> {
+    type Output = HlsResult<TlsStream<S>>;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let connector = self.get_mut();
+        let stream = match connector.handshake {
+            Handshake::Handshaking(ref mut stream) => stream,
+            Handshake::Finished => return Poll::Ready(Err(RlsError::HandShake(HandShakeError::PollWhileFinish).into())),
+        };
+        if !connector.sent_client_hello {
+            if stream.write_buffer.is_empty() {
+                stream.handle_client_hello(connector.config.client_mut().ok_or("missing config")?)?;
+            }
+            match stream.write_buffer(cx)? {
+                Poll::Ready(_) => connector.sent_client_hello = true,
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        let stream = loop {
+            let record_len = match stream.read_next_record(cx)? {
+                Poll::Ready(len) => len,
+                Poll::Pending => return Poll::Pending,
+            };
+            if stream.read_buffer.filled()[0] == 22 {
+                stream.conn.update_session(&stream.read_buffer.filled()[5..record_len])?;
+            }
+            let hello_done = match Connecting::handle_message(stream, &mut connector.config, cx)? {
+                Poll::Ready(status) => status,
+                Poll::Pending => {
+                    println!("handshake pending");
+                    return Poll::Pending;
+                }
+            };
+            stream.read_buffer.used_empty(record_len);
+            if hello_done { break mem::replace(&mut connector.handshake, Handshake::Finished); }
+        };
+        match stream {
+            Handshake::Handshaking(mut stream) => {
+                stream.read_buffer.move_to(stream.read_buffer.offset(), 0);
+                stream.write_buffer.reset();
+                Poll::Ready(Ok(*stream))
+            }
+            Handshake::Finished => Poll::Ready(Err(RlsError::HandShake(HandShakeError::PollWhileFinish).into())),
+        }
+    }
+}
 
 pub struct TlsStream<S> {
     conn: Connection,
@@ -20,8 +168,8 @@ pub struct TlsStream<S> {
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> TlsStream<S> {
-    async fn new(stream: S, conn: Connection, mut config: Config<'_>, buffer: Buffer) -> HlsResult<TlsStream<S>> {
-        let mut stream = TlsStream {
+    fn _connect(stream: S, conn: Connection, config: Config<'_>, buffer: Buffer) -> Connecting<'_, S> {
+        let stream = TlsStream {
             stream,
             conn,
             handshake_finished: false,
@@ -32,140 +180,58 @@ impl<S: AsyncRead + AsyncWrite + Unpin> TlsStream<S> {
             pending: vec![],
             client_hello: vec![],
         };
-        loop {
-            let record_len = stream.read_packet().await?;
-            let hello_done = stream.handle_message(Some(&mut config)).await?;
-            stream.read_buffer.move_to(record_len..stream.read_buffer.len(), 0);
-            if hello_done { break; }
+        Connecting {
+            handshake: Handshake::Handshaking(Box::new(stream)),
+            config,
+            sent_client_hello: false,
         }
-        Ok(stream)
     }
-    pub async fn connect(mut stream: S, mut config: ClientConfig<'_>) -> HlsResult<TlsStream<S>> {
-        let mut write_buffer = Buffer::default();
-        let conn = Self::handle_client_hello(&mut config, &mut write_buffer)?;
-        stream.write_all(write_buffer.filled()).await?;
-        write_buffer.reset();
-        TlsStream::new(stream, conn, Config::Client(config), write_buffer).await
-    }
-
-    pub async fn accept(stream: S, config: ServerConfig<'_>) -> HlsResult<TlsStream<S>> {
-        TlsStream::new(stream, Connection::default(), Config::Server(config), Buffer::default()).await
-    }
-
-    pub async fn read_packet(&mut self) -> HlsResult<usize> {
-        let record_len = match self.read_buffer.len() < 5 {
-            true => {
-                self.read_buffer.async_read(&mut self.stream).await?;
-                u16::from_be_bytes([self.read_buffer[3], self.read_buffer[4]]) as usize
-            }
-            false => u16::from_be_bytes([self.read_buffer[3], self.read_buffer[4]]) as usize,
-        } + 5;
-        while self.read_buffer.len() < record_len {
-            self.read_buffer.async_read(&mut self.stream).await?;
+    #[inline]
+    pub fn connect(stream: S, config: ClientConfig<'_>) -> Connecting<'_, S> {
+        Connecting {
+            handshake: Handshake::Handshaking(Box::new(TlsStream {
+                stream,
+                conn: Connection::default().with_verify(config.verify),
+                handshake_finished: false,
+                read_buffer: Buffer::default(),
+                write_buffer: Buffer::default(),
+                shutdown_wrote: false,
+                wrote_len: 0,
+                pending: vec![],
+                client_hello: vec![],
+            })),
+            sent_client_hello: false,
+            config: Config::Client(config),
         }
-        if !self.handshake_finished && self.read_buffer[0] == 22 { self.conn.update_session(&self.read_buffer[5..record_len])?; }
-        Ok(record_len)
     }
 
-    async fn handle_message(&mut self, mut config: Option<&mut Config<'_>>) -> HlsResult<bool> {
-        let record = RecordLayer::from_bytes(self.read_buffer.filled_mut(), self.handshake_finished, Some(self.conn.cipher_suite()))?;
-        match record.context_type {
-            RecordType::CipherSpec => self.handshake_finished = true,
-            RecordType::Alert => {
-                let record_len = record.len as usize + 5;
-                return Err(self.handle_by_alert(self.handshake_finished, record_len)?.into());
-            }
-            RecordType::HandShake => {
-                for message in record.messages {
-                    match message {
-                        Message::ServerHello(v) => self.conn.set_by_server_hello(&v)?,
-                        Message::Certificate(v) => {
-                            let config = config.as_mut().ok_or("config can't be null")?;
-                            let config = config.client_mut().ok_or("missing config")?;
-                            self.conn.set_by_certificate(v, config.ca_certs, config.sni)?;
-                        }
-                        Message::ServerKeyExchange(v) => self.conn.set_by_server_exchange_key(v)?,
-                        Message::ServerHelloDone(_) => {
-                            self.handle_by_server_hello_done(config)?;
-                            self.stream.write_all(self.write_buffer.filled()).await?;
-                            self.write_buffer.reset();
-                            return Ok(true);
-                        }
-                        Message::ClientHello(v) => {
-                            let len = record.len as usize + 5;
-                            let config = config.as_mut().ok_or("config can't be null")?;
-                            let random = rand::random::<[u8; 32]>();
-                            let server = config.server_mut().ok_or("missing config")?;
-                            let mut record = self.conn.gen_server_hello(v, server.server_cert, server.cert_key, &random)?;
-                            let session_id = rand::random::<[u8; 32]>();
-                            record.messages[0].server_mut().ok_or(HlsError::NullPointer)?.set_session_id(&session_id);
-
-                            record.write_to(&mut self.write_buffer, 1)?;
-                            self.conn.update_session(&self.write_buffer.filled()[5..])?;
-                            self.stream.write_all(self.write_buffer.filled()).await?;
-                            self.client_hello.extend_from_slice(self.read_buffer[..len].as_ref());
-                            self.write_buffer.reset();
-                            break;
-                        }
-                        Message::ClientKeyExchange(v) => {
-                            self.conn.set_by_client_exchange_key(v);
-                            self.conn.make_cipher(true)?;
-                        }
-                        Message::Payload(_) => {
-                            let record_len = record.len as usize + 5;
-                            let mut out = vec![0; record_len];
-                            let len = self.conn.read_message(&self.read_buffer[..record_len], &mut out)?;
-                            self.conn.verify_finish(&out[..len], false)?;
-
-                            let mut ticket = SessionTicket::default();
-                            let tbs = rand::random::<[u8; 276]>();
-                            ticket.tls_ticket_mut().set_value(&tbs);
-                            self.write_buffer.write_slice(&[22, 3, 3])?;
-                            self.write_buffer.write_u16(ticket.len() as u16)?;
-                            ticket.write_to(&mut self.write_buffer)?;
-                            self.conn.update_session(&self.write_buffer.filled()[5..])?;
-                            self.write_buffer.write_slice(&[20, 3, 3, 0, 1, 1])?;
-                            let record_len = self.conn.make_finish_message(self.write_buffer.unfilled_mut(), true)?;
-                            self.write_buffer.add_len(record_len);
-                            self.stream.write_all(self.write_buffer.filled()).await?;
-                            self.write_buffer.reset();
-                            return Ok(true);
-                        }
-                        Message::CertificateRequest(v) => {
-                            let config = config.as_mut().ok_or("config can't be null")?;
-                            let config = config.client_mut().ok_or("missing config")?;
-                            self.conn.set_by_cert_req(v, config.client_cert.first_mut())?;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            RecordType::ApplicationData => {}
-        }
-        Ok(false)
+    #[inline]
+    pub fn accept(stream: S, config: ServerConfig<'_>) -> Connecting<'_, S> {
+        TlsStream::_connect(stream, Connection::default(), Config::Server(config), Buffer::default())
     }
 
-    pub fn alpn(&self) -> Option<&str> {
-        Some(self.conn.alpn()?.value())
+    pub fn alpn(&self) -> Option<&ALPN> {
+        self.conn.alpn()
     }
 
     pub fn client_hello(&self) -> &[u8] { &self.client_hello }
 }
 
 impl<S> TlsStreamHandle for TlsStream<S> {
+    #[inline]
     fn conn_wbuf(&mut self) -> (&mut Connection, &mut Buffer) {
         (&mut self.conn, &mut self.write_buffer)
     }
 
+    #[inline]
     fn conn_rbuf(&mut self) -> (&mut Connection, &mut Buffer) {
         (&mut self.conn, &mut self.read_buffer)
     }
 }
 
 impl<S> TlsStream<S> {
-    fn read_message(&mut self, buf: &mut ReadBuf<'_>) -> io::Result<usize> {
+    fn read_message(&mut self, buf: &mut ReadBuf<'_>, record_len: usize) -> io::Result<usize> {
         let record = RecordLayer::from_bytes(self.read_buffer.filled_mut(), self.handshake_finished, None)?;
-        let record_len = record.len as usize + 5;
         match record.context_type {
             RecordType::CipherSpec => {
                 self.handshake_finished = true;
@@ -192,31 +258,66 @@ impl<S> TlsStream<S> {
     }
 }
 
+impl<S: AsyncRead + Unpin> TlsStream<S> {
+    fn read_next_record(&mut self, cx: &mut Context<'_>) -> Poll<HlsResult<usize>> {
+        if self.read_buffer.len() < 5 {
+            loop {
+                let stream = Pin::new(&mut self.stream);
+                let mut buf = ReadBuf::new(self.read_buffer.unfilled_mut());
+                match stream.poll_read(cx, &mut buf)? {
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(_) => {
+                        let len = buf.filled().len();
+                        self.read_buffer.add_len(len);
+                        if self.read_buffer.len() > 5 { break; }
+                    }
+                }
+            }
+        }
+        let filled = self.read_buffer.filled();
+        let record_len = u16::from_be_bytes([filled[3], filled[4]]) as usize + 5;
+        while self.read_buffer.len() < record_len {
+            let stream = Pin::new(&mut self.stream);
+            let mut buf = ReadBuf::new(self.read_buffer.unfilled_mut());
+            match stream.poll_read(cx, &mut buf)? {
+                Poll::Ready(_) => {
+                    let len = buf.filled().len();
+                    self.read_buffer.add_len(len);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        Poll::Ready(Ok(record_len))
+    }
+}
+
+impl<S: AsyncWrite + Unpin> TlsStream<S> {
+    #[inline]
+    fn write_buffer(&mut self, cx: &mut Context<'_>) -> Poll<HlsResult<()>> {
+        loop {
+            let stream = Pin::new(&mut self.stream);
+            match stream.poll_write(cx, self.write_buffer.filled())? {
+                Poll::Ready(wrote) => if self.write_buffer.used_empty(wrote) { break },
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        self.write_buffer.reset();
+        Poll::Ready(Ok(()))
+    }
+}
+
 impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         if self.shutdown_wrote { return Poll::Ready(Ok(())); }
         let stream = self.get_mut();
         loop {
-            let record_len = if stream.read_buffer.is_empty() { 0 } else { u16::from_be_bytes([stream.read_buffer[3], stream.read_buffer[4]]) as usize + 5 };
-            if record_len != 0 && stream.read_buffer.len() >= record_len {
-                match stream.read_message(buf) {
-                    Ok(len) => if len > 0 { return Poll::Ready(Ok(())); } else { continue; }
-                    Err(e) => return Poll::Ready(Err(e)),
-                }
-            }
-            if stream.read_buffer.unfilled_mut().is_empty() { return Poll::Ready(Err(Error::other("buffer size  too small"))); }
-            let mut rd = ReadBuf::new(stream.read_buffer.unfilled_mut());
-            match Pin::new(&mut stream.stream).poll_read(cx, &mut rd) {
-                Poll::Ready(Ok(_)) => {
-                    let fl = rd.filled().len();
-                    if fl == 0 { return Poll::Ready(Ok(())); }
-                    let nl = stream.read_buffer.len() + fl;
-                    stream.read_buffer.set_len(nl);
-                }
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                Poll::Pending => {
-                    return Poll::Pending;
-                }
+            let record_len = match stream.read_next_record(cx)? {
+                Poll::Ready(len) => len,
+                Poll::Pending => return Poll::Pending,
+            };
+            match stream.read_message(buf, record_len) {
+                Ok(len) => if len > 0 { return Poll::Ready(Ok(())); } else { continue; }
+                Err(e) => return Poll::Ready(Err(e)),
             }
         }
     }
@@ -237,16 +338,10 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
                 stream.write_buffer.set_len(record_len);
                 stream.wrote_len += chucks[stream.pending[0]].len();
             }
-            match Pin::new(&mut stream.stream).poll_write(cx, stream.write_buffer.filled()) {
-                Poll::Ready(Ok(len)) => {
-                    if stream.write_buffer.used_empty(len) {
-                        stream.pending.remove(0);
-                        stream.write_buffer.reset();
-                    }
-                }
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+            match stream.write_buffer(cx)? {
+                Poll::Ready(_) => stream.pending.remove(0),
                 Poll::Pending => return Poll::Pending,
-            }
+            };
         }
         assert_eq!(stream.wrote_len, buf.len());
         Poll::Ready(Ok(stream.wrote_len))
@@ -264,12 +359,11 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
         }
         match stream.shutdown_wrote {
             true => Pin::new(&mut stream.stream).poll_shutdown(cx),
-            false => match Pin::new(&mut stream.stream).poll_write(cx, stream.write_buffer.filled()) {
-                Poll::Ready(Ok(_)) => {
+            false => match stream.write_buffer(cx)? {
+                Poll::Ready(_) => {
                     stream.shutdown_wrote = true;
                     Pin::new(&mut stream.stream).poll_shutdown(cx)
                 }
-                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Pending => Poll::Pending,
             }
         }

@@ -22,6 +22,11 @@ impl<S: Read + Write> SyncStream<S> {
             read_buffer: Buffer::with_capacity(0xFFFF),
             write_buffer: buffer,
         };
+        if let Config::Client(config) = &mut config {
+            stream.handle_client_hello(config)?;
+            stream.stream.write_all(stream.write_buffer.filled())?;
+            stream.write_buffer.reset();
+        }
         loop {
             let record_len = stream.read_next_packet()?;
             let len = stream.read_buffer.len();
@@ -31,12 +36,12 @@ impl<S: Read + Write> SyncStream<S> {
         }
         Ok(stream)
     }
-    pub fn connect(mut config: ClientConfig, mut stream: S) -> HlsResult<SyncStream<S>> {
-        let mut write_buffer = Buffer::with_capacity(0xFFFF);
-        let conn = Self::handle_client_hello(&mut config, &mut write_buffer)?;
-        stream.write_all(write_buffer.filled())?;
-        write_buffer.reset();
-        SyncStream::new(stream, conn, Config::Client(config), write_buffer)
+    pub fn connect(config: ClientConfig, stream: S) -> HlsResult<SyncStream<S>> {
+        // let mut write_buffer = Buffer::with_capacity(0xFFFF);
+        // let conn = Self::handle_client_hello(&mut config, &mut write_buffer)?;
+        // stream.write_all(write_buffer.filled())?;
+        // write_buffer.reset();
+        SyncStream::new(stream, Connection::default().with_verify(config.verify), Config::Client(config), Buffer::default())
     }
 
     pub fn accept(stream: S, config: ServerConfig<'_>) -> HlsResult<SyncStream<S>> {
@@ -62,7 +67,7 @@ impl<S: Read + Write> SyncStream<S> {
                         }
                         Message::ServerKeyExchange(v) => self.conn.set_by_server_exchange_key(v)?,
                         Message::ServerHelloDone(_) => {
-                            self.handle_by_server_hello_done(config)?;
+                            self.handle_by_server_hello_done(config.as_mut().ok_or("conn param can't be null")?)?;
                             self.stream.write_all(self.write_buffer.filled())?;
                             self.write_buffer.reset();
                             return Ok(true);

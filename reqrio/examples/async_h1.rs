@@ -13,7 +13,7 @@ async fn main() {
     // let key = RsaKey::from_pri_pem_file("/home/xl/1/client.key").unwrap();
     let mut req = AcReq::new()
         .with_fingerprint(Fingerprint::random("-").unwrap())
-        .with_alpn(ALPN::Http11)
+        .with_alpn(ALPN::Http20)
         .with_timeout(timeout)
         .with_verify(false)
         // .with_mtls(certs, key)
@@ -95,18 +95,19 @@ async fn main() {
     // req.set_url("https://127.0.0.1:8000").await.unwrap();
     // req.set_auto_redirect(false);
     // req.set_url("https://oauth.hubei.gov.cn:8443/").await.unwrap();
-    let params = json::object! {
-        tRef:"fullpage",
-        tLc:2,
-        text28777:"",
-        tLabels:"92001903143160000052257347",
-        tABt:false,
-    };
-    req.set_auto_redirect(false);
-    let res = req.get("https://tools.usps.com/go/TrackConfirmAction".params(params.clone()), None).await.unwrap();
+    // let params = json::object! {
+    //     tRef:"fullpage",
+    //     tLc:2,
+    //     text28777:"",
+    //     tLabels:"92001903143160000052257347",
+    //     tABt:false,
+    // };
+    // req.set_auto_redirect(false);
+    let res=req.get("https://m.so.com",None).await.unwrap();
+    // let res = req.get("https://tools.usps.com/go/TrackConfirmAction".params(params.clone()), None).await.unwrap();
     // let res = req.get("https://tools.usps.com/go/TrackConfirmAction".params(params), None).await.unwrap();
     println!("{}", res.header());
-    println!("{}", res.text().unwrap());
+    // println!("{}", res.text().unwrap());
     // req.set_url("https://m.so.com").await.unwrap();
     // req.set_url("https://im.jinritemai.com/").await.unwrap();
     // req.set_auto_redirect(false);

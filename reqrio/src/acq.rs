@@ -164,14 +164,14 @@ impl AcReq {
                             }
                             println!("[AcReq] write/recv with error-{}, handle: {}/{}", e, i + 2, self.timeout.handle_times());
                             continue;
-                        }
+                        } else { return Err(e); }
                     }
                 }
 
                 Err(_) => if i != self.timeout.handle_times() - 1 {
                     println!("[AcReq] write/recv timeout, timeout: {:?}, handle: {}/{}", self.timeout.handle(), i + 2, self.timeout.handle_times());
                     continue;
-                }
+                } else { return Err("time out".into()); }
             }
         }
         Err("stream io error".into())

@@ -60,7 +60,7 @@ impl Stream {
             }
             Scheme::Https | Scheme::Wss => {
                 let tls_stream = AsyncTlsStream::connect_timeout(param, stream).await?;
-                let alpn = tls_stream.alpn().map(|x| ALPN::from_slice(x.as_bytes())).unwrap_or(ALPN::Http11);
+                let alpn = tls_stream.alpn().cloned().unwrap_or(ALPN::Http11);
                 *self = Stream::AsyncHttps(tls_stream);
                 Ok(alpn)
             }
@@ -166,11 +166,11 @@ pub trait TlsStreamHandle {
 
     fn conn_rbuf(&mut self) -> (&mut Connection, &mut Buffer);
 
-    fn handle_client_hello(config: &mut ClientConfig, buffer: &mut Buffer) -> HlsResult<Connection> {
-        let client_random = rand::random::<[u8; 32]>();
+    fn handle_client_hello(&mut self, config: &mut ClientConfig) -> HlsResult<()> {
+        let (conn, buffer) = self.conn_wbuf();
         let session_id = rand::random::<[u8; 32]>();
         let mut client_hello = RecordLayer::from_bytes(&mut config.fingerprint.client_hello, false, None)?;
-        client_hello.messages[0].client_mut().ok_or(HlsError::NullPointer)?.set_random(&client_random);
+        client_hello.messages[0].client_mut().ok_or(HlsError::NullPointer)?.set_random(conn.client_random());
         client_hello.messages[0].client_mut().ok_or(HlsError::NullPointer)?.set_server_name(config.sni);
         client_hello.messages[0].client_mut().ok_or(HlsError::NullPointer)?.set_session_id(&session_id);
         match config.alpn {
@@ -180,15 +180,11 @@ pub trait TlsStreamHandle {
         client_hello.messages[0].client_mut().ok_or(HlsError::NullPointer)?.remove_tls13();
         let len = client_hello.write_to(buffer, 1)?;
         buffer.set_len(len);
-
-        let mut conn = Connection::default().with_client_random(client_random)
-            .with_verify(config.verify);
         conn.update_session(&buffer.filled()[5..])?;
-        Ok(conn)
+        Ok(())
     }
 
-    fn handle_by_server_hello_done(&mut self, mut config: Option<&mut Config>) -> HlsResult<()> {
-        let config = config.as_mut().ok_or("config can't be null")?;
+    fn handle_by_server_hello_done(&mut self, config: &mut Config) -> HlsResult<()> {
         let config = config.client_mut().ok_or("missing config")?;
         let (conn, buffer) = self.conn_wbuf();
         let offset = buffer.len();
