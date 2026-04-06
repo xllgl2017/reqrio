@@ -259,6 +259,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 name = "reqrio"
 version = "0.2.0"
 dependencies = [
+ "pin-project-lite",
  "reqrio-json",
  "reqtls",
  "serde",

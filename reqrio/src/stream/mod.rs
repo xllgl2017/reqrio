@@ -1,27 +1,25 @@
-use std::io::Write;
+#[cfg(feature = "aync")]
+use crate::stream::aync::{TlsStreamA, TcpStreamA, TimeoutRW};
+#[cfg(feature = "aync")]
+pub use stream::aync::TlsStream;
 use crate::stream::config::Config;
 use crate::*;
-pub use sync_stream::SyncStream;
-#[cfg(feature = "aync")]
-pub use async_stream::TlsStream;
 pub use config::{ClientConfig, ServerConfig};
 pub use proxy::Proxy;
 pub use proxy::ProxyStream;
+use std::io::Write;
+pub use sync_stream::SyncStream;
 pub use ws::{WebSocket, WebSocketBuilder};
-#[cfg(feature = "aync")]
-use crate::stream::astream::{AsyncTcpStream, AsyncTlsStream, TimeoutRW};
 
 #[cfg(feature = "aync")]
 mod async_stream;
 
 mod sync_stream;
 
-#[cfg(feature = "aync")]
-mod astream;
 mod proxy;
 mod ws;
 mod config;
-
+mod aync;
 
 pub struct ConnParam<'a> {
     pub scheme: &'a Scheme,
@@ -43,9 +41,9 @@ pub enum Stream {
     SyncHttps(SyncStream<ProxyStream<std::net::TcpStream>>),
     //异步
     #[cfg(feature = "aync")]
-    AsyncHttp(AsyncTcpStream),
+    AsyncHttp(TcpStreamA),
     #[cfg(feature = "aync")]
-    AsyncHttps(AsyncTlsStream),
+    AsyncHttps(TlsStreamA),
 }
 
 #[cfg(feature = "aync")]
@@ -55,11 +53,11 @@ impl Stream {
         let stream = tokio::time::timeout(param.timeout.connect(), ProxyStream::async_connect(param.proxy, param.addr)).await??;
         match param.scheme {
             Scheme::Http | Scheme::Ws => {
-                *self = Stream::AsyncHttp(AsyncTcpStream::from_proxy_stream(stream, param.timeout));
+                *self = Stream::AsyncHttp(TcpStreamA::from_proxy_stream(stream, param.timeout));
                 Ok(ALPN::Http11)
             }
             Scheme::Https | Scheme::Wss => {
-                let tls_stream = AsyncTlsStream::connect_timeout(param, stream).await?;
+                let tls_stream = TlsStreamA::connect_timeout(param, stream).await?;
                 let alpn = tls_stream.alpn().cloned().unwrap_or(ALPN::Http11);
                 *self = Stream::AsyncHttps(tls_stream);
                 Ok(alpn)
@@ -81,15 +79,15 @@ impl Stream {
                 s.flush().await?;
                 Ok(())
             }
-            _ => Err("Unsupported async write".into()),
+            _ => Err("Unsupported aync write".into()),
         }
     }
 
     pub async fn async_read(&mut self, buffer: &mut Buffer) -> HlsResult<()> {
         match self {
             Stream::AsyncHttp(s) => s.read(buffer).await,
-            Stream::AsyncHttps(s) => Ok(s.read(buffer).await?),
-            _ => Err("Unsupported async read".into()),
+            Stream::AsyncHttps(s) => s.read(buffer).await,
+            _ => Err("Unsupported aync read".into()),
         }
     }
 
@@ -97,7 +95,7 @@ impl Stream {
         match self {
             Stream::AsyncHttp(s) => Ok(s.shutdown().await?),
             Stream::AsyncHttps(s) => Ok(s.shutdown().await?),
-            _ => Err("Unsupported async read".into()),
+            _ => Err("Unsupported aync read".into()),
         }
     }
 }
@@ -147,7 +145,7 @@ impl Stream {
         match self {
             Stream::SyncHttp(s) => buffer.sync_read(s),
             Stream::SyncHttps(s) => buffer.sync_read(s),
-            _ => Err("Unsupported async read".into()),
+            _ => Err("Unsupported aync read".into()),
         }
     }
 
@@ -155,7 +153,7 @@ impl Stream {
         match self {
             Stream::SyncHttp(s) => Ok(s.shutdown()?),
             Stream::SyncHttps(s) => Ok(s.shutdown()?),
-            _ => Err("Unsupported async read".into()),
+            _ => Err("Unsupported aync read".into()),
         }
     }
 }

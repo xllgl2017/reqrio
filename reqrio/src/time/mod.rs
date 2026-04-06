@@ -19,6 +19,10 @@ pub enum TimeError {
     InvalidRfc1123,
     InvalidRfc3339,
     InvalidCommon,
+    ReadTimeout,
+    WriteTimeout,
+    FlushTimeout,
+    ShutdownTimeout,
 }
 
 impl Display for TimeError {

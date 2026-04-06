@@ -19,7 +19,7 @@ impl<S: Read + Write> SyncStream<S> {
             stream,
             conn,
             handshake_finished: false,
-            read_buffer: Buffer::with_capacity(0xFFFF),
+            read_buffer: Buffer::default(),
             write_buffer: buffer,
         };
         if let Config::Client(config) = &mut config {
@@ -45,7 +45,7 @@ impl<S: Read + Write> SyncStream<S> {
     }
 
     pub fn accept(stream: S, config: ServerConfig<'_>) -> HlsResult<SyncStream<S>> {
-        SyncStream::new(stream, Connection::default(), Config::Server(config), Buffer::with_capacity(16437))
+        SyncStream::new(stream, Connection::default(), Config::Server(config), Buffer::default())
     }
 
     fn handle_message(&mut self, mut config: Option<&mut Config>) -> HlsResult<bool> {
