@@ -43,6 +43,7 @@ impl<S: Read + Write> SyncStream<S> {
                 stream.stream.write_all(stream.write_buffer.filled())?;
                 stream.write_buffer.reset();
             }
+            stream.read_buffer.used_empty(record_len);
             if stream.handshake_finished { break; }
         }
         Ok(stream)
@@ -113,6 +114,7 @@ impl<S: Read + Write> Read for SyncStream<S> {
             let buf = self.read_buffer.clone();
             let record_bytes = &buf.filled()[..record_len];
             let size = self.handle_record(record_bytes, None, app_buf)?;
+            self.read_buffer.used_empty(record_len);
             if size > 0 { return Ok(size); }
         };
     }

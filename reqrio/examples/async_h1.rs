@@ -124,8 +124,8 @@ async fn main() {
     // let url = "https://www.baidu.com".try_into().unwrap();
     req.set_verify(false);
     let t = Time::now();
-    let resp = req.get("https://m.so.com/", None).await.unwrap();
-    // let resp = req.get("https://www.baidu.com", None).await.unwrap();
+    // let resp = req.get("https://m.so.com/", None).await.unwrap();
+    let resp = req.get("https://www.baidu.com", None).await.unwrap();
     println!("{} {}", resp.header(), resp.as_bytes().len());
     println!("{}", Time::now().as_mills() - t.as_mills());
 }

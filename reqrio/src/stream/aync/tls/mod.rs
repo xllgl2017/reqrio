@@ -112,7 +112,7 @@ pub struct TlsStream<S> {
 impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
     fn _connect(stream: S, conn: Connection, config: Config<'_>, buffer: Buffer) -> Connecting<'_, S> {
         let (reader, writer) = tokio::io::split(stream);
-        let (sender, receiver) = tokio::sync::mpsc::channel(1);
+        let (sender, receiver) = tokio::sync::mpsc::channel(30);
         TlsStream::<S>::read_work(reader, sender);
         let stream = TlsStream {
             reader: receiver,
@@ -136,7 +136,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
     #[inline]
     pub fn connect(stream: S, mut config: ClientConfig<'_>) -> Connecting<'_, S> {
         let (reader, writer) = tokio::io::split(stream);
-        let (sender, receiver) = tokio::sync::mpsc::channel(1);
+        let (sender, receiver) = tokio::sync::mpsc::channel(30);
         TlsStream::<S>::read_work(reader, sender);
         let session = config.session.as_ref().cloned().unwrap_or_else(Default::default);
         Connecting {
@@ -196,7 +196,7 @@ impl<S: AsyncRead + Unpin + Send + 'static> TlsStream<S> {
             let mut stream = StreamRead {
                 reader,
                 using_blocks: Default::default(),
-                buffer: Buffer::with_capacity(16438),
+                buffer: Buffer::with_capacity(16438 * 2),
                 sender,
                 notify: Arc::new(Notify::new()),
                 next_record_pos: 0,
