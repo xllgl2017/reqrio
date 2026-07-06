@@ -17,10 +17,10 @@ pub struct StreamParam<'a> {
 pub trait StreamHandle {
     const CHANGE_CIPHER_SPEC: [u8; 6] = [20, 3, 3, 0, 1, 1];
 
-    fn stream_param(&mut self) -> (&mut Buffer, StreamParam<'_>);
+    fn stream_param(&mut self) -> StreamParam<'_>;
 
     fn handle_client_hello(&mut self, config: &mut ClientConfig) -> RlsResult<()> {
-        let (_, param) = self.stream_param();
+        let param = self.stream_param();
         let mut client_hello = config.fingerprint.build_client_hello(config.alpn)?;
         client_hello.set_random(param.conn.client_random());
         client_hello.set_server_name(config.sni);
@@ -135,14 +135,14 @@ pub trait StreamHandle {
         Ok(())
     }
 
-    fn handle_by_alert(&mut self) -> Result<Alert, RlsError> {
-        let (read_buffer, param) = self.stream_param();
+    fn handle_by_alert(&mut self, record: &[u8]) -> Result<Alert, RlsError> {
+        let param = self.stream_param();
         match param.encrypted_channel {
             true => {
-                let len = param.conn.read_message(read_buffer.filled(), param.write_buffer.unfilled())?;
+                let len = param.conn.read_message(record, param.write_buffer.unfilled())?;
                 Ok(Alert::from_bytes(&param.write_buffer.unfilled()[..len])?)
             }
-            false => Ok(Alert::from_bytes(&read_buffer.filled()[5..7])?)
+            false => Ok(Alert::from_bytes(&record[5..7])?)
         }
     }
 
@@ -252,9 +252,9 @@ pub trait StreamHandle {
     }
 
 
-    fn handle_record(&mut self, record_len: usize, mut config: Option<&mut Config<'_>>, app_buf: &mut [u8]) -> Result<usize, RlsError> {
-        let (read_buffer, mut param) = self.stream_param();
-        let record = RecordLayer::from_bytes(read_buffer.filled(), param.conn.cipher_suite().exchange_alg(), *param.encrypted_channel)?;
+    fn handle_record(&mut self, record_bytes: &[u8], mut config: Option<&mut Config<'_>>, app_buf: &mut [u8]) -> Result<usize, RlsError> {
+        let mut param = self.stream_param();
+        let record = RecordLayer::from_bytes(record_bytes, param.conn.cipher_suite().exchange_alg(), *param.encrypted_channel)?;
         match record.content_type {
             RecordType::CipherSpec => {
                 #[cfg(feature = "log")]
@@ -267,14 +267,14 @@ pub trait StreamHandle {
             RecordType::Alert => {
                 #[cfg(feature = "log")]
                 trace!("[HandleRecord] {:?}", record);
-                return Err(RlsError::Alert(self.handle_by_alert()?));
+                return Err(RlsError::Alert(self.handle_by_alert(record_bytes)?));
             }
             RecordType::HandShake => match *param.encrypted_channel {
                 true => {
                     #[cfg(feature = "log")]
                     trace!("[HandleRecord] {:?}", record);
                     let out = param.write_buffer.unfilled();
-                    let len = param.conn.read_message(&read_buffer.filled()[..record_len], out)?;
+                    let len = param.conn.read_message(record_bytes, out)?;
                     param.conn.verify_finish(&out[..len], !param.conn.server())?;
                     Self::handle_finish(&mut param)?;
                 }
@@ -285,19 +285,18 @@ pub trait StreamHandle {
             RecordType::ApplicationData => {
                 #[cfg(feature = "log")]
                 trace!("[HandleRecord] {:?}", record);
-                return self.handle_by_application(record_len, config, app_buf);
+                return self.handle_by_application(record_bytes, config, app_buf);
             }
         }
-        read_buffer.used_empty(record_len);
         Ok(0)
     }
 
 
-    fn handle_by_application(&mut self, record_len: usize, mut config: Option<&mut Config>, app_buf: &mut [u8]) -> Result<usize, RlsError> {
-        let (read_buffer, mut param) = self.stream_param();
+    fn handle_by_application(&mut self, record_bytes: &[u8], mut config: Option<&mut Config>, app_buf: &mut [u8]) -> Result<usize, RlsError> {
+        let mut param = self.stream_param();
         let len = match *param.conn.version() {
             Version::TLS_1_3 => {
-                let len = param.conn.read_message(&read_buffer.filled()[..record_len], app_buf)?;
+                let len = param.conn.read_message(record_bytes, app_buf)?;
                 let record_type = RecordType::from_byte(app_buf[len - 1])?;
                 match record_type {
                     RecordType::Alert => return Err(RlsError::Alert(Alert::from_bytes(&app_buf[..len - 1])?)),
@@ -316,9 +315,8 @@ pub trait StreamHandle {
                     RecordType::ApplicationData => len - 1
                 }
             }
-            _ => param.conn.read_message(&read_buffer.filled()[..record_len], app_buf)?
+            _ => param.conn.read_message(record_bytes, app_buf)?
         };
-        read_buffer.used_empty(record_len);
         Ok(len)
     }
 }

@@ -134,6 +134,13 @@ impl WriteExt for Buffer {
     }
 }
 
+impl Clone for Buffer {
+    fn clone(&self) -> Self {
+        let mut ptr = CPointer::new(self.0.as_mut_ptr());
+        ptr.disable_auto_free();
+        Buffer(ptr)
+    }
+}
 pub enum Buf<'a> {
     Ptr(BufPtr),
     Ref(&'a [u8]),
@@ -177,6 +184,7 @@ impl<'a> Debug for Buf<'a> {
         }
     }
 }
+
 
 pub struct BufPtr {
     ptr: CPointer<u8>,
@@ -281,9 +289,13 @@ mod test_buffer {
         let mut buffer = Buffer::with_capacity(1024);
         buffer.write_slice(&[1, 2, 3, 4, 5]).unwrap();
         assert_eq!(buffer.filled(), [1, 2, 3, 4, 5]);
+        assert_eq!(buffer.clone().filled(), [1, 2, 3, 4, 5]);
         buffer.used_empty(1);
         assert_eq!(buffer.filled(), [2, 3, 4, 5]);
-        assert_eq!(buffer.unfilled().len(), 1019);
+        assert_eq!(buffer.unfilled_len(), 1019);
+        assert_eq!(buffer.clone().unfilled_len(), 1019);
+        buffer.reset();
+        assert_eq!(buffer.clone().unfilled_len(), 1024);
 
         buffer.resize(2048).unwrap();
         assert_eq!(buffer.capacity(), 2048);

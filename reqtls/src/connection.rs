@@ -390,7 +390,7 @@ impl Connection {
     }
 
     pub fn session_bytes(&self) -> &[u8] { &self.session_bytes }
-    pub fn cipher_suite(&self) -> &CipherSuite { &self.cipher_suite }
+    pub fn cipher_suite(&self) -> &CipherSuite { self.cipher_suite }
     pub fn session(&self) -> &TlsSession { self.derived.session() }
     pub fn server(&self) -> bool { self.server }
     pub fn handle_mtls_client<W: WriteExt>(&mut self, writer: &mut W, key: &RsaKey) -> RlsResult<()> {

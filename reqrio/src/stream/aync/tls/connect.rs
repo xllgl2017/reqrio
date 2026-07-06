@@ -42,15 +42,12 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Future for Connecting<'a, S> {
                 }
             }
             if stream.handshake_finished && stream.write_buffer.is_empty() { break mem::replace(&mut connector.handshake, Handshake::Finished); }
-            let record_len = match stream.read_next_record(cx)? {
-                Poll::Ready(len) => len,
-                Poll::Pending => return Poll::Pending,
-            };
-            stream.handle_record(record_len, Some(&mut connector.config), buffer.unfilled())?;
+            let Poll::Ready(mut record) = stream.read_next_record(cx)?else { return Poll::Pending };
+            stream.handle_record(record.record(), Some(&mut connector.config), buffer.unfilled())?;
+            record.release()
         };
         match stream {
             Handshake::Handshaking(mut stream) => {
-                stream.read_buffer.move_to(stream.read_buffer.offset(), 0)?;
                 stream.write_buffer.reset();
                 Poll::Ready(Ok(*stream))
             }

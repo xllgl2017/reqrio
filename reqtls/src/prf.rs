@@ -46,7 +46,7 @@ impl Prf {
         Ok(hmac.finalize()?.to_vec())
     }
 
-    pub fn prfs(&mut self, secret: &[u8], label: &str, seed: &[u8], bufs: Vec<&mut [u8]>) -> RlsResult<()> {
+    pub fn prfs(&self, secret: &[u8], label: &str, seed: &[u8], bufs: Vec<&mut [u8]>) -> RlsResult<()> {
         let mut buf = PrfBuf { bufs, pos: 0, index: 0 };
         // A(0) = HMAC_hash(secret, label + seed)
         let mut a_i = self.hmac_sha(secret, &[label.as_bytes(), seed])?;
@@ -61,7 +61,7 @@ impl Prf {
         Ok(())
     }
 
-    pub fn prf(&mut self, secret: &[u8], label: &str, seed: &[u8], bufs: &mut [u8]) -> RlsResult<()> {
+    pub fn prf(&self, secret: &[u8], label: &str, seed: &[u8], bufs: &mut [u8]) -> RlsResult<()> {
         self.prfs(secret, label, seed, vec![bufs])
     }
 }
@@ -77,7 +77,7 @@ mod tests {
         let share_secret = [189, 131, 30, 96, 115, 185, 113, 187, 225, 41, 170, 137, 172, 238, 155, 134, 67, 209, 193, 147, 14, 95, 123, 199, 218, 123, 24, 132, 246, 107, 134, 13];
         let session_hash = [203, 88, 253, 224, 105, 246, 231, 82, 172, 215, 174, 32, 168, 62, 147, 60, 219, 189, 233, 197, 149, 10, 0, 47, 84, 235, 172, 168, 140, 212, 108, 127];
         let mut master_secret = [0; 48];
-        let mut prf = Prf::from_hasher(HashType::Sha256);
+        let prf = Prf::from_hasher(HashType::Sha256);
         prf.prf(&share_secret, "extended master secret", &session_hash, &mut master_secret).unwrap();
         assert_eq!(master_secret, [54, 29, 236, 142, 207, 233, 234, 120, 87, 164, 114, 115, 240, 89, 116, 235, 66, 75, 243, 36, 113, 58, 255, 221, 104, 179, 245, 252, 202, 46, 209, 186, 2, 15, 187, 115, 171, 182, 124, 136, 65, 74, 43, 255, 111, 246, 100, 128]);
         let client_random = [168, 102, 144, 116, 168, 105, 73, 53, 141, 158, 97, 68, 2, 18, 204, 19, 248, 142, 178, 215, 223, 48, 197, 110, 19, 11, 72, 208, 168, 74, 129, 61];

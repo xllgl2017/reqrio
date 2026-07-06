@@ -22,7 +22,6 @@ async fn main() {
     test_log();
     let mut timeout = Timeout::longer();
     timeout.set_handle_times(1);
-    println!("{}", "GET /index.html HTTP/1.1\r\nHost: 38hmzg.cn:5001\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7\r\nSec-Fetch-Site: none\r\nSec-Fetch-Mode: navigate\r\nSec-Fetch-User: ?1\r\nSec-Fetch-Dest: document\r\ndevice-memory: 8\r\nsec-ch-device-memory: 8\r\ndpr: 1\r\nsec-ch-dpr: 1\r\nviewport-width: 937\r\nsec-ch-viewport-width: 937\r\nsec-ch-viewport-height: 877\r\nect: 3g\r\nsec-ch-ua: \"Google Chrome\";v=\"135\", \"Not-A.Brand\";v=\"8\", \"Chromium\";v=\"135\"\r\nsec-ch-ua-mobile: ?0\r\nsec-ch-ua-full-version: \"135.0.7049.52\"\r\nsec-ch-ua-arch: \"x86\"\r\nsec-ch-ua-platform: \"Linux\"\r\nsec-ch-ua-platform-version: \"5.14.0\"\r\nsec-ch-ua-model: \"\"\r\nsec-ch-ua-bitness: \"64\"\r\nsec-ch-ua-wow64: ?0\r\nsec-ch-ua-full-version-list: \"Google Chrome\";v=\"135.0.7049.52\", \"Not-A.Brand\";v=\"8.0.0.0\", \"Chromium\";v=\"135.0.7049.52\"\r\nsec-ch-ua-form-factors: \"Desktop\"\r\nsec-ch-prefers-color-scheme: light\r\nsec-ch-prefers-reduced-motion: no-preference\r\nsec-ch-prefers-reduced-transparency: no-preference\r\nAccept-Encoding: gzip, deflate, br, zstd\r\nAccept-Language: zh-CN,zh;q=0.9\r\n\r\n");
 
     let mut req = AcReq::new()
         // .with_fingerprint(fingerprint)
@@ -125,8 +124,8 @@ async fn main() {
     // let url = "https://www.baidu.com".try_into().unwrap();
     req.set_verify(false);
     let t = Time::now();
-    let resp = req.get("https://192.168.99.140:7879/download/1048576000", None).await.unwrap();
+    let resp = req.get("https://m.so.com/", None).await.unwrap();
     // let resp = req.get("https://www.baidu.com", None).await.unwrap();
-    println!("{}", resp.header());
+    println!("{} {}", resp.header(), resp.as_bytes().len());
     println!("{}", Time::now().as_mills() - t.as_mills());
 }

@@ -36,7 +36,9 @@ impl<S: Read + Write> SyncStream<S> {
         let mut app_buffer = Buffer::with_capacity(16438);
         loop {
             let record_len = stream.read_next_packet()?;
-            stream.handle_record(record_len, Some(&mut config), app_buffer.unfilled())?;
+            let buf = stream.read_buffer.clone();
+            let record_bytes = &buf.filled()[..record_len];
+            stream.handle_record(record_bytes, Some(&mut config), app_buffer.unfilled())?;
             if !stream.write_buffer.is_empty() {
                 stream.stream.write_all(stream.write_buffer.filled())?;
                 stream.write_buffer.reset();
@@ -47,7 +49,7 @@ impl<S: Read + Write> SyncStream<S> {
     }
     pub fn connect(config: ClientConfig, stream: S) -> HlsResult<SyncStream<S>> {
         let session = config.session.as_ref().cloned().unwrap_or_default();
-        let conn=Connection::from_client(rand::random(),session,config.key_log.clone())
+        let conn = Connection::from_client(rand::random(), session, config.key_log.clone())
             .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
         SyncStream::new(stream, conn, Config::Client(config), Buffer::default())
     }
@@ -74,14 +76,14 @@ impl<S: Read + Write> SyncStream<S> {
 }
 
 impl<S: Read + Write> StreamHandle for SyncStream<S> {
-    fn stream_param(&mut self) -> (&mut Buffer, StreamParam<'_>) {
-        (&mut self.read_buffer, StreamParam {
+    fn stream_param(&mut self) -> StreamParam<'_> {
+        StreamParam {
             handshake_finish: &mut self.handshake_finished,
             encrypted_channel: &mut self.encrypted_channel,
             hello_retrying: &mut self.hello_retrying,
             write_buffer: &mut self.write_buffer,
             conn: &mut self.conn,
-        })
+        }
     }
 }
 
@@ -105,10 +107,12 @@ impl<S: Read> SyncStream<S> {
 }
 
 impl<S: Read + Write> Read for SyncStream<S> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, app_buf: &mut [u8]) -> io::Result<usize> {
         loop {
             let record_len = self.read_next_packet()?;
-            let size = self.handle_record(record_len, None, buf)?;
+            let buf = self.read_buffer.clone();
+            let record_bytes = &buf.filled()[..record_len];
+            let size = self.handle_record(record_bytes, None, app_buf)?;
             if size > 0 { return Ok(size); }
         };
     }

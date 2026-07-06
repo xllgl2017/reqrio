@@ -97,7 +97,7 @@ impl DerivedKey {
     }
 
     ///make tls1.3 finish verify data
-    fn make_tls13_finish(&mut self, server: bool, session_hash: &[u8]) -> RlsResult<Vec<u8>> {
+    fn make_tls13_finish(&self, server: bool, session_hash: &[u8]) -> RlsResult<Vec<u8>> {
         let traffic_secret = match server {
             true => self.traffic_secret.server_traffic(),
             false => self.traffic_secret.client_traffic()
@@ -114,7 +114,7 @@ impl DerivedKey {
     }
 
     ///make tls1.2 finish verify data
-    fn make_tls12_finish(&mut self, server: bool, session_hash: &[u8]) -> RlsResult<Vec<u8>> {
+    fn make_tls12_finish(&self, server: bool, session_hash: &[u8]) -> RlsResult<Vec<u8>> {
         let mut finish = vec![0; 16];
         finish[0..4].copy_from_slice(&[0x14, 0x00, 0x0, 0xc]);
         let label = if !server { "client finished" } else { "server finished" };
@@ -158,7 +158,7 @@ impl DerivedKey {
     }
 
 
-    pub fn make_finish(&mut self, version: Version, server: bool, session_hash: &[u8]) -> RlsResult<Vec<u8>> {
+    pub fn make_finish(&self, version: Version, server: bool, session_hash: &[u8]) -> RlsResult<Vec<u8>> {
         match version {
             Version::TLS_1_2 => self.make_tls12_finish(server, session_hash),
             Version::TLS_1_3 => self.make_tls13_finish(server, session_hash),
