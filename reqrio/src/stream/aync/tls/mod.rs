@@ -205,15 +205,16 @@ impl<S: AsyncRead + Unpin + Send + 'static> TlsStream<S> {
                 match stream.read_record().await {
                     Ok(record_offset) => {
                         stream.using_blocks.fetch_add(1, Ordering::SeqCst);
-                        stream.sender.send(Ok(ReadOffset {
+                        let ret = stream.sender.send(Ok(ReadOffset {
                             using_blocks: stream.using_blocks.clone(),
                             offset: record_offset,
                             notify: stream.notify.clone(),
                             buffer: stream.buffer.clone(),
-                        })).await.unwrap();
+                        })).await;
+                        if ret.is_err() { break; }
                     }
                     Err(e) => {
-                        stream.sender.send(Err(e)).await.unwrap();
+                        let _ = stream.sender.send(Err(e)).await;
                         break;
                     }
                 }
