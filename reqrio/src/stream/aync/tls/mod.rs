@@ -35,6 +35,7 @@ impl ReadOffset {
     fn release(&mut self) {
         let current = self.using_blocks.fetch_sub(1, Ordering::SeqCst);
         if current == 1 {
+            self.buffer.used_empty(self.offset.len());
             self.notify.notify_waiters();
         }
     }

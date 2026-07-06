@@ -1,8 +1,6 @@
 use crate::*;
 #[cfg(feature = "aync")]
-pub use aync::TlsStream;
-#[cfg(feature = "aync")]
-use aync::{TcpStreamA, TimeoutRW, TlsStreamA};
+pub use aync::*;
 pub use proxy::Proxy;
 pub use proxy::ProxyStream;
 use std::{env, io};

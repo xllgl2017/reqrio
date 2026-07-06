@@ -10,7 +10,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::time::Sleep;
 pub use tcp::TcpStreamA;
-pub use tls::{TlsStreamA, TlsStream};
+pub use tls::*;
 pub use ext::TimeoutRW;
 
 fn poll_sleep<T>(slept: bool, sleep: Pin<&mut Sleep>, cx: &mut Context<'_>, err: impl Fn() -> T) -> Poll<T> {
