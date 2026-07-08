@@ -9,21 +9,27 @@ mod buffer;
 use crate::*;
 #[cfg(feature = "aync")]
 pub use aync::*;
+#[cfg(feature = "aync")]
+pub use buffer::{ReadOffset, RecordBuffer};
 pub use proxy::Proxy;
 pub use proxy::ProxyStream;
-use std::{env, io};
 use std::io::Write;
 #[cfg(feature = "aync")]
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::{env, io};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+pub use sync_stream::SyncStream;
 #[cfg(feature = "aync")]
 use tokio::io::{AsyncRead, AsyncReadExt, ReadHalf};
+use tokio::sync::futures::Notified;
 #[cfg(feature = "aync")]
 use tokio::sync::mpsc::Sender;
-pub use sync_stream::SyncStream;
+use tokio::sync::Notify;
 pub use ws::{WebSocket, WebSocketBuilder};
-#[cfg(feature = "aync")]
-pub use buffer::{RecordBuffer, ReadOffset};
 
 
 pub struct ConnParam<'a> {
@@ -205,11 +211,30 @@ impl Stream {
         }
     }
 }
+
+pub struct ReadRecord<'a, S: Send> {
+    closed: &'a Arc<AtomicBool>,
+    reader: &'a mut ReadHalf<S>,
+    buffer: &'a mut RecordBuffer,
+    notify: &'a Notify,
+    notified: Notified<'a>,
+}
+
+impl<'a, S: Send> Future for ReadRecord<'a, S> {
+    type Output = io::Result<Range<usize>>;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Pending
+    }
+}
+
+
 #[cfg(feature = "aync")]
 pub struct StreamRead<S: Send> {
-    buffer: RecordBuffer,
-    reader: ReadHalf<S>,
-    sender: Sender<io::Result<ReadOffset>>,
+    pub buffer: RecordBuffer,
+    pub reader: ReadHalf<S>,
+    pub sender: Sender<io::Result<ReadOffset>>,
+    pub closed: Arc<AtomicBool>,
+    pub notify: Arc<Notify>,
 }
 
 #[cfg(feature = "aync")]
@@ -217,7 +242,7 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
     async fn read_size(&mut self, want_size: usize) -> HlsResult<()> {
         let current_size = self.buffer.current_size();
         if current_size >= want_size { return Ok(()); }
-        let unfilled = self.buffer.unfilled_mut(want_size, current_size).await;
+        let unfilled = self.buffer.unfilled_mut(want_size, current_size, self.notify.clone()).await;
         let mut filled_len = 0;
         let need_read_size = want_size - current_size;
         while filled_len < need_read_size {
@@ -238,6 +263,13 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
     }
 
     async fn read_record(&mut self) -> io::Result<Range<usize>> {
+        // let record=ReadRecord{
+        //     closed: &self.closed,
+        //     reader: &mut self.reader,
+        //     notified: self.notify.notified(),
+        //     notify: &self.notify,
+        //     buffer: &mut self.buffer,
+        // }
         let record_len = self.read_record_size().await?;
         if self.buffer.current_size() < record_len {
             self.read_size(record_len).await?;
@@ -245,12 +277,24 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
         Ok(self.buffer.next_record_offset(record_len))
     }
 
+    fn read_record2(&mut self) -> ReadRecord<'_, S> {
+        ReadRecord {
+            closed: &self.closed,
+            reader: &mut self.reader,
+            buffer: &mut self.buffer,
+            notify: &self.notify,
+            notified: self.notify.notified(),
+        }
+    }
 
-    pub async fn run(&mut self) -> HlsResult<()> {
+
+    pub async fn run(&mut self) {
         loop {
+            if self.closed.load(Ordering::SeqCst) { break; }
             match self.read_record().await {
                 Ok(record_offset) => {
-                    let offset = ReadOffset::new(record_offset, &self.buffer);
+                    // println!("send: {:?}", record_offset);
+                    let offset = ReadOffset::new(record_offset, &self.buffer, self.notify.clone());
                     let ret = self.sender.send(Ok(offset)).await;
                     if ret.is_err() { break; }
                 }
@@ -260,7 +304,7 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
                 }
             }
         }
-        Ok(())
+        println!("stream closed");
     }
 }
 

@@ -59,7 +59,7 @@ impl<'a> ServerHello<'a> {
     pub fn from_client_hello<'b: 'a>(mut client_hello: ClientHello<'b>, alpn: ALPN) -> RlsResult<ServerHello<'a>> {
         let mut res = ServerHello {
             version: Version::TLS_1_2,
-            cipher_suite: &CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+            cipher_suite: &CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
             session_id_len: 32,
             session_id: Buf::Vec(rand::random::<[u8; 32]>().to_vec()),
             ..Default::default()
