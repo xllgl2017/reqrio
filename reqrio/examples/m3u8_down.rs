@@ -61,13 +61,14 @@ impl M3u8DownEngine {
 
     fn download(&mut self) -> Result<(), HlsError> {
         let body = self.req.send_check(Method::GET, &self.index_url, None)?.text()?;
-        // println!("{}", body);
-        for line in body.split("\n") {
-            if line.starts_with(" # EXT - X - MEDIA - SEQUENCE: ") {
-                self.sequence = line.trim().replace(" # EXT - X - MEDIA - SEQUENCE: ", "").parse()?;
+        println!("{}", body);
+        for line in body.replace("\r\n", "\n").split("\n") {
+            let line = line.replace(" ", "");
+            if line.starts_with("#EXT-X-MEDIA-SEQUENCE:") {
+                self.sequence = line.trim().replace("#EXT-X-MEDIA-SEQUENCE:", "").parse()?;
                 continue;
             }
-            if line.starts_with(" # EXT - X - KEY") {
+            if line.starts_with("#EXT-X-KEY") {
                 let pos = line.find("URI =\"");
                 if let Some(pos) = pos {
                     self.key_url = line[pos + 4..].trim().replace("\"", "");
@@ -77,8 +78,12 @@ impl M3u8DownEngine {
                 }
                 continue;
             }
-            if line.starts_with("http") {
-                self.ts_urls.push(line.trim().to_string());
+            if line.ends_with(".ts") {
+                if line.starts_with("http") {
+                    self.ts_urls.push(line.trim().to_string());
+                } else {
+                    self.ts_urls.push(format!("/{}", line))
+                }
             }
         }
         let mut timeout = Timeout::new_same(5000, 30000);
@@ -88,7 +93,6 @@ impl M3u8DownEngine {
         self.down_ts()?;
         Ok(())
     }
-    
 }
 
 

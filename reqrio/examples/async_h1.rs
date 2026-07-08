@@ -18,6 +18,7 @@ fn test_log() {
 
 #[tokio::main]
 async fn main() {
+    // return;
     #[cfg(feature = "log")]
     test_log();
     let mut timeout = Timeout::longer();

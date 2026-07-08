@@ -3,96 +3,17 @@ mod connect;
 use super::ext::TimeoutRW;
 use crate::error::HlsResult;
 use crate::stream::{ConnParam, StreamParam};
-use crate::{Buffer, ClientConfig, HlsError, ProxyStream, ServerConfig};
+use crate::*;
 use connect::{Connecting, Handshake};
-use reqtls::{rand, Alert, BufferError, Config, Connection, RecordType, StreamHandle, WriteExt, ALPN};
+use reqtls::{rand, Alert, Config, Connection, RecordType, StreamHandle, WriteExt, ALPN};
 use std::io::Error;
-use std::ops::Range;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::{io, mem};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf, ReadHalf, WriteHalf};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::Notify;
-
-pub struct ReadOffset {
-    using_blocks: Arc<AtomicUsize>,
-    offset: Range<usize>,
-    notify: Arc<Notify>,
-    buffer: Buffer,
-}
-
-impl ReadOffset {
-    fn record(&self) -> &[u8] {
-        let end = self.offset.end - self.offset.start;
-        &self.buffer.slice_at(self.offset.start)[..end]
-    }
-
-    fn release(&mut self) {
-        let current = self.using_blocks.fetch_sub(1, Ordering::SeqCst);
-        if current == 1 {
-            self.buffer.used_empty(self.offset.len());
-            self.notify.notify_waiters();
-        }
-    }
-}
-
-pub struct StreamRead<S: Send> {
-    buffer: Buffer,
-    reader: ReadHalf<S>,
-    using_blocks: Arc<AtomicUsize>,
-    sender: Sender<io::Result<ReadOffset>>,
-    notify: Arc<Notify>,
-    next_record_pos: usize,
-}
-
-impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
-    async fn check_move(&mut self, max_size: usize) -> HlsResult<()> {
-        if self.buffer.unfilled_len() < max_size {
-            let notified = self.notify.notified();
-            let using_blocks = self.using_blocks.load(Ordering::SeqCst);
-            if using_blocks != 0 {
-                notified.await;
-            }
-            let offset = self.next_record_pos..self.buffer.end();
-            self.next_record_pos = 0;
-            self.buffer.move_to(offset, 0)?;
-        }
-        if self.buffer.unfilled().is_empty() {
-            return Err(BufferError::CapacityTooSmall {
-                needed: max_size + self.buffer.capacity(),
-                current: self.buffer.capacity(),
-            }.into());
-        }
-        Ok(())
-    }
-
-
-    async fn read_size(&mut self, max_size: usize) -> HlsResult<()> {
-        while self.buffer.offset().end - self.next_record_pos < max_size {
-            self.check_move(max_size).await?;
-            let len = self.reader.read(self.buffer.unfilled()).await?;
-            if len == 0 { return Err(HlsError::PeerClosedConnection); }
-            self.buffer.add_len(len);
-        }
-        Ok(())
-    }
-
-    async fn read_record(&mut self) -> io::Result<Range<usize>> {
-        let had_buf = self.buffer.end() - self.next_record_pos > 5;
-        if !had_buf { self.read_size(5).await?; }
-        let filled = self.buffer.slice_at(self.next_record_pos);
-        let record_len = u16::from_be_bytes([filled[3], filled[4]]) as usize + 5;
-        self.read_size(record_len).await?;
-        let res = self.next_record_pos..self.next_record_pos + record_len;
-        self.next_record_pos += record_len;
-        Ok(res)
-    }
-}
 
 
 pub struct TlsStream<S> {
@@ -196,30 +117,10 @@ impl<S: AsyncRead + Unpin + Send + 'static> TlsStream<S> {
         tokio::spawn(async move {
             let mut stream = StreamRead {
                 reader,
-                using_blocks: Default::default(),
-                buffer: Buffer::with_capacity(16438 * 2),
+                buffer: Default::default(),
                 sender,
-                notify: Arc::new(Notify::new()),
-                next_record_pos: 0,
             };
-            loop {
-                match stream.read_record().await {
-                    Ok(record_offset) => {
-                        stream.using_blocks.fetch_add(1, Ordering::SeqCst);
-                        let ret = stream.sender.send(Ok(ReadOffset {
-                            using_blocks: stream.using_blocks.clone(),
-                            offset: record_offset,
-                            notify: stream.notify.clone(),
-                            buffer: stream.buffer.clone(),
-                        })).await;
-                        if ret.is_err() { break; }
-                    }
-                    Err(e) => {
-                        let _ = stream.sender.send(Err(e)).await;
-                        break;
-                    }
-                }
-            }
+            stream.run().await
         });
     }
 }
@@ -257,11 +158,14 @@ impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
         if self.shutdown_wrote { return Poll::Ready(Ok(())); }
         let stream = self.get_mut();
         loop {
-            let Poll::Ready(mut record) = stream.read_next_record(cx)?else { return Poll::Pending; };
-            let len = stream.handle_record(record.record(), None, buf.initialized_mut())?;
+            let Poll::Ready(mut record) = stream.read_next_record(cx)?else {
+                if buf.filled().is_empty() { return Poll::Pending; }
+                return Poll::Ready(Ok(()));
+            };
+            let len = stream.handle_record(record.record(), None, buf.initialize_unfilled())?;
             record.release();
-            if len == 0 { continue; }
-            buf.set_filled(len);
+            buf.set_filled(buf.filled().len() + len);
+            if len == 0 || buf.remaining() > 16384 { continue; }
             return Poll::Ready(Ok(()));
         }
     }

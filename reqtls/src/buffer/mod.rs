@@ -122,6 +122,14 @@ impl Buffer {
         }
         Ok(())
     }
+
+    pub fn raw_ptr(&self) -> *const u8 {
+        unsafe { Buffer_pointer(self.0.as_ptr()) }
+    }
+
+    pub fn raw_ptr_mut(&mut self) -> *mut u8 {
+        unsafe { Buffer_pointer_mut(self.0.as_mut_ptr()) }
+    }
 }
 
 impl WriteExt for Buffer {

@@ -1,3 +1,11 @@
+mod sync_stream;
+mod proxy;
+mod ws;
+#[cfg(feature = "aync")]
+mod aync;
+#[cfg(feature = "aync")]
+mod buffer;
+
 use crate::*;
 #[cfg(feature = "aync")]
 pub use aync::*;
@@ -5,16 +13,18 @@ pub use proxy::Proxy;
 pub use proxy::ProxyStream;
 use std::{env, io};
 use std::io::Write;
+#[cfg(feature = "aync")]
+use std::ops::Range;
 use std::path::{Path, PathBuf};
+#[cfg(feature = "aync")]
+use tokio::io::{AsyncRead, AsyncReadExt, ReadHalf};
+#[cfg(feature = "aync")]
+use tokio::sync::mpsc::Sender;
 pub use sync_stream::SyncStream;
 pub use ws::{WebSocket, WebSocketBuilder};
-
-mod sync_stream;
-
-mod proxy;
-mod ws;
 #[cfg(feature = "aync")]
-mod aync;
+pub use buffer::{RecordBuffer, ReadOffset};
+
 
 pub struct ConnParam<'a> {
     pub url: &'a Url,
@@ -182,7 +192,7 @@ impl Stream {
                 if len == 0 { return Err(HlsError::PeerClosedConnection); }
                 buffer.add_len(len);
                 Ok(())
-            },
+            }
             _ => Err("Unsupported async read".into()),
         }
     }
@@ -193,6 +203,64 @@ impl Stream {
             Stream::SyncHttps(s) => Ok(s.shutdown()?),
             _ => Err("Unsupported async read".into()),
         }
+    }
+}
+#[cfg(feature = "aync")]
+pub struct StreamRead<S: Send> {
+    buffer: RecordBuffer,
+    reader: ReadHalf<S>,
+    sender: Sender<io::Result<ReadOffset>>,
+}
+
+#[cfg(feature = "aync")]
+impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
+    async fn read_size(&mut self, want_size: usize) -> HlsResult<()> {
+        let current_size = self.buffer.current_size();
+        if current_size >= want_size { return Ok(()); }
+        let unfilled = self.buffer.unfilled_mut(want_size, current_size).await;
+        let mut filled_len = 0;
+        let need_read_size = want_size - current_size;
+        while filled_len < need_read_size {
+            let len = self.reader.read(&mut unfilled[filled_len..]).await?;
+            if len == 0 { return Err(HlsError::PeerClosedConnection); }
+            filled_len += len;
+        }
+        self.buffer.add_filled(filled_len);
+        Ok(())
+    }
+
+
+    async fn read_record_size(&mut self) -> HlsResult<usize> {
+        if self.buffer.current_size() < 5 {
+            self.read_size(23).await?;
+        }
+        Ok(self.buffer.next_record_len())
+    }
+
+    async fn read_record(&mut self) -> io::Result<Range<usize>> {
+        let record_len = self.read_record_size().await?;
+        if self.buffer.current_size() < record_len {
+            self.read_size(record_len).await?;
+        }
+        Ok(self.buffer.next_record_offset(record_len))
+    }
+
+
+    pub async fn run(&mut self) -> HlsResult<()> {
+        loop {
+            match self.read_record().await {
+                Ok(record_offset) => {
+                    let offset = ReadOffset::new(record_offset, &self.buffer);
+                    let ret = self.sender.send(Ok(offset)).await;
+                    if ret.is_err() { break; }
+                }
+                Err(e) => {
+                    let _ = self.sender.send(Err(e)).await;
+                    break;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
