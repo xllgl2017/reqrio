@@ -137,7 +137,10 @@ impl<S: AsyncRead + Unpin + Send + 'static> TlsStream<S> {
 impl<S: AsyncRead + Unpin> TlsStream<S> {
     fn read_next_record(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<ReadOffset>> {
         match self.reader.poll_recv(cx) {
-            Poll::Ready(Some(res)) => Poll::Ready(res),
+            Poll::Ready(Some(res)) => {
+                // println!("recv: {:?}", res);
+                Poll::Ready(res)
+            }
             Poll::Ready(None) => Poll::Ready(Err(Error::other("read none"))),
             Poll::Pending => Poll::Pending
         }

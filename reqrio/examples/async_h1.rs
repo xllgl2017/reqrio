@@ -1,6 +1,8 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::MutexGuard;
+use pin_project_lite::pin_project;
 use reqrio::*;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::sync::futures::Notified;
 
 #[cfg(feature = "log")]
 const LOGER: Logger = Logger {
@@ -18,11 +20,48 @@ fn test_log() {
     set_max_level(LevelFilter::Debug);
 }
 
+
+pin_project! {
+     struct AA<'a> {
+        #[pin]
+        notified: Notified<'a>,
+    }
+}
+
+impl<'a> Future for AA<'a> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        println!("{}", "poll");
+        let this = self.project();
+        if this.notified.poll(cx).is_ready() {
+        }
+        Poll::Pending
+    }
+}
+
 #[tokio::main]
 async fn main() {
     // return;
     #[cfg(feature = "log")]
     test_log();
+    // let notify = Arc::new(Notify::new());
+    // let n = notify.clone();
+    // tokio::spawn(async move {
+    //     let aa = AA {
+    //         notified: n.notified(),
+    //     };
+    //     aa.await
+    // });
+    // notify.notify_waiters();
+    // println!("weke");
+    // sleep(Duration::from_millis(100)).await;
+    // notify.notify_waiters();
+    // notify.notify_waiters();
+    // println!("weke");
+    // sleep(Duration::from_millis(100)).await;
+    //
+    // return;
 
 
     let mut timeout = Timeout::longer();
@@ -129,8 +168,8 @@ async fn main() {
     // let url = "https://www.baidu.com".try_into().unwrap();
     req.set_verify(false);
     let t = Time::now();
-    let resp = req.get("https://192.168.99.140:7879/download/1048576000", None).await.unwrap();
-    // let resp = req.get("https://www.baidu.com", None).await.unwrap();
+    // let resp = req.get("https://192.168.99.140:7879/download/1048576000", None).await.unwrap();
+    let resp = req.get("https://www.baidu.com", None).await.unwrap();
     // let resp = req.get("https://www.bing.com", None).await.unwrap();
     println!("{}", resp.header());
     println!("{}", Time::now().as_mills() - t.as_mills());

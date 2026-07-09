@@ -22,9 +22,11 @@ use std::sync::Arc;
 use std::{env, io};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use pin_project_lite::pin_project;
 pub use sync_stream::SyncStream;
 #[cfg(feature = "aync")]
-use tokio::io::{AsyncRead, AsyncReadExt, ReadHalf};
+use tokio::io::{AsyncRead, ReadHalf};
+use tokio::io::ReadBuf;
 use tokio::sync::futures::Notified;
 #[cfg(feature = "aync")]
 use tokio::sync::mpsc::Sender;
@@ -212,18 +214,78 @@ impl Stream {
     }
 }
 
-pub struct ReadRecord<'a, S: Send> {
-    closed: &'a Arc<AtomicBool>,
-    reader: &'a mut ReadHalf<S>,
-    buffer: &'a mut RecordBuffer,
-    notify: &'a Notify,
-    notified: Notified<'a>,
+pin_project! {
+    pub struct ReadRecord<'a, S: Send> {
+        reader: StreamReading<'a, S>,
+        #[pin]
+        notified: Notified<'a>,
+        record_len: usize,
+    }
 }
 
-impl<'a, S: Send> Future for ReadRecord<'a, S> {
+impl<'a, S: Send> ReadRecord<'a, S> {}
+
+impl<'a, S: AsyncRead + Unpin + Send> Future for ReadRecord<'a, S> {
     type Output = io::Result<Range<usize>>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Pending
+        let mut project = self.project();
+        if *project.record_len == 0 {
+            match project.reader.read_record_size(project.notified.as_mut(), cx)? {
+                Poll::Ready(size) => *project.record_len = size,
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        if project.reader.buffer.current_size() < *project.record_len &&
+            project.reader.read_size(*project.record_len, project.notified.as_mut(), cx)?.is_pending() {
+            return Poll::Pending;
+        }
+        Poll::Ready(Ok(project.reader.buffer.next_record_offset(*project.record_len)))
+    }
+}
+
+
+struct StreamReading<'a, S: Send> {
+    buffer: &'a mut RecordBuffer,
+    reader: &'a mut ReadHalf<S>,
+}
+
+impl<'a, S: AsyncRead + Unpin + Send> StreamReading<'a, S> {
+    fn read_size(&mut self, want_size: usize, mut notified: Pin<&mut Notified<'_>>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let current_size = self.buffer.current_size();
+        if current_size >= want_size { return Poll::Ready(Ok(())); }
+        let mut unfilled = loop {
+            match self.buffer.unfilled_mut(want_size, current_size) {
+                Poll::Ready(res) => break ReadBuf::new(res),
+                Poll::Pending => match notified.as_mut().poll(cx) {
+                    Poll::Ready(_) => continue,
+                    Poll::Pending => return Poll::Pending,
+                }
+            }
+        };
+        let need_read_size = want_size - current_size;
+        while unfilled.filled().len() < need_read_size {
+            match Pin::new(&mut self.reader).poll_read(cx, &mut unfilled)? {
+                Poll::Ready(_) => {
+                    if unfilled.filled().is_empty() {
+                        return Poll::Ready(Err(HlsError::PeerClosedConnection.into()));
+                    }
+                }
+                Poll::Pending => {
+                    let size = unfilled.filled().len();
+                    self.buffer.add_filled(size);
+                    return Poll::Pending
+                }
+            };
+        }
+        let size = unfilled.filled().len();
+        self.buffer.add_filled(size);
+        Poll::Ready(Ok(()))
+    }
+
+
+    fn read_record_size(&mut self, notified: Pin<&mut Notified<'_>>, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
+        if self.buffer.current_size() < 5 && self.read_size(23, notified, cx)?.is_pending() { return Poll::Pending; };
+        Poll::Ready(Ok(self.buffer.next_record_len()))
     }
 }
 
@@ -239,51 +301,14 @@ pub struct StreamRead<S: Send> {
 
 #[cfg(feature = "aync")]
 impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
-    async fn read_size(&mut self, want_size: usize) -> HlsResult<()> {
-        let current_size = self.buffer.current_size();
-        if current_size >= want_size { return Ok(()); }
-        let unfilled = self.buffer.unfilled_mut(want_size, current_size, self.notify.clone()).await;
-        let mut filled_len = 0;
-        let need_read_size = want_size - current_size;
-        while filled_len < need_read_size {
-            let len = self.reader.read(&mut unfilled[filled_len..]).await?;
-            if len == 0 { return Err(HlsError::PeerClosedConnection); }
-            filled_len += len;
-        }
-        self.buffer.add_filled(filled_len);
-        Ok(())
-    }
-
-
-    async fn read_record_size(&mut self) -> HlsResult<usize> {
-        if self.buffer.current_size() < 5 {
-            self.read_size(23).await?;
-        }
-        Ok(self.buffer.next_record_len())
-    }
-
-    async fn read_record(&mut self) -> io::Result<Range<usize>> {
-        // let record=ReadRecord{
-        //     closed: &self.closed,
-        //     reader: &mut self.reader,
-        //     notified: self.notify.notified(),
-        //     notify: &self.notify,
-        //     buffer: &mut self.buffer,
-        // }
-        let record_len = self.read_record_size().await?;
-        if self.buffer.current_size() < record_len {
-            self.read_size(record_len).await?;
-        }
-        Ok(self.buffer.next_record_offset(record_len))
-    }
-
-    fn read_record2(&mut self) -> ReadRecord<'_, S> {
+    fn read_record(&mut self) -> ReadRecord<'_, S> {
         ReadRecord {
-            closed: &self.closed,
-            reader: &mut self.reader,
-            buffer: &mut self.buffer,
-            notify: &self.notify,
             notified: self.notify.notified(),
+            reader: StreamReading {
+                buffer: &mut self.buffer,
+                reader: &mut self.reader,
+            },
+            record_len: 0,
         }
     }
 
@@ -293,7 +318,7 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
             if self.closed.load(Ordering::SeqCst) { break; }
             match self.read_record().await {
                 Ok(record_offset) => {
-                    // println!("send: {:?}", record_offset);
+                    // println!("send: {:?}; len: {}", record_offset, record_offset.len() - 5);
                     let offset = ReadOffset::new(record_offset, &self.buffer, self.notify.clone());
                     let ret = self.sender.send(Ok(offset)).await;
                     if ret.is_err() { break; }

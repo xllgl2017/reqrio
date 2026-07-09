@@ -253,6 +253,7 @@ pub trait StreamHandle {
 
 
     fn handle_record(&mut self, record_bytes: &[u8], mut config: Option<&mut Config<'_>>, app_buf: &mut [u8]) -> Result<usize, RlsError> {
+        // println!("{} {:x?}", record_bytes.len(), record_bytes);
         let mut param = self.stream_param();
         let record = RecordLayer::from_bytes(record_bytes, param.conn.cipher_suite().exchange_alg(), *param.encrypted_channel)?;
         match record.content_type {

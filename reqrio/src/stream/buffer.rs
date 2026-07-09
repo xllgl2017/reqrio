@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::task::Poll;
 use tokio::sync::Notify;
 use reqtls::{Buffer, WriteExt};
 #[cfg(feature = "log")]
@@ -41,49 +42,25 @@ impl RecordBuffer {
     }
 
 
-    //end_pos<start_post, after moved
-    async fn end_less_start(&mut self, want: usize, current: usize, mut unread_start_pos: usize, notify: Arc<Notify>) -> &mut [u8] {
+    //write<read, after moved
+    fn write_less_read(&mut self, want: usize, current: usize, read_cursor: usize) -> Poll<&mut [u8]> {
+        let remaining = read_cursor - self.last_record_end_pos;
         //判断buffer后半段在使用后有足够的空间
-        if self.buffer.capacity() - self.last_record_end_pos > want {
-            let mut unused = unread_start_pos - self.last_record_end_pos;
-            let mut notified = notify.notified();
-            while unused < want {
-                // println!("wait3");
-                tokio::select! {
-                    _=notified=>{}
-                    _=tokio::time::sleep(std::time::Duration::from_millis(1))=>{}
-                }
-                notified = notify.notified();
-                // println!("wait3 end");
-                unread_start_pos = self.read_cursor.load(Ordering::SeqCst);
-                if unread_start_pos < self.last_record_end_pos {
-                    unused = self.buffer.capacity() - self.last_record_end_pos;
-                    assert!(want < unused)
-                } else if unread_start_pos == self.last_record_end_pos {
-                    drop(notified);
-                    let res = Box::pin(self.start_eq_end(want, current, unread_start_pos, notify)).await;
-                    return res;
-                } else {
-                    unused = unread_start_pos - self.last_record_end_pos;
-                }
-            }
-            let size = max(want - current, unused - current);
+        if remaining > want {
+            let size = max(want - current, remaining - current);
             let ptr = self.buffer.raw_ptr_mut();
-            unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) }
+            Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
         } else {
-            let mut notified = notify.notified();
-            while unread_start_pos > self.last_record_end_pos || unread_start_pos < want {
-                println!("wait1");
-                notified.await;
-                notified = notify.notified();
-                println!("wait1 end");
-                unread_start_pos = self.read_cursor.load(Ordering::SeqCst);
+            //后面数据已解析完成
+            let remaining = self.buffer.capacity() - self.last_record_end_pos;
+            let unread_size = self.unread_size.load(Ordering::SeqCst);
+            if remaining >= want && unread_size == 0 {
+                let size = max(want - current, remaining - current);
+                let ptr = self.buffer.raw_ptr_mut();
+                Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
+            } else {
+                Poll::Pending
             }
-            drop(notified);
-            self.move_buffer();
-            let size = max(want - current, unread_start_pos - current);
-            let ptr = self.buffer.raw_ptr_mut();
-            unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) }
         }
     }
 
@@ -101,32 +78,23 @@ impl RecordBuffer {
         self.last_record_end_pos = 0;
     }
 
-    //start_pos > end_pos
-    async fn start_less_end(&mut self, want: usize, current: usize, mut unread_start_pos: usize, notify: Arc<Notify>) -> &mut [u8] {
-        let can_used = self.buffer.capacity() - self.last_record_end_pos;
-        if can_used > want {
-            let size = max(want - current, can_used - current);
+    //read<write
+    fn read_less_write(&mut self, want: usize, current: usize, read_cursor: usize) -> Poll<&mut [u8]> {
+        let remaining = self.buffer.capacity() - self.last_record_end_pos;
+        if remaining > want {
+            let size = max(want - current, remaining - current);
             let ptr = self.buffer.raw_ptr_mut();
-            unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) }
+            Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
         } else {
-            //判断buffer前半段是否有足够空间，没有的话等待释放
-            let mut notified = notify.notified();
-            while unread_start_pos < want {
-                println!("wait2");
-                notified.await;
-                notified = notify.notified();
-                println!("wait2 end");
-                unread_start_pos = self.read_cursor.load(Ordering::SeqCst);
-            }
-            drop(notified);
+            if read_cursor < want { return Poll::Pending; }
             self.move_buffer();
-            let size = max(want - current, unread_start_pos - current);
+            let size = max(want - current, read_cursor - current);
             let ptr = self.buffer.raw_ptr_mut();
-            unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) }
+            Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
         }
     }
 
-    async fn start_eq_end(&mut self, want: usize, current: usize, unread_start_pos: usize, notify: Arc<Notify>) -> &mut [u8] {
+    fn start_eq_end(&mut self, want: usize, current: usize, unread_start_pos: usize) -> Poll<&mut [u8]> {
         if self.unread_size.load(Ordering::SeqCst) == 0 {
             let mut unused = self.buffer.capacity() - self.last_record_end_pos;
             if unused < want {
@@ -137,9 +105,9 @@ impl RecordBuffer {
             }
             let ptr = self.buffer.raw_ptr_mut();
             let size = max(want - current, unused - current);
-            unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) }
+            Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
         } else {
-            self.end_less_start(want, current, unread_start_pos, notify).await
+            self.write_less_read(want, current, unread_start_pos)
         }
     }
 
@@ -160,14 +128,15 @@ impl RecordBuffer {
         self.unread_size.fetch_add(record_len, Ordering::SeqCst);
         res
     }
-    pub async fn unfilled_mut(&mut self, want: usize, current: usize, notify: Arc<Notify>) -> &mut [u8] {
-        let unread_start_pos = self.read_cursor.load(Ordering::SeqCst);
-        if self.write_cursor > unread_start_pos {
-            self.start_less_end(want, current, unread_start_pos, notify).await
-        } else if self.write_cursor < unread_start_pos {
-            self.end_less_start(want, current, unread_start_pos, notify).await
+    pub fn unfilled_mut(&mut self, want: usize, current: usize) -> Poll<&mut [u8]> {
+        let read_cursor = self.read_cursor.load(Ordering::SeqCst);
+        // println!("write_cursor: {}; read_cursor: {}", self.write_cursor, read_cursor);
+        if read_cursor < self.write_cursor {
+            self.read_less_write(want, current, read_cursor)
+        } else if self.write_cursor < read_cursor {
+            self.write_less_read(want, current, read_cursor)
         } else {
-            self.start_eq_end(want, current, unread_start_pos, notify).await
+            self.start_eq_end(want, current, read_cursor)
         }
     }
 }
@@ -187,7 +156,7 @@ impl Debug for ReadOffset {
 }
 
 impl ReadOffset {
-    pub fn new(offset: Range<usize>, buffer: &RecordBuffer,notify:Arc<Notify>) -> ReadOffset {
+    pub fn new(offset: Range<usize>, buffer: &RecordBuffer, notify: Arc<Notify>) -> ReadOffset {
         ReadOffset {
             unread_start_pos: buffer.read_cursor.clone(),
             unread_size: buffer.unread_size.clone(),
