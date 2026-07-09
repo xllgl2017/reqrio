@@ -332,6 +332,7 @@ impl<'a> Extension<'a> {
             ExtensionType::ApplicationSetting => Some(ExtensionValue::ApplicationSetting(ALPS::new(vec![ALPN::Http20, ALPN::Http11]))),
             ExtensionType::ApplicationSettingOld => Some(ExtensionValue::ApplicationSettingOld(ALPS::new(vec![ALPN::Http20, ALPN::Http11]))),
             ExtensionType::PreSharedKey => Some(ExtensionValue::PreSharedKey(PreSharedKey::random())),
+            ExtensionType::Padding=>Some(ExtensionValue::Padding(202)),
             _ => None
         }
     }

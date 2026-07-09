@@ -1,4 +1,4 @@
-use pin_project_lite::pin_project;
+use std::fs;
 use reqrio::*;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -20,62 +20,25 @@ fn test_log() {
     set_max_level(LevelFilter::Debug);
 }
 
-
-pin_project! {
-     struct AA<'a> {
-        #[pin]
-        notified: Notified<'a>,
-    }
-}
-
-impl<'a> Future for AA<'a> {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        println!("{}", "poll");
-        let this = self.project();
-        if this.notified.poll(cx).is_ready() {
-        }
-        Poll::Pending
-    }
-}
-
 #[tokio::main]
 async fn main() {
     // return;
     #[cfg(feature = "log")]
     test_log();
-    // let notify = Arc::new(Notify::new());
-    // let n = notify.clone();
-    // tokio::spawn(async move {
-    //     let aa = AA {
-    //         notified: n.notified(),
-    //     };
-    //     aa.await
-    // });
-    // notify.notify_waiters();
-    // println!("weke");
-    // sleep(Duration::from_millis(100)).await;
-    // notify.notify_waiters();
-    // notify.notify_waiters();
-    // println!("weke");
-    // sleep(Duration::from_millis(100)).await;
-    //
-    // return;
 
 
     let mut timeout = Timeout::longer();
     timeout.set_handle_times(1);
 
     let mut req = AcReq::new()
-        // .with_fingerprint(fingerprint)
+        .with_fingerprint(fingerprint)
         .with_timeout(timeout)
         .with_verify(true)
         .with_key_log("2.log")
         .with_auto_redirect(false)
         // .with_proxy(Proxy::Null)
         .with_verify(false)
-        .with_alpn(ALPN::Http11)
+        .with_alpn(ALPN::Http20)
         // .with_proxy(Proxy::try_from("http: //222.186.129.68:15265").unwrap())
         // .with_mtls(certs, key)
         // .with_proxy(Proxy::new_socks5("127.0.0.1",10279))
