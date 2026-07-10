@@ -4,14 +4,14 @@ use crate::{Buffer, HlsError, ReadOffset, RecordBuffer, TimeError};
 use pin_project_lite::pin_project;
 use reqtls::WriteExt;
 use std::io;
-use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
 use tokio::io::{AsyncRead, ReadBuf, ReadHalf};
-use tokio::sync::futures::OwnedNotified;
+use tokio::sync::futures::{Notified, OwnedNotified};
 use tokio::sync::mpsc::Sender;
-use tokio::sync::{oneshot, Notify};
+use tokio::sync::Notify;
 use tokio::time::Sleep;
 
 pin_project! {
@@ -45,13 +45,13 @@ pin_project! {
         #[pin]
         notified: OwnedNotified,
         #[pin]
-        close_notify: &'a mut oneshot::Receiver<()>,
+        close_notify: Notified<'a>,
         record_len: usize,
     }
 }
 
 impl<'a, S: AsyncRead + Unpin + Send> Future for ReadRecord<'a, S> {
-    type Output = io::Result<Range<usize>>;
+    type Output = io::Result<ReadOffset>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut project = self.project();
         if project.close_notify.poll(cx).is_ready() {
@@ -67,7 +67,9 @@ impl<'a, S: AsyncRead + Unpin + Send> Future for ReadRecord<'a, S> {
             project.reader.read_size(*project.record_len, project.notified.as_mut(), cx)?.is_pending() {
             return Poll::Pending;
         }
-        Poll::Ready(Ok(project.reader.buffer.next_record_offset(*project.record_len)))
+        let offset = project.reader.buffer.next_record_offset(*project.record_len);
+        let read_offset = ReadOffset::new(offset, project.reader.buffer, project.reader.notify.clone());
+        Poll::Ready(Ok(read_offset))
     }
 }
 
@@ -125,14 +127,14 @@ pub struct StreamRead<S: Send> {
     pub buffer: RecordBuffer,
     pub reader: ReadHalf<S>,
     pub sender: Sender<io::Result<ReadOffset>>,
-    pub closed: oneshot::Receiver<()>,
+    pub closed: Arc<Notify>,
     pub notify: Arc<Notify>,
 }
 
 impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
     fn read_record(&mut self) -> ReadRecord<'_, S> {
         ReadRecord {
-            close_notify: &mut self.closed,
+            close_notify: self.closed.notified(),
             notified: self.notify.clone().notified_owned(),
             reader: StreamReading {
                 buffer: &mut self.buffer,
@@ -143,20 +145,19 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
         }
     }
 
+    async fn read(&mut self) -> bool {
+        let res = self.read_record().await;
+        let is_err = res.is_err();
+        self.sender.send_timeout(res, Duration::from_millis(10)).await.unwrap();
+        is_err
+    }
+
 
     pub async fn run(&mut self) {
         loop {
-            match self.read_record().await {
-                Ok(record_offset) => {
-                    // println!("send: {:?}; len: {}", record_offset, record_offset.len() - 5);
-                    let offset = ReadOffset::new(record_offset, &self.buffer, self.notify.clone());
-                    let ret = self.sender.send(Ok(offset)).await;
-                    if ret.is_err() { break; }
-                }
-                Err(e) => {
-                    let _ = self.sender.send(Err(e)).await;
-                    break;
-                }
+            tokio::select! {
+                _=self.closed.clone().notified_owned()=>break,
+                finished = self.read() => if finished { break; },
             }
         }
         println!("stream closed");
