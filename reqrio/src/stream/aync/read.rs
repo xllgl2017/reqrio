@@ -1,18 +1,18 @@
+use super::poll_sleep;
+use crate::error::HlsResult;
+use crate::{Buffer, HlsError, ReadOffset, RecordBuffer, TimeError};
+use pin_project_lite::pin_project;
+use reqtls::WriteExt;
 use std::io;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, ReadBuf, ReadHalf};
-use tokio::sync::futures::{Notified, OwnedNotified};
+use tokio::sync::futures::OwnedNotified;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::Notify;
+use tokio::sync::{oneshot, Notify};
 use tokio::time::Sleep;
-use reqtls::WriteExt;
-use crate::error::HlsResult;
-use crate::{Buffer, HlsError, ReadOffset, RecordBuffer, TimeError};
-use super::poll_sleep;
 
 pin_project! {
     pub struct ReadTimeout<'a, S> {
@@ -45,7 +45,7 @@ pin_project! {
         #[pin]
         notified: OwnedNotified,
         #[pin]
-        close_notify: Notified<'a>,
+        close_notify: &'a mut oneshot::Receiver<()>,
         record_len: usize,
     }
 }
@@ -125,14 +125,14 @@ pub struct StreamRead<S: Send> {
     pub buffer: RecordBuffer,
     pub reader: ReadHalf<S>,
     pub sender: Sender<io::Result<ReadOffset>>,
-    pub closed: Arc<Notify>,
+    pub closed: oneshot::Receiver<()>,
     pub notify: Arc<Notify>,
 }
 
 impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
     fn read_record(&mut self) -> ReadRecord<'_, S> {
         ReadRecord {
-            close_notify: self.closed.notified(),
+            close_notify: &mut self.closed,
             notified: self.notify.clone().notified_owned(),
             reader: StreamReading {
                 buffer: &mut self.buffer,
@@ -146,19 +146,16 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
 
     pub async fn run(&mut self) {
         loop {
-            tokio::select! {
-                _=self.closed.clone().notified_owned()=>break,
-                res=self.read_record()=>match res {
-                    Ok(record_offset) => {
-                        // println!("send: {:?}; len: {}", record_offset, record_offset.len() - 5);
-                        let offset = ReadOffset::new(record_offset, &self.buffer, self.notify.clone());
-                        let ret = self.sender.send(Ok(offset)).await;
-                        if ret.is_err() { break; }
-                    }
-                    Err(e) => {
-                        let _ = self.sender.send(Err(e)).await;
-                        break;
-                    }
+            match self.read_record().await {
+                Ok(record_offset) => {
+                    // println!("send: {:?}; len: {}", record_offset, record_offset.len() - 5);
+                    let offset = ReadOffset::new(record_offset, &self.buffer, self.notify.clone());
+                    let ret = self.sender.send(Ok(offset)).await;
+                    if ret.is_err() { break; }
+                }
+                Err(e) => {
+                    let _ = self.sender.send(Err(e)).await;
+                    break;
                 }
             }
         }
