@@ -146,16 +146,19 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
 
     pub async fn run(&mut self) {
         loop {
-            match self.read_record().await {
-                Ok(record_offset) => {
-                    // println!("send: {:?}; len: {}", record_offset, record_offset.len() - 5);
-                    let offset = ReadOffset::new(record_offset, &self.buffer, self.notify.clone());
-                    let ret = self.sender.send(Ok(offset)).await;
-                    if ret.is_err() { break; }
-                }
-                Err(e) => {
-                    let _ = self.sender.send(Err(e)).await;
-                    break;
+            tokio::select! {
+                _=self.closed.clone().notified_owned()=>break,
+                res=self.read_record()=>match res {
+                    Ok(record_offset) => {
+                        // println!("send: {:?}; len: {}", record_offset, record_offset.len() - 5);
+                        let offset = ReadOffset::new(record_offset, &self.buffer, self.notify.clone());
+                        let ret = self.sender.send(Ok(offset)).await;
+                        if ret.is_err() { break; }
+                    }
+                    Err(e) => {
+                        let _ = self.sender.send(Err(e)).await;
+                        break;
+                    }
                 }
             }
         }

@@ -152,7 +152,6 @@ pub struct ReadOffset {
     unread_size: Arc<AtomicUsize>,
     offset: Range<usize>,
     notify: Arc<Notify>,
-    buffer: Buffer,
 }
 
 impl Debug for ReadOffset {
@@ -168,7 +167,6 @@ impl ReadOffset {
             unread_size: buffer.unread_size.clone(),
             offset,
             notify,
-            buffer: buffer.buffer.clone(),
         }
     }
 
@@ -176,12 +174,9 @@ impl ReadOffset {
         self.offset.len()
     }
 
-    pub fn record(&self) -> &[u8] {
-        println!("111111111111111");
-        let ptr = self.buffer.raw_ptr();
-        let res = unsafe { slice::from_raw_parts(ptr.add(self.offset.start), self.offset.len()) };
-        println!("2222222222222222");
-        return res;
+    pub fn record(&self, buffer: &Buffer) -> &[u8] {
+        let ptr = buffer.raw_ptr();
+        unsafe { slice::from_raw_parts(ptr.add(self.offset.start), self.offset.len()) }
     }
 
     pub fn release(&mut self) {

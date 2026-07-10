@@ -27,19 +27,25 @@ fn test_log() {
 
 
 pin_project! {
-     struct AA {
+     struct AA<'a> {
         #[pin]
         notified: OwnedNotified,
+        #[pin]
+        close_notified: Notified<'a>,
         notify: Arc<Notify>,
     }
 }
 
-impl Future for AA {
+impl<'a> Future for AA<'a> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         println!("{}", "poll");
         let mut this = self.project();
+        if this.close_notified.as_mut().poll(cx).is_ready() {
+            println!("closed read thread");
+            return Poll::Ready(());
+        }
         loop {
             if this.notified.as_mut().poll(cx).is_ready() {
                 this.notified.set(this.notify.clone().notified_owned());
@@ -58,9 +64,12 @@ async fn main() {
     #[cfg(feature = "log")]
     test_log();
     // let notify = Arc::new(Notify::new());
+    // let close_notify = Arc::new(Notify::new());
     // let n = notify.clone();
+    // let c=close_notify.clone();
     // tokio::spawn(async move {
     //     let aa = AA {
+    //         close_notified: c.notified(),
     //         notified: n.clone().notified_owned(),
     //         notify: n,
     //     };
@@ -71,8 +80,10 @@ async fn main() {
     // sleep(Duration::from_millis(100)).await;
     // notify.notify_waiters();
     // notify.notify_waiters();
+    // sleep(Duration::from_millis(10000)).await;
+    // close_notify.notify_waiters();
     // println!("weke");
-    // sleep(Duration::from_millis(100)).await;
+    // sleep(Duration::from_secs(100)).await;
     //
     // return;
 

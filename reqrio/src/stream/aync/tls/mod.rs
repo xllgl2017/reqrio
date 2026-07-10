@@ -12,10 +12,12 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::{io, mem};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, ReadHalf, WriteHalf};
+use std::thread::sleep;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, WriteHalf};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
+use tokio::task::JoinHandle;
 
 pub struct TlsStream<S> {
     conn: Connection,
@@ -24,21 +26,30 @@ pub struct TlsStream<S> {
     encrypted_channel: bool,
     handshake_finished: bool,
     hello_retrying: bool,
+    read_buffer: Buffer,
     write_buffer: Buffer,
     shutdown_wrote: bool,
     wrote_len: usize,
     pending: Vec<usize>,
     client_hello: Vec<u8>,
     closed: Arc<Notify>,
+    read_work: JoinHandle<()>,
 }
 
 
 impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
     fn _connect(stream: S, conn: Connection, config: Config<'_>, buffer: Buffer) -> Connecting<'_, S> {
         let (reader, writer) = tokio::io::split(stream);
-        let (sender, receiver) = tokio::sync::mpsc::channel(30);
+        let (sender, receiver) = tokio::sync::mpsc::channel(100);
         let closed = Arc::new(Notify::new());
-        TlsStream::<S>::read_work(reader, closed.clone(), sender);
+        let read_buffer = Buffer::with_capacity(2 * 16438);
+        let mut reader = StreamRead {
+            reader,
+            buffer: RecordBuffer::new(read_buffer.clone()),
+            sender,
+            closed: closed.clone(),
+            notify: Arc::new(Default::default()),
+        };
         let stream = TlsStream {
             reader: receiver,
             writer,
@@ -46,12 +57,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
             encrypted_channel: false,
             handshake_finished: false,
             hello_retrying: false,
+            read_buffer,
             write_buffer: buffer,
             shutdown_wrote: false,
             wrote_len: 0,
             pending: vec![],
             client_hello: vec![],
             closed,
+            read_work: tokio::spawn(async move { reader.run().await }),
         };
         Connecting {
             handshake: Handshake::Handshaking(Box::new(stream)),
@@ -62,9 +75,16 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
     #[inline]
     pub fn connect(stream: S, mut config: ClientConfig<'_>) -> Connecting<'_, S> {
         let (reader, writer) = tokio::io::split(stream);
-        let (sender, receiver) = tokio::sync::mpsc::channel(30);
+        let (sender, receiver) = tokio::sync::mpsc::channel(100);
         let closed = Arc::new(Notify::new());
-        TlsStream::<S>::read_work(reader, closed.clone(), sender);
+        let read_buffer = Buffer::with_capacity(2 * 16438);
+        let mut reader = StreamRead {
+            reader,
+            buffer: RecordBuffer::new(read_buffer.clone()),
+            sender,
+            closed: closed.clone(),
+            notify: Arc::new(Default::default()),
+        };
         let session = config.session.as_ref().cloned().unwrap_or_else(Default::default);
         Connecting {
             handshake: Handshake::Handshaking(Box::new(TlsStream {
@@ -74,6 +94,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
                     .with_verify(config.verify).with_mtls(!config.client_cert.is_empty()),
                 handshake_finished: false,
                 hello_retrying: false,
+                read_buffer,
                 write_buffer: Buffer::default(),
                 shutdown_wrote: false,
                 wrote_len: 0,
@@ -81,6 +102,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
                 client_hello: vec![],
                 encrypted_channel: false,
                 closed,
+                read_work: tokio::spawn(async move { reader.run().await }),
             })),
             sent_client_hello: false,
             config: Config::Client(config),
@@ -115,21 +137,6 @@ impl<S> StreamHandle for TlsStream<S> {
 impl<S> TlsStream<S> {
     pub fn connection(&self) -> &Connection {
         &self.conn
-    }
-}
-
-impl<S: AsyncRead + Unpin + Send + 'static> TlsStream<S> {
-    fn read_work(reader: ReadHalf<S>, closed: Arc<Notify>, sender: Sender<io::Result<ReadOffset>>) {
-        tokio::spawn(async move {
-            let mut stream = StreamRead {
-                reader,
-                buffer: Default::default(),
-                sender,
-                closed,
-                notify: Arc::new(Default::default()),
-            };
-            stream.run().await
-        });
     }
 }
 
@@ -173,7 +180,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
                 if buf.filled().is_empty() { return Poll::Pending; }
                 return Poll::Ready(Ok(()));
             };
-            let len = stream.handle_record(record.record(), None, buf.initialize_unfilled())?;
+            let len = stream.handle_record(record.record(&stream.read_buffer), None, buf.initialize_unfilled())?;
             record.release();
             buf.set_filled(buf.filled().len() + len);
             if len == 0 || buf.remaining() > 16384 { continue; }
@@ -233,6 +240,11 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
 impl<S> Drop for TlsStream<S> {
     fn drop(&mut self) {
         self.closed.notify_waiters();
+        println!("wait read thread finish");
+        while !self.read_work.is_finished() {
+            sleep(Duration::from_millis(1))
+        }
+        println!("closed read thread");
     }
 }
 
