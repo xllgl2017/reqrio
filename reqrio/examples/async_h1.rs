@@ -1,8 +1,4 @@
-use std::fs;
 use reqrio::*;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use tokio::sync::futures::Notified;
 
 #[cfg(feature = "log")]
 const LOGER: Logger = Logger {
@@ -31,14 +27,14 @@ async fn main() {
     timeout.set_handle_times(1);
 
     let mut req = AcReq::new()
-        .with_fingerprint(fingerprint)
+        // .with_fingerprint(fingerprint)
         .with_timeout(timeout)
         .with_verify(true)
         .with_key_log("2.log")
         .with_auto_redirect(false)
         // .with_proxy(Proxy::Null)
         .with_verify(false)
-        .with_alpn(ALPN::Http20)
+        .with_alpn(ALPN::Http11)
         // .with_proxy(Proxy::try_from("http: //222.186.129.68:15265").unwrap())
         // .with_mtls(certs, key)
         // .with_proxy(Proxy::new_socks5("127.0.0.1",10279))
@@ -131,8 +127,8 @@ async fn main() {
     // let url = "https://www.baidu.com".try_into().unwrap();
     req.set_verify(false);
     let t = Time::now();
-    // let resp = req.get("https://192.168.99.140:7879/download/1048576000", None).await.unwrap();
-    let resp = req.get("https://www.baidu.com", None).await.unwrap();
+    let resp = req.get("https://192.168.99.140:7879/download/1048576000", None).await.unwrap();
+    // let resp = req.get("https://www.baidu.com", None).await.unwrap();
     // let resp = req.get("https://www.bing.com", None).await.unwrap();
     println!("{}", resp.header());
     println!("{}", Time::now().as_mills() - t.as_mills());

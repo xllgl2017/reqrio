@@ -12,6 +12,7 @@ use tokio::time::Sleep;
 pub use tcp::TcpStreamA;
 pub use tls::*;
 pub use ext::TimeoutRW;
+pub use read::StreamRead;
 
 fn poll_sleep<T>(slept: bool, sleep: Pin<&mut Sleep>, cx: &mut Context<'_>, err: impl Fn() -> T) -> Poll<T> {
     if !slept { return Poll::Pending; }

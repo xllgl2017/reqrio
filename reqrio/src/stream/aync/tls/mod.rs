@@ -8,15 +8,14 @@ use connect::{Connecting, Handshake};
 use reqtls::{rand, Alert, Config, Connection, RecordType, StreamHandle, WriteExt, ALPN};
 use std::io::Error;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::{io, mem};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
-
+use tokio::sync::Notify;
 
 pub struct TlsStream<S> {
     conn: Connection,
@@ -30,7 +29,7 @@ pub struct TlsStream<S> {
     wrote_len: usize,
     pending: Vec<usize>,
     client_hello: Vec<u8>,
-    closed: Arc<AtomicBool>,
+    closed: Arc<Notify>,
 }
 
 
@@ -38,7 +37,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
     fn _connect(stream: S, conn: Connection, config: Config<'_>, buffer: Buffer) -> Connecting<'_, S> {
         let (reader, writer) = tokio::io::split(stream);
         let (sender, receiver) = tokio::sync::mpsc::channel(30);
-        let closed = Arc::new(AtomicBool::new(false));
+        let closed = Arc::new(Notify::new());
         TlsStream::<S>::read_work(reader, closed.clone(), sender);
         let stream = TlsStream {
             reader: receiver,
@@ -64,7 +63,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send + 'static> TlsStream<S> {
     pub fn connect(stream: S, mut config: ClientConfig<'_>) -> Connecting<'_, S> {
         let (reader, writer) = tokio::io::split(stream);
         let (sender, receiver) = tokio::sync::mpsc::channel(30);
-        let closed = Arc::new(AtomicBool::new(false));
+        let closed = Arc::new(Notify::new());
         TlsStream::<S>::read_work(reader, closed.clone(), sender);
         let session = config.session.as_ref().cloned().unwrap_or_else(Default::default);
         Connecting {
@@ -120,7 +119,7 @@ impl<S> TlsStream<S> {
 }
 
 impl<S: AsyncRead + Unpin + Send + 'static> TlsStream<S> {
-    fn read_work(reader: ReadHalf<S>, closed: Arc<AtomicBool>, sender: Sender<io::Result<ReadOffset>>) {
+    fn read_work(reader: ReadHalf<S>, closed: Arc<Notify>, sender: Sender<io::Result<ReadOffset>>) {
         tokio::spawn(async move {
             let mut stream = StreamRead {
                 reader,
@@ -212,7 +211,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        self.closed.store(true, Ordering::SeqCst);
+        self.closed.notify_waiters();
         let stream = self.get_mut();
         if stream.write_buffer.is_empty() {
             let len = stream.conn.make_message(RecordType::Alert, stream.write_buffer.unfilled(), &Alert::close_notify().to_bytes())?;
@@ -228,6 +227,12 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
                 Poll::Pending => Poll::Pending,
             }
         }
+    }
+}
+
+impl<S> Drop for TlsStream<S> {
+    fn drop(&mut self) {
+        self.closed.notify_waiters();
     }
 }
 

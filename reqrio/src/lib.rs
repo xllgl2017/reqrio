@@ -309,7 +309,7 @@ pub use stream::{Proxy, ProxyStream, SyncStream, WebSocket, WebSocketBuilder};
 pub use time::{Time, TimeError, Timeout};
 #[cfg(feature = "tokio")]
 pub use tokio;
-#[cfg(all(feature = "log", debug_assertions))]
+#[cfg(feature = "log")]
 pub use logger::Logger;
 
 

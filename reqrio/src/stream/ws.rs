@@ -1,3 +1,4 @@
+use std::io;
 use crate::body::Body;
 use crate::error::HlsResult;
 use crate::ext::ReqPriExt;
@@ -134,7 +135,7 @@ impl WebSocket {
     }
 
 
-    pub fn write_frame(&mut self, frame: WsFrame) -> HlsResult<()> {
+    pub fn write_frame(&mut self, frame: WsFrame) -> io::Result<()> {
         self.stream.sync_write(&frame.to_bytes())
     }
 
