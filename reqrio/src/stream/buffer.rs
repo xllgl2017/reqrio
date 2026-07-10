@@ -35,7 +35,7 @@ impl RecordBuffer {
         RecordBuffer {
             read_cursor: Arc::new(AtomicUsize::new(0)),
             write_cursor: buffer.end(),
-            unread_size: Arc::new(AtomicUsize::new(buffer.len())),
+            unread_size: Arc::new(AtomicUsize::new(0)),
             last_record_end_pos: 0,
             buffer,
         }
@@ -49,6 +49,7 @@ impl RecordBuffer {
         if remaining > want {
             let size = max(want - current, remaining - current);
             let ptr = self.buffer.raw_ptr_mut();
+            assert!(self.write_cursor + size <= self.buffer.capacity());
             Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
         } else {
             //后面数据已解析完成
@@ -57,6 +58,7 @@ impl RecordBuffer {
             if remaining >= want && unread_size == 0 {
                 let size = max(want - current, remaining - current);
                 let ptr = self.buffer.raw_ptr_mut();
+                assert!(self.write_cursor + size <= self.buffer.capacity());
                 Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
             } else {
                 Poll::Pending
@@ -84,12 +86,14 @@ impl RecordBuffer {
         if remaining > want {
             let size = max(want - current, remaining - current);
             let ptr = self.buffer.raw_ptr_mut();
+            assert!(self.write_cursor + size <= self.buffer.capacity());
             Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
         } else {
             if read_cursor < want { return Poll::Pending; }
             self.move_buffer();
             let size = max(want - current, read_cursor - current);
             let ptr = self.buffer.raw_ptr_mut();
+            assert!(self.write_cursor + size <= self.buffer.capacity());
             Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
         }
     }
@@ -105,6 +109,7 @@ impl RecordBuffer {
             }
             let ptr = self.buffer.raw_ptr_mut();
             let size = max(want - current, unused - current);
+            assert!(self.write_cursor + size <= self.buffer.capacity());
             Poll::Ready(unsafe { slice::from_raw_parts_mut(ptr.add(self.write_cursor), size) })
         } else {
             self.write_less_read(want, current, unread_start_pos)
@@ -120,6 +125,7 @@ impl RecordBuffer {
     }
     pub fn next_record_len(&self) -> usize {
         let ptr = unsafe { self.buffer.raw_ptr().add(self.last_record_end_pos + 3) } as *const u16;
+        assert!(self.last_record_end_pos + 5 <= self.buffer.capacity());
         unsafe { ptr.read_unaligned() }.to_be() as usize + 5
     }
     pub fn next_record_offset(&mut self, record_len: usize) -> Range<usize> {
@@ -130,7 +136,7 @@ impl RecordBuffer {
     }
     pub fn unfilled_mut(&mut self, want: usize, current: usize) -> Poll<&mut [u8]> {
         let read_cursor = self.read_cursor.load(Ordering::SeqCst);
-        // println!("write_cursor: {}; read_cursor: {}", self.write_cursor, read_cursor);
+        // println!("write_cursor: {}; read_cursor: {}; {}", self.write_cursor, read_cursor, self.unread_size.load(Ordering::SeqCst));
         if read_cursor < self.write_cursor {
             self.read_less_write(want, current, read_cursor)
         } else if self.write_cursor < read_cursor {
@@ -171,8 +177,11 @@ impl ReadOffset {
     }
 
     pub fn record(&self) -> &[u8] {
+        println!("111111111111111");
         let ptr = self.buffer.raw_ptr();
-        unsafe { slice::from_raw_parts(ptr.add(self.offset.start), self.offset.len()) }
+        let res = unsafe { slice::from_raw_parts(ptr.add(self.offset.start), self.offset.len()) };
+        println!("2222222222222222");
+        return res;
     }
 
     pub fn release(&mut self) {

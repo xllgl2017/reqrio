@@ -1,3 +1,11 @@
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use std::time::Duration;
+use pin_project_lite::pin_project;
+use tokio::sync::futures::{Notified, OwnedNotified};
+use tokio::sync::Notify;
+use tokio::time::sleep;
 use reqrio::*;
 
 #[cfg(feature = "log")]
@@ -16,12 +24,57 @@ fn test_log() {
     set_max_level(LevelFilter::Debug);
 }
 
+
+
+pin_project! {
+     struct AA {
+        #[pin]
+        notified: OwnedNotified,
+        notify: Arc<Notify>,
+    }
+}
+
+impl Future for AA {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        println!("{}", "poll");
+        let mut this = self.project();
+        loop {
+            if this.notified.as_mut().poll(cx).is_ready() {
+                this.notified.set(this.notify.clone().notified_owned());
+                println!("poll ready");
+            } else { break; }
+        }
+        println!("poll pending");
+        Poll::Pending
+    }
+}
+
+
 #[tokio::main]
 async fn main() {
     // return;
     #[cfg(feature = "log")]
     test_log();
-
+    // let notify = Arc::new(Notify::new());
+    // let n = notify.clone();
+    // tokio::spawn(async move {
+    //     let aa = AA {
+    //         notified: n.clone().notified_owned(),
+    //         notify: n,
+    //     };
+    //     aa.await
+    // });
+    // notify.notify_waiters();
+    // println!("weke");
+    // sleep(Duration::from_millis(100)).await;
+    // notify.notify_waiters();
+    // notify.notify_waiters();
+    // println!("weke");
+    // sleep(Duration::from_millis(100)).await;
+    //
+    // return;
 
     let mut timeout = Timeout::longer();
     timeout.set_handle_times(1);

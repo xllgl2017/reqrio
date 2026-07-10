@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, ReadBuf, ReadHalf};
-use tokio::sync::futures::Notified;
+use tokio::sync::futures::{Notified, OwnedNotified};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Notify;
 use tokio::time::Sleep;
@@ -43,7 +43,7 @@ pin_project! {
     pub struct ReadRecord<'a, S: Send> {
         reader: StreamReading<'a, S>,
         #[pin]
-        notified: Notified<'a>,
+        notified: OwnedNotified,
         #[pin]
         close_notify: Notified<'a>,
         record_len: usize,
@@ -54,8 +54,8 @@ impl<'a, S: AsyncRead + Unpin + Send> Future for ReadRecord<'a, S> {
     type Output = io::Result<Range<usize>>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut project = self.project();
-        if project.close_notify.poll(cx).is_ready() { 
-            return Poll::Ready(Err(io::Error::other("close by hand")))
+        if project.close_notify.poll(cx).is_ready() {
+            return Poll::Ready(Err(io::Error::other("close by hand")));
         }
         if *project.record_len == 0 {
             match project.reader.read_record_size(project.notified.as_mut(), cx)? {
@@ -74,17 +74,21 @@ impl<'a, S: AsyncRead + Unpin + Send> Future for ReadRecord<'a, S> {
 struct StreamReading<'a, S: Send> {
     buffer: &'a mut RecordBuffer,
     reader: &'a mut ReadHalf<S>,
+    notify: &'a Arc<Notify>,
 }
 
 impl<'a, S: AsyncRead + Unpin + Send> StreamReading<'a, S> {
-    fn read_size(&mut self, want_size: usize, mut notified: Pin<&mut Notified<'_>>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn read_size(&mut self, want_size: usize, mut notified: Pin<&mut OwnedNotified>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let current_size = self.buffer.current_size();
         if current_size >= want_size { return Poll::Ready(Ok(())); }
         let mut unfilled = loop {
             match self.buffer.unfilled_mut(want_size, current_size) {
                 Poll::Ready(res) => break ReadBuf::new(res),
                 Poll::Pending => match notified.as_mut().poll(cx) {
-                    Poll::Ready(_) => continue,
+                    Poll::Ready(_) => {
+                        notified.set(self.notify.clone().notified_owned());
+                        continue;
+                    }
                     Poll::Pending => return Poll::Pending,
                 }
             }
@@ -110,7 +114,7 @@ impl<'a, S: AsyncRead + Unpin + Send> StreamReading<'a, S> {
     }
 
 
-    fn read_record_size(&mut self, notified: Pin<&mut Notified<'_>>, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
+    fn read_record_size(&mut self, notified: Pin<&mut OwnedNotified>, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         if self.buffer.current_size() < 5 && self.read_size(23, notified, cx)?.is_pending() { return Poll::Pending; };
         Poll::Ready(Ok(self.buffer.next_record_len()))
     }
@@ -129,13 +133,13 @@ impl<S: AsyncRead + Unpin + Send> StreamRead<S> {
     fn read_record(&mut self) -> ReadRecord<'_, S> {
         ReadRecord {
             close_notify: self.closed.notified(),
-            notified: self.notify.notified(),
+            notified: self.notify.clone().notified_owned(),
             reader: StreamReading {
                 buffer: &mut self.buffer,
                 reader: &mut self.reader,
+                notify: &self.notify,
             },
             record_len: 0,
-
         }
     }
 
