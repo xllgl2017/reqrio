@@ -52,7 +52,7 @@ impl AeadCtx {
         Ok(AeadCtx(ctx))
     }
 
-    pub fn seal(&self, param: CryptEncodeParam) -> RlsResult<()> {
+    pub(crate) fn seal(&self, param: CryptEncodeParam) -> RlsResult<()> {
         let mut out_len = 0;
         let payload = param.buffer.payload();
         unsafe {
@@ -73,7 +73,28 @@ impl AeadCtx {
         Ok(())
     }
 
-    pub fn open(&self, param: CryptDecodeParam) -> RlsResult<usize> {
+    pub fn seal_bytes(&self, nonce: &[u8], aad: &[u8], plaintext: &[u8]) -> RlsResult<Vec<u8>> {
+        let mut output = vec![0u8; plaintext.len() + 16];
+        let mut output_len = 0usize;
+        unsafe {
+            AEAD_CTX_seal(
+                self.0.as_ptr(),
+                output.as_mut_ptr(),
+                &mut output_len,
+                output.len(),
+                nonce.as_ptr(),
+                nonce.len(),
+                plaintext.as_ptr(),
+                plaintext.len(),
+                aad.as_ptr(),
+                aad.len(),
+            )
+        }.ok(RlsError::AeadEncryptError)?;
+        output.truncate(output_len);
+        Ok(output)
+    }
+
+    pub(crate) fn open(&self, param: CryptDecodeParam) -> RlsResult<usize> {
         let mut out_len = 0usize;
         let ok = unsafe {
             AEAD_CTX_open(
@@ -90,6 +111,27 @@ impl AeadCtx {
             )
         };
         if ok != 1 { Err(RlsError::AeadDecryptError) } else { Ok(out_len) }
+    }
+
+    pub fn open_bytes(&self, nonce: &[u8], aad: &[u8], cipher_bytes: &[u8]) -> RlsResult<Vec<u8>> {
+        let mut output = vec![0u8; cipher_bytes.len() - 16];
+        let mut output_len = 0usize;
+        unsafe {
+            AEAD_CTX_open(
+                self.0.as_ptr(),
+                output.as_mut_ptr(),
+                &mut output_len,
+                output.len(),
+                nonce.as_ptr(),
+                nonce.len(),
+                cipher_bytes.as_ptr(),
+                cipher_bytes.len(),
+                aad.as_ptr(),
+                aad.len(),
+            )
+        }.ok(RlsError::AeadEncryptError)?;
+        output.truncate(output_len);
+        Ok(output)
     }
 }
 
@@ -140,7 +182,7 @@ mod aead_tests {
 
     #[test]
     fn test_aead_ctx() {
-        let token=fs::read_to_string("../TOKEN").unwrap_or_else(|_|{
+        let token = fs::read_to_string("../TOKEN").unwrap_or_else(|_| {
             env::var("REQRIO_TOKEN").unwrap_or("".to_string())
         });
         Buffer::check_subscription(token).unwrap();

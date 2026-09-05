@@ -1,13 +1,13 @@
 pub use super::message::{AckRange, QUICFrame, QUICFrameFlag, QUICPacket};
 pub use crate::connection::QUICConnection;
 pub use crate::error::QUICError;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 use std::cmp::max;
 use std::ops::Range;
 
 pub fn read_variant(reader: &mut Reader) -> Result<usize, BufferError> {
     if reader.unread_len() == 0 { return Err(BufferError::Insufficient); }
-    let flag = reader.current();
+    let flag = reader.current()?;
     match flag >> 6 {
         0b00 => Ok(reader.read_u8()? as usize),
         0b01 => Ok((reader.read_u16()? & 0x3FFF) as usize),

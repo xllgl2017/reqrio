@@ -1,5 +1,5 @@
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 
 #[derive(Debug, Copy, Clone)]
 pub enum StatusType {

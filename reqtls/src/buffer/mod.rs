@@ -2,6 +2,7 @@ mod encode;
 mod decode;
 mod ext;
 mod error;
+mod reader;
 
 use std::cmp::max;
 use crate::ffi;
@@ -9,11 +10,12 @@ use crate::ffi::CPointer;
 pub use decode::CipherDecodeBuffer;
 pub use encode::CipherEncodeBuffer;
 pub use error::BufferError;
-pub use ext::{u24, ReadExt, WriteExt};
+pub use ext::{u24, WriteExt};
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
 use std::os::raw::{c_char, c_int};
 use std::slice;
+pub use reader::Reader;
 
 #[repr(C)]
 #[allow(clippy::upper_case_acronyms)]
@@ -284,67 +286,67 @@ impl Clone for BufPtr {
     }
 }
 
-pub struct Reader<'a> {
-    buf: &'a [u8],
-    pos: usize,
-}
+// pub struct Reader<'a> {
+//     buf: &'a [u8],
+//     pos: usize,
+// }
+// 
+// impl<'a> Reader<'a> {
+//     pub fn from_slice(buf: &'a [u8]) -> Self {
+//         Self { buf, pos: 0 }
+//     }
+// 
+//     pub fn with_position(mut self, pos: usize) -> Self {
+//         self.pos = pos;
+//         self
+//     }
+//     pub fn unread_len(&self) -> usize {
+//         self.buf.len() - self.pos
+//     }
+// 
+//     pub fn into_inner(self) -> &'a [u8] { self.buf }
+// 
+//     pub fn inner(&self) -> &'a [u8] { self.buf }
+// 
+//     pub fn find<P: FnMut(&u8) -> bool>(&self, predicate: P) -> Option<usize> {
+//         // self.buf[self.pos..].iter().position(predicate).map(|x| x + self.pos);
+//         self.buf[self.pos..].iter().position(predicate)
+//     }
+// }
 
-impl<'a> Reader<'a> {
-    pub fn from_slice(buf: &'a [u8]) -> Self {
-        Self { buf, pos: 0 }
-    }
+// impl<'a> From<&'a [u8]> for Reader<'a> {
+//     fn from(buf: &'a [u8]) -> Self {
+//         Self::from_slice(buf)
+//     }
+// }
+// 
+// impl<'a> From<&'a Vec<u8>> for Reader<'a> {
+//     fn from(buf: &'a Vec<u8>) -> Self {
+//         Self::from_slice(buf.as_slice())
+//     }
+// }
 
-    pub fn with_position(mut self, pos: usize) -> Self {
-        self.pos = pos;
-        self
-    }
-    pub fn unread_len(&self) -> usize {
-        self.buf.len() - self.pos
-    }
-
-    pub fn into_inner(self) -> &'a [u8] { self.buf }
-
-    pub fn inner(&self) -> &'a [u8] { self.buf }
-
-    pub fn find<P: FnMut(&u8) -> bool>(&self, predicate: P) -> Option<usize> {
-        // self.buf[self.pos..].iter().position(predicate).map(|x| x + self.pos);
-        self.buf[self.pos..].iter().position(predicate)
-    }
-}
-
-impl<'a> From<&'a [u8]> for Reader<'a> {
-    fn from(buf: &'a [u8]) -> Self {
-        Self::from_slice(buf)
-    }
-}
-
-impl<'a> From<&'a Vec<u8>> for Reader<'a> {
-    fn from(buf: &'a Vec<u8>) -> Self {
-        Self::from_slice(buf.as_slice())
-    }
-}
-
-impl<'a> ReadExt<'a> for Reader<'a> {
-    fn size(&self) -> usize {
-        self.buf.len()
-    }
-
-    fn position(&self) -> usize {
-        self.pos
-    }
-
-    fn set_position(&mut self, pos: usize) {
-        self.pos = pos;
-    }
-
-    fn add_len(&mut self, len: usize) {
-        self.pos += len;
-    }
-
-    fn unread_ptr(&self) -> *const u8 {
-        unsafe { self.buf.as_ptr().add(self.pos) }
-    }
-}
+// impl<'a> ReadExt<'a> for Reader<'a> {
+//     fn size(&self) -> usize {
+//         self.buf.len()
+//     }
+// 
+//     fn position(&self) -> usize {
+//         self.pos
+//     }
+// 
+//     fn set_position(&mut self, pos: usize) {
+//         self.pos = pos;
+//     }
+// 
+//     fn add_len(&mut self, len: usize) {
+//         self.pos += len;
+//     }
+// 
+//     fn unread_ptr(&self) -> *const u8 {
+//         unsafe { self.buf.as_ptr().add(self.pos) }
+//     }
+// }
 
 #[cfg(test)]
 mod test_buffer {

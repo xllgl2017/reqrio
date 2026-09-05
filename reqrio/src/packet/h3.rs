@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Formatter};
-use reqtls::{quic, Buf, Buffer, BufferError, ReadExt, Reader, WriteExt};
+use reqtls::{quic, Buf, Buffer, BufferError, Reader, WriteExt};
 use crate::HlsError;
 use crate::pack::{QPackDecode, QPackType};
 

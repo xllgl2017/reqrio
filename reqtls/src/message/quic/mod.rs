@@ -1,7 +1,7 @@
 mod frame;
 
 use std::cmp::Ordering;
-use crate::{u24, Buf, Buffer, BufferError, ReadExt, Reader, WriteExt};
+use crate::{u24, Buf, Buffer, BufferError, Reader, WriteExt};
 pub use frame::{QUICFrame, QUICFrameFlag, AckRange, TrpErrKind};
 
 
@@ -387,7 +387,7 @@ impl<'a> QUICPacket<'a> {
     }
 
     pub fn decode(&mut self, mask: &[u8], reader: &mut Reader<'a>) -> Result<(), BufferError> {
-        let mut mask_reader = Reader::from(mask);
+        let mut mask_reader = Reader::from_slice(mask);
         let mut flag = self.hdr_raw.filled()[0];
         if self.flag.long_header {
             flag ^= mask_reader.read_u8()? & 0x0f;

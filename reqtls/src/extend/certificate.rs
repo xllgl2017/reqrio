@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 
 #[derive(PartialEq, Copy, Clone)]
 pub struct CompressionMethod(u16);

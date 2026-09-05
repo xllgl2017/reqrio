@@ -1,7 +1,7 @@
 use crate::coder::ext::{StreamDecode, StreamEncode};
 use crate::coder::CodingError;
 use crate::ffi::CPointer;
-use crate::{ffi, Buffer, BufferError, ReadExt, Reader, WriteExt};
+use crate::{ffi, Buffer, BufferError, Reader, WriteExt};
 #[cfg(feature = "log")]
 use log::trace;
 

@@ -3,7 +3,7 @@ use super::super::message::HandshakeType;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{u24, BufferError, ReadExt, Reader, Version, WriteExt};
+use crate::{u24, BufferError, Reader, Version, WriteExt};
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Copy, Clone)]

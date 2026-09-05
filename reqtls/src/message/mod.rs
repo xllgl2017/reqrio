@@ -11,7 +11,7 @@ mod quic;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{BufferError, HandShakeError, ReadExt, Reader, RecordType, Version, WriteExt};
+use crate::{BufferError, HandShakeError, Reader, RecordType, Version, WriteExt};
 pub use alert::Alert;
 use certificate::CertificateStatus;
 pub use certificate::Certificates;

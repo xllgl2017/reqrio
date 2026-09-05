@@ -1,6 +1,6 @@
 use crate::boring::SignatureAlgorithm;
 use crate::error::RlsResult;
-use crate::{rand, BufferError, ReadExt, Reader, WriteExt};
+use crate::{rand, BufferError, Reader, WriteExt};
 
 
 #[derive(Debug, Clone)]

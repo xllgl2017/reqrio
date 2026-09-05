@@ -10,7 +10,7 @@ pub use hpack::{HPackCoding, HPackEncode, HPackDecode, HPackDecodeBuf};
 pub use qpack::{QPackType, QPackEncode, QPackDecode};
 pub use item::PackItem;
 pub use error::PackError;
-use reqtls::{BufferError, ReadExt, Reader, WriteExt};
+use reqtls::{BufferError, Reader, WriteExt};
 
 pub fn decode_integer(buf: &mut Reader) -> Result<usize, BufferError> {
     let mut res = 0;

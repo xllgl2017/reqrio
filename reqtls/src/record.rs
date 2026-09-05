@@ -2,7 +2,7 @@ use super::version::Version;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{HandShakeError, Message, MessageParsed, ReadExt, Reader, WriteExt, ALPN};
+use crate::{HandShakeError, Message, MessageParsed, Reader, WriteExt, ALPN};
 
 #[derive(Debug, Copy, Clone)]
 pub enum RecordType {

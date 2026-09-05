@@ -1,6 +1,6 @@
 pub use payload::WsPayload;
 use reqtls::coder::DeflateStream;
-use reqtls::{ReadExt, Reader};
+use reqtls::Reader;
 pub use typ::{WsFrameType, WsOpcode};
 
 

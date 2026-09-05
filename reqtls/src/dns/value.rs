@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::net::{Ipv4Addr, Ipv6Addr};
-use crate::buffer::ReadExt;
 use crate::dns::add::AddOption;
 use crate::dns::domain::Domain;
 use crate::dns::error::DNSError;

@@ -1,5 +1,4 @@
-use reqrio::{set_logger, set_max_level, LevelFilter, Logger, TlsStream};
-use reqtls::{Certificate, RsaKey, ServerConfig, ALPN};
+use reqrio::*;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -22,6 +21,7 @@ fn test_log() {
 
 #[tokio::main]
 async fn main() {
+    #[cfg(feature = "log")]
     test_log();
     let listen = TcpListener::bind("0.0.0.0:7878").unwrap();
     let cert = fs::read(r"C:\Users\XLX\Desktop\xnm\1\server.crt").unwrap();

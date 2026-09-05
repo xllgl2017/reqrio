@@ -1,6 +1,6 @@
 use crate::buffer::Buf;
 use crate::error::RlsResult;
-use crate::{rand, BufferError, ReadExt, Reader, WriteExt};
+use crate::{rand, BufferError, Reader, WriteExt};
 
 #[derive(Debug, Clone)]
 pub struct PskIdentity<'a> {

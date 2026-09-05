@@ -2,7 +2,7 @@ use crate::boring::BoringResExt;
 use crate::coder::ext::{StreamDecode, StreamEncode};
 use crate::coder::CodingError;
 use crate::ffi::{self, CPointer};
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 use std::os::raw::c_int;
 
 #[repr(C)]

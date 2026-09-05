@@ -1,4 +1,3 @@
-use crate::buffer::ReadExt;
 use crate::dns::error::DNSError;
 use crate::dns::{DNSClass, DNSValue, DnsType, Domain};
 use crate::{BufferError, Reader, WriteExt};

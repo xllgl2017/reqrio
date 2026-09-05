@@ -1,5 +1,4 @@
 use super::{DNSClass, DNSError, DnsType, Domain};
-use crate::buffer::ReadExt;
 use crate::{BufferError, Reader, WriteExt};
 use std::fmt::Debug;
 

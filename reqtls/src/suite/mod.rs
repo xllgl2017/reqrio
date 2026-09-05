@@ -20,7 +20,7 @@ pub enum KeyExchangeAlg {
     DH_DSS,
     DH_RSA,
     RSA,
-    ECC
+    ECC,
 }
 
 #[derive(Copy, Clone)]
@@ -572,7 +572,6 @@ impl CipherSuite {
         CipherSuite::TLS_AES_256_GCM_SHA384,
         CipherSuite::TLS_CHACHA20_POLY1305_SHA256,
         CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-
         CipherSuite::ECC_SM4_CBC_SM3
     ];
 
@@ -613,7 +612,7 @@ impl From<u16> for CipherSuite {
         } else {
             let mut suite = CipherSuite::UNKNOWN;
             suite.value = value;
-            suite.spec = "Custom";
+            suite.spec = if crate::REVERSED.contains(&suite.value) { "Reversed" } else { "Custom" };
             suite
         }
     }

@@ -1,13 +1,13 @@
 mod aead;
 mod kdf;
 
-use std::fmt::Debug;
-use crate::dns::DNSError;
-use crate::{ReadExt, Reader};
 use super::client_hello::CipherSuite;
+use crate::bytes::Bytes;
+use crate::dns::DNSError;
+use crate::Reader;
 pub use aead::Aead;
 pub use kdf::KDF;
-use crate::bytes::Bytes;
+use std::fmt::Debug;
 
 #[derive(Debug)]
 #[allow(dead_code)]

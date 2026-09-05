@@ -1,8 +1,6 @@
 use crate::buffer::*;
 use crate::error::RlsResult;
-use crate::{Buffer, BufferError, Reader, RlsError};
-#[cfg(feature = "log")]
-use log::warn;
+use crate::{Buffer, BufferError, RlsError};
 use std::ffi::CString;
 use std::ops::Range;
 use std::slice;
@@ -113,9 +111,6 @@ pub trait WriteExt {
     fn check_subscription(token: impl AsRef<str>) -> RlsResult<i32> {
         let is_subscribed = unsafe { is_subscription(CString::new(token.as_ref())?.as_ptr()) };
         if !is_subscribed {
-            #[cfg(feature = "log")]
-            warn!("[Fingerprint] You have not subscribed yet, so this call will be ignored.");
-            #[cfg(not(feature = "log"))]
             println!("\x1b[01;33m[Fingerprint] WARN \x1b[0m You have not subscribed yet, so this call will be ignored.");
         }
         Ok(if is_subscribed { 0 } else { -2 })
@@ -162,97 +157,3 @@ pub trait WriteExt {
 }
 
 
-pub trait ReadExt<'a> {
-    fn size(&self) -> usize;
-    fn position(&self) -> usize;
-    fn set_position(&mut self, pos: usize);
-    fn add_len(&mut self, len: usize);
-    fn unread_ptr(&self) -> *const u8;
-    fn check(&self, need: usize) -> Result<usize, BufferError> {
-        let pos = self.position();
-        let len = self.size();
-        if pos + need > len { return Err(BufferError::IndexOutBound { size: len, index: pos + need }); }
-        Ok(pos)
-    }
-
-    #[inline]
-    fn current(&self) -> u8 {
-        self.check(1).unwrap();
-        let ptr = self.unread_ptr();
-        unsafe { ptr.read_unaligned() }.to_be()
-    }
-    fn read_u8(&mut self) -> Result<u8, BufferError> {
-        self.check(1)?;
-        let ptr = self.unread_ptr();
-        let res = unsafe { ptr.read_unaligned() }.to_be();
-        self.add_len(1);
-        Ok(res)
-    }
-
-    fn read_u16(&mut self) -> Result<u16, BufferError> {
-        self.check(2)?;
-        let ptr = self.unread_ptr() as *const u16;
-        let res = unsafe { ptr.read_unaligned() }.to_be();
-        self.add_len(2);
-        Ok(res)
-    }
-
-    fn read_u32(&mut self) -> Result<u32, BufferError> {
-        self.check(4)?;
-        let ptr = self.unread_ptr() as *const u32;
-        let res = unsafe { ptr.read_unaligned() }.to_be();
-        self.add_len(4);
-        Ok(res)
-    }
-
-    fn read_u64(&mut self) -> Result<u64, BufferError> {
-        self.check(8)?;
-        let ptr = self.unread_ptr() as *const u64;
-        let res = unsafe { ptr.read_unaligned() }.to_be();
-        self.add_len(8);
-        Ok(res)
-    }
-
-    fn read_u24(&mut self) -> Result<u24, BufferError> {
-        self.check(3)?;
-        let ptr = self.unread_ptr() as *const u24;
-        let res = unsafe { ptr.read_unaligned() << 8 }.to_be();
-        self.add_len(3);
-        Ok(res)
-    }
-
-
-    fn read_slice(&mut self, len: usize) -> Result<&'a [u8], BufferError> {
-        self.check(len)?;
-        let ptr = self.unread_ptr();
-        self.add_len(len);
-        Ok(unsafe { slice::from_raw_parts(ptr, len) })
-    }
-
-    fn read_str(&mut self, len: usize) -> Result<&'a str, BufferError>
-    {
-        let slice = self.read_slice(len)?;
-        Ok(std::str::from_utf8(slice)?)
-    }
-
-    fn read_reader(&mut self, len: usize) -> Result<Reader<'a>, BufferError> {
-        let res = self.read_slice(len)?;
-        Ok(Reader::from_slice(res))
-    }
-
-    fn read_to(&mut self, end: &[u8]) -> Result<&'a [u8], BufferError> {
-        let pos = self.position();
-        let len = self.size();
-        let ptr = self.unread_ptr();
-        let filled = unsafe { slice::from_raw_parts(ptr, len - pos) };
-        let pos = filled.windows(end.len()).position(|window| window == end);
-        match pos {
-            None => Err(BufferError::Insufficient),
-            Some(pos) => {
-                let res = &filled[..pos];
-                self.add_len(pos);
-                Ok(res)
-            }
-        }
-    }
-}

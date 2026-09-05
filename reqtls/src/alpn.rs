@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ALPN {

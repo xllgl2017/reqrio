@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Formatter};
-use crate::{Buf, BufferError, ReadExt, Reader, WriteExt};
+use crate::{Buf, BufferError, Reader, WriteExt};
 
 
 pub struct Parameter<'a> {

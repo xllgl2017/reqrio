@@ -1,5 +1,5 @@
 use crate::coder::{CodingError, StreamDecode};
-use crate::{ReadExt, Reader, WriteExt};
+use crate::{Reader, WriteExt};
 use std::cmp::min;
 use std::marker::PhantomData;
 

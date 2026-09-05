@@ -1,5 +1,5 @@
 use crate::error::RlsResult;
-use crate::{BufferError, NamedCurve, ReadExt, Reader, WriteExt};
+use crate::{BufferError, NamedCurve, Reader, WriteExt};
 use std::fmt::Debug;
 
 

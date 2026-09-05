@@ -1,7 +1,7 @@
 use super::HandshakeType;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
-use crate::{u24, BufferError, CertType, CompressionMethod, ReadExt, Reader, SignatureAlgorithm, Version, WriteExt};
+use crate::{u24, BufferError, CertType, CompressionMethod, Reader, SignatureAlgorithm, Version, WriteExt};
 use std::fmt::Debug;
 
 #[derive(Debug)]

@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{Buf, BufferError, ReadExt, Reader, WriteExt};
+use crate::{Buf, BufferError, Reader, WriteExt};
 use crate::quic::{self, QUICError};
 
 #[repr(u16)]

@@ -1,6 +1,6 @@
 use crate::error::HlsResult;
 use std::fmt::{Debug, Formatter};
-use reqtls::{BufferError, ReadExt, Reader, WriteExt};
+use reqtls::{BufferError, Reader, WriteExt};
 
 #[derive(PartialEq, Copy, Clone)]
 #[repr(u16)]

@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 
 #[allow(non_camel_case_types)]
 #[derive(Clone, PartialEq, Copy)]

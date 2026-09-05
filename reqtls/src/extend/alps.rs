@@ -1,5 +1,5 @@
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt, ALPN};
+use crate::{BufferError, Reader, WriteExt, ALPN};
 
 
 #[derive(Debug, Clone)]

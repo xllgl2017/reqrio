@@ -5,7 +5,7 @@ use super::super::version::Version;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::extend::alps::ALPS;
-use crate::{rand, u24, BufferError, ClientHello, HandShakeError, ReadExt, Reader, WriteExt, ALPN};
+use crate::{rand, u24, BufferError, ClientHello, HandShakeError, Reader, WriteExt, ALPN};
 
 #[derive(Debug)]
 pub struct ServerHello<'a> {

@@ -1,5 +1,5 @@
 use crate::pack::qpack::QPackType;
-use reqtls::{BufferError, ReadExt, Reader, WriteExt};
+use reqtls::{BufferError, Reader, WriteExt};
 
 #[derive(Debug)]
 #[cfg_attr(debug_assertions, derive(PartialEq))]

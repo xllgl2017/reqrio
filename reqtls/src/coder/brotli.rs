@@ -1,7 +1,7 @@
 use crate::coder::ext::{StreamDecode, StreamEncode};
 use crate::coder::CodingError;
 use crate::ffi::CPointer;
-use crate::{ffi, BufferError, ReadExt, Reader, WriteExt};
+use crate::{ffi, BufferError, Reader, WriteExt};
 use std::ffi::c_int;
 
 #[repr(C)]

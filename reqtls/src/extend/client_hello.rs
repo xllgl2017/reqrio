@@ -1,6 +1,6 @@
 use super::ech::{Aead, KDF};
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 
 #[derive(Debug, Clone, Copy)]
 enum ClientHelloType {

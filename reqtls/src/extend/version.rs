@@ -1,5 +1,5 @@
 use super::super::version::Version;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 use crate::error::RlsResult;
 
 #[derive(Debug, Default, Clone)]

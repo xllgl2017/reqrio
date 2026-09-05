@@ -1,6 +1,6 @@
 use crate::error::HlsResult;
 pub use flag::FrameFlag;
-use reqtls::{u24, BufferError, ReadExt, Reader, WriteExt};
+use reqtls::{u24, BufferError, Reader, WriteExt};
 pub use setting::H2Setting;
 use std::fmt::Debug;
 pub use typo::FrameType;

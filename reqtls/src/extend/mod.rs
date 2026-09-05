@@ -65,6 +65,7 @@ pub enum Extension<'a> {
     },
 }
 
+
 impl<'a> Extension<'a> {
     pub const SERVER_NAME: u16 = 0x0;
     pub const STATUS_REQUEST: u16 = 0x5;

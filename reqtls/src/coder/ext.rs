@@ -1,5 +1,5 @@
 use std::slice;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, WriteExt};
 use crate::coder::CodingError;
 
 pub trait StreamDecode<W: WriteExt> {

@@ -1,7 +1,7 @@
 use super::super::message::HandshakeType;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
-use crate::{u24, BufferError, ReadExt, Reader, Version, WriteExt};
+use crate::{u24, BufferError, Reader, Version, WriteExt};
 use crate::extend::Extension;
 
 #[derive(Debug)]

@@ -7,7 +7,6 @@ mod stream;
 mod domain;
 mod value;
 
-use crate::buffer::ReadExt;
 use crate::{rand, BufferError, Reader, WriteExt};
 use add::Additional;
 use answer::DNSAnswer;
@@ -59,6 +58,7 @@ impl PartialEq<u16> for SvcType {
 }
 
 #[derive(Debug)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum SvcParamValue<'a> {
     ALPN(&'a str),
     IPV4(Ipv4Addr),

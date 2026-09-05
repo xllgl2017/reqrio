@@ -1,7 +1,7 @@
 use crate::error::RlsResult;
 use crate::message::HandshakeType;
 use crate::extend::Extension;
-use crate::{u24, BufferError, ReadExt, Reader, WriteExt, ALPN};
+use crate::{u24, BufferError, Reader, WriteExt, ALPN};
 
 #[derive(Debug)]
 pub struct EncryptedExtension<'a> {
