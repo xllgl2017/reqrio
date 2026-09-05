@@ -1,5 +1,5 @@
 use super::{DNSClass, DNSError, DnsType, Domain};
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 use std::fmt::Debug;
 
 
@@ -21,15 +21,15 @@ impl<'a> DNSQuery<'a> {
     }
 
     pub fn from_bytes<'b>(reader: &'b mut Reader<'a>) -> Result<DNSQuery<'a>, DNSError> {
-        let name = Domain::from_bytes(reader)?;
+        let name = Domain::from_bytes(reader).unwrap();
         Ok(DNSQuery {
             name,
-            type_: reader.read_u16()?.into(),
-            class: reader.read_u16()?.into(),
+            type_: reader.read_u16().unwrap().into(),
+            class: reader.read_u16().unwrap().into(),
         })
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         self.name.write_to(writer)?;
         writer.write_u16(self.type_.into_inner())?;
         writer.write_u16(self.class.into_inner())

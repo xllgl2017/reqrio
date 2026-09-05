@@ -2,7 +2,7 @@ use crate::boring::BoringResExt;
 use crate::coder::ext::{StreamDecode, StreamEncode};
 use crate::coder::CodingError;
 use crate::ffi::{self, CPointer};
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 use std::os::raw::c_int;
 
 #[repr(C)]
@@ -52,8 +52,8 @@ impl ZstdDecoder {
     }
 }
 
-impl<W: WriteExt> StreamDecode<W> for ZstdDecoder {
-    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut W) -> Result<(), CodingError> {
+impl StreamDecode for ZstdDecoder {
+    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError> {
         let mut out_len = out.unfilled_len();
         let mut used_in = reader.unread_len();
         unsafe {
@@ -78,7 +78,7 @@ impl<W: WriteExt> StreamDecode<W> for ZstdDecoder {
         Ok(())
     }
 
-    fn flush(&mut self, out: &mut W) -> Result<(), CodingError> {
+    fn flush(&mut self, out: &mut Writer) -> Result<(), CodingError> {
         self.decompress(&mut Reader::from_slice(&[]), out)
     }
 
@@ -130,21 +130,21 @@ impl StreamEncode for ZstdEncoder {
 mod zstd_tests {
     use crate::coder::ext::{StreamDecode, StreamEncode};
     use crate::coder::zstd::{ZstdDecoder, ZstdEncoder};
-    use crate::{coder, Buffer, Reader, WriteExt};
+    use crate::{coder, Writer, Reader};
 
     #[test]
     fn test_zstd() {
         let compressed = [40, 181, 47, 253, 32, 37, 41, 1, 0, 115, 100, 102, 104, 115, 100, 102, 115, 100, 103, 103, 106, 121, 117, 116, 101, 114, 100, 102, 116, 116, 104, 102, 103, 98, 104, 106, 104, 104, 103, 115, 100, 102, 103, 100, 103, 102];
         let mut decoder = ZstdDecoder::new().unwrap();
         let mut out = vec![0; 1];
-        let mut writer = Buffer::from_ptr(out.as_mut());
+        let mut writer = Writer::from_ptr(out.as_mut());
         let mut reader = Reader::from_slice(&compressed);
         let res = decoder.decompress(&mut reader, &mut writer);
         assert!(res.is_err());
 
         out.resize(1024, 0);
         let wrote = writer.filled().len();
-        let mut writer = Buffer::from_ptr(out.as_mut());
+        let mut writer = Writer::from_ptr(out.as_mut());
         writer.add_len(wrote);
         decoder.flush(&mut writer).unwrap();
         assert_eq!(writer.filled(), b"sdfhsdfsdggjyuterdftthfgbhjhhgsdfgdgf");

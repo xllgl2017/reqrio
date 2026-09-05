@@ -1,10 +1,10 @@
 use std::slice;
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 use crate::coder::CodingError;
 
-pub trait StreamDecode<W: WriteExt> {
-    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut W) -> Result<(), CodingError>;
-    fn flush(&mut self, out: &mut W) -> Result<(), CodingError>;
+pub trait StreamDecode {
+    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError>;
+    fn flush(&mut self, out: &mut Writer) -> Result<(), CodingError>;
     fn finish(&self) -> bool;
 }
 
@@ -13,15 +13,15 @@ pub trait StreamEncode {
     fn finalize(&mut self, out: &mut [u8]) -> Result<usize, CodingError>;
 }
 
-impl<W: WriteExt> StreamDecode<W> for () {
-    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut W) -> Result<(), CodingError> {
+impl StreamDecode for () {
+    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError> {
         let unread = unsafe { slice::from_raw_parts(reader.unread_ptr(), reader.unread_len()) };
         out.write_slice(unread)?;
         reader.add_len(reader.unread_len());
         Ok(())
     }
 
-    fn flush(&mut self, _: &mut W) -> Result<(), CodingError> { Ok(()) }
+    fn flush(&mut self, _: &mut Writer) -> Result<(), CodingError> { Ok(()) }
 
     fn finish(&self) -> bool {
         false

@@ -1,6 +1,6 @@
 use crate::dns::error::DNSError;
 use crate::dns::{DNSClass, DNSValue, DnsType, Domain};
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 use std::fmt::Debug;
 
 pub struct AddOptionCode(u16);
@@ -50,7 +50,7 @@ impl<'b, 'a: 'b> AddOption<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         match self {
             AddOption::Cookie(v) => {
                 writer.write_u16(AddOptionCode::COOKIE)?;
@@ -111,7 +111,7 @@ impl<'b, 'a: 'b> Additional<'a> {
         })
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         self.name.write_to(writer)?;
         writer.write_u16(self.type_.into_inner())?;
         writer.write_u16(self.class.into_inner())?;

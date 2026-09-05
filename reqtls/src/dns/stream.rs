@@ -2,7 +2,7 @@ use super::{DNSError, SvcParamValue, SvcType, DNS};
 use crate::dns::add::Additional;
 use crate::dns::value::{DNSValue, DnsType};
 use crate::extend::EchConfig;
-use crate::{rand, Buffer, ALPN};
+use crate::{rand, Writer, ALPN};
 use std::io;
 use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
@@ -57,7 +57,7 @@ impl DNSCache {
 pub struct DNSStream {
     dns_addr: SocketAddr,
     conn: UdpSocket,
-    write_buf: Buffer,
+    write_buf: Writer,
     read_buf: Vec<u8>,
 
 }
@@ -94,7 +94,7 @@ impl DNSStream {
         Ok(DNSStream {
             dns_addr,
             conn,
-            write_buf: Buffer::with_capacity(256),
+            write_buf: Writer::with_capacity(256),
             read_buf: vec![0; 2048],
         })
     }

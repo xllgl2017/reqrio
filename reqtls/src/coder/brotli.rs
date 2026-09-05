@@ -1,7 +1,7 @@
 use crate::coder::ext::{StreamDecode, StreamEncode};
 use crate::coder::CodingError;
 use crate::ffi::CPointer;
-use crate::{ffi, BufferError, Reader, WriteExt};
+use crate::{ffi, BufferError, Reader, Writer};
 use std::ffi::c_int;
 
 #[repr(C)]
@@ -78,8 +78,8 @@ impl BrotliDecoder {
     }
 }
 
-impl<W: WriteExt> StreamDecode<W> for BrotliDecoder {
-    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut W) -> Result<(), CodingError> {
+impl StreamDecode for BrotliDecoder {
+    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError> {
         let mut unread_len = reader.unread_len();
         let mut remain_buffer_size = out.unfilled_len();
         while self.need_buffer || unread_len > 0 {
@@ -118,7 +118,7 @@ impl<W: WriteExt> StreamDecode<W> for BrotliDecoder {
         Ok(())
     }
 
-    fn flush(&mut self, out: &mut W) -> Result<(), CodingError> {
+    fn flush(&mut self, out: &mut Writer) -> Result<(), CodingError> {
         self.decompress(&mut Reader::from_slice(&[]), out)
     }
 
@@ -182,20 +182,20 @@ impl StreamEncode for BrotliEncoder {
 mod brotli_test {
     use crate::coder::brotli::{BrotliDecoder, BrotliEncoder};
     use crate::coder::ext::{StreamDecode, StreamEncode};
-    use crate::{coder, Buffer, Reader, WriteExt};
+    use crate::{coder, Writer, Reader};
 
     #[test]
     fn test_brotli_decoder() {
         let mut decode = BrotliDecoder::new().unwrap();
         let mut out = vec![0; 1];
-        let mut decompressed = Buffer::from_ptr(out.as_mut());
+        let mut decompressed = Writer::from_ptr(out.as_mut());
         let compressed = [27, 59, 0, 248, 197, 109, 108, 188, 35, 42, 217, 147, 70, 37, 10, 74, 145, 67, 2, 167, 136, 88, 56, 154, 148, 111, 44, 175, 176, 152, 63, 84, 220, 226, 158, 42, 46, 44, 40, 152, 60, 14];
         let mut reader = Reader::from_slice(&compressed);
         let res = decode.decompress(&mut reader, &mut decompressed);
         assert!(res.is_err());
         out.resize(1024, 0);
         let wrote = decompressed.filled().len();
-        let mut decompressed = Buffer::from_ptr(out.as_mut());
+        let mut decompressed = Writer::from_ptr(out.as_mut());
         decompressed.add_len(wrote);
         decode.flush(&mut decompressed).unwrap();
         // decode.decompress(&mut reader, &mut decompressed).unwrap();
@@ -216,7 +216,7 @@ mod brotli_test {
         assert_eq!(coder::br_compress(text).unwrap(), [27, 59, 0, 248, 197, 109, 108, 188, 35, 42, 217, 147, 70, 37, 10, 74, 145, 67, 2, 167, 136, 88, 56, 154, 148, 111, 44, 175, 176, 152, 63, 84, 220, 226, 158, 42, 46, 44, 40, 152, 60, 14]);
 
 
-        let mut decompressed = Buffer::with_capacity(1024);
+        let mut decompressed = Writer::with_capacity(1024);
         let mut decode = BrotliDecoder::new().unwrap();
         let mut reader = Reader::from_slice(&compressed[..len1 + len2]);
         decode.decompress(&mut reader, &mut decompressed).unwrap();

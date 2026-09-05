@@ -427,7 +427,7 @@ impl Connection {
     pub fn cipher_suite(&self) -> &'static CipherSuite { self.cipher_suite }
     pub fn session(&self) -> &TlsSession { self.derived.session() }
     pub fn server(&self) -> bool { self.server }
-    pub fn handle_mtls_client<W: WriteExt>(&mut self, writer: &mut W, key: &RsaKey) -> RlsResult<()> {
+    pub fn handle_mtls_client(&mut self, writer: &mut Writer, key: &RsaKey) -> RlsResult<()> {
         let mut cert_verify = CertificateVerify::default();
         cert_verify.set_hash(self.mtls_hash.as_u16().into());
         let signer = AlgorithmSigner::new_sign(key.pkey(), &self.mtls_hash)?;

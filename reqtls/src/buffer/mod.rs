@@ -1,87 +1,86 @@
 mod encode;
 mod decode;
-mod ext;
 mod error;
 mod reader;
 
-use std::cmp::max;
-use crate::ffi;
+use crate::error::RlsResult;
 use crate::ffi::CPointer;
+use crate::{ffi, RlsError};
 pub use decode::CipherDecodeBuffer;
 pub use encode::CipherEncodeBuffer;
 pub use error::BufferError;
-pub use ext::{u24, WriteExt};
+pub use reader::Reader;
+use std::cmp::max;
+use std::ffi::CString;
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
 use std::os::raw::{c_char, c_int};
+use std::ptr::null_mut;
 use std::slice;
-pub use reader::Reader;
 
-#[repr(C)]
-#[allow(clippy::upper_case_acronyms)]
-struct BUFFER {
-    _unused: [u8; 0],
-}
-ffi::c_pointer_free!(BUFFER, Buffer_free);
+#[allow(non_camel_case_types)]
+pub type u24 = u32;
+
+ffi::c_pointer_free!(Writer, Buffer_free);
 
 unsafe extern "C" {
-    fn Buffer_new(capacity: usize) -> *mut BUFFER;
-    fn Buffer_resize(buffer: *mut BUFFER, capacity: usize) -> c_int;
-    fn Buffer_reset_offset(buffer: *mut BUFFER, start: usize, end: usize);
-    fn Buffer_from_ptr(ptr: *mut u8, capacity: usize) -> *mut BUFFER;
-    fn Buffer_free(buffer: *mut BUFFER);
-    fn Buffer_len(buffer: *const BUFFER) -> usize;
-    fn Buffer_capacity(buffer: *const BUFFER) -> usize;
-    fn Buffer_start(buffer: *const BUFFER) -> usize;
-    fn Buffer_end(buffer: *const BUFFER) -> usize;
-    fn Buffer_add_len(buffer: *mut BUFFER, len: usize);
-    fn Buffer_reset(buffer: *mut BUFFER);
-    fn Buffer_used_empty(buffer: *mut BUFFER, size: usize) -> bool;
-    fn Buffer_pointer(buffer: *const BUFFER) -> *const u8;
-    fn Buffer_pointer_mut(buffer: *mut BUFFER) -> *mut u8;
-    fn Buffer_write_u8(buffer: *mut BUFFER, val: &u8) -> i32;
-    fn Buffer_write_u16(buffer: *mut BUFFER, val: &u16) -> i32;
-    fn Buffer_write_u24(buffer: *mut BUFFER, val: &u24) -> i32;
-    fn Buffer_write_u24_in(buffer: *mut BUFFER, place: usize, val: &u24) -> i32;
-    fn Buffer_write_u32(buffer: *mut BUFFER, val: &u32) -> i32;
-    fn Buffer_write_u64(buffer: *mut BUFFER, val: &u64) -> i32;
-    fn Buffer_write_slice(buffer: *mut BUFFER, ptr: *const u8, len: usize) -> i32;
-    fn Buffer_write_slice_in(buffer: *mut BUFFER, place: usize, ptr: *const u8, len: usize) -> i32;
-    fn Buffer_flush(buffer: *mut BUFFER, len: usize, sni: *const c_char, h2: bool) -> i32;
-    fn Buffer_move_to(buffer: *mut BUFFER, from: usize, to: usize, pos: usize);
+    fn Buffer_new(buffer: *mut Writer) -> c_int;
+    fn Buffer_resize(buffer: *mut Writer, capacity: usize) -> c_int;
+    fn Buffer_reset_offset(buffer: *mut Writer, start: usize, end: usize);
+    fn Buffer_free(buffer: *mut Writer);
+    fn Buffer_reset(buffer: *mut Writer);
+    fn Buffer_used_empty(buffer: *mut Writer, size: usize) -> bool;
+    fn Buffer_write_u8(buffer: *mut Writer, val: &u8) -> i32;
+    fn Buffer_write_u16(buffer: *mut Writer, val: &u16) -> i32;
+    fn Buffer_write_u24(buffer: *mut Writer, val: &u24) -> i32;
+    fn Buffer_write_u24_in(buffer: *mut Writer, place: usize, val: &u24) -> i32;
+    fn Buffer_write_u32(buffer: *mut Writer, val: &u32) -> i32;
+    fn Buffer_write_u64(buffer: *mut Writer, val: &u64) -> i32;
+    fn Buffer_write_slice(buffer: *mut Writer, ptr: *const u8, len: usize) -> i32;
+    fn Buffer_write_slice_in(buffer: *mut Writer, place: usize, ptr: *const u8, len: usize) -> i32;
+    fn Buffer_flush(buffer: *mut Writer, len: usize, sni: *const c_char, h2: bool) -> i32;
+    fn Buffer_move_to(buffer: *mut Writer, from: usize, to: usize, pos: usize);
     pub fn is_subscription(token: *const c_char) -> bool;
 }
 
 
-pub struct Buffer(CPointer<BUFFER>);
-
-impl Default for Buffer {
-    fn default() -> Self {
-        Buffer::with_capacity(16438)
-    }
+#[repr(C)]
+pub struct Writer {
+    capacity: usize,
+    start: usize,
+    end: usize,
+    ptr: *mut u8,
+    _rsv1: bool,
+    _rsv2: usize,
 }
 
-impl Debug for Buffer {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.filled()))
+impl Writer {
+    fn new(ptr: *mut u8, capacity: usize) -> Writer {
+        Writer {
+            capacity,
+            start: 0,
+            end: 0,
+            ptr,
+            _rsv1: false,
+            _rsv2: 0,
+        }
     }
-}
 
-impl Buffer {
-    pub fn none() -> Buffer {
-        Buffer(CPointer::nullptr())
+    pub fn none() -> Writer {
+        Writer::new(null_mut(), 0)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        let buffer = unsafe { Buffer_new(capacity) };
-        if buffer.is_null() { panic!("failed to create buffer") };
-        Buffer(CPointer::new(buffer))
+        let mut buffer = Writer::new(null_mut(), capacity);
+        let ret = unsafe { Buffer_new(&mut buffer) };
+        if ret != 1 { panic!("failed to create buffer") };
+        buffer
     }
 
     pub fn resize(&mut self, at_least: usize) -> Result<(), BufferError> {
         let mut capacity = self.capacity() * 2;
         while capacity < at_least { capacity *= 2; }
-        let ret = unsafe { Buffer_resize(self.0.as_mut_ptr(), capacity) };
+        let ret = unsafe { Buffer_resize(self, capacity) };
         if ret != 1 {
             return Err(BufferError::ResizeFail {
                 current: self.capacity(),
@@ -99,60 +98,56 @@ impl Buffer {
     }
 
     pub fn reset_offset(&mut self, offset: Range<usize>) {
-        unsafe { Buffer_reset_offset(self.0.as_mut_ptr(), offset.start, offset.end) };
+        unsafe { Buffer_reset_offset(self, offset.start, offset.end) };
     }
 
     pub fn from_ptr(buf: &mut [u8]) -> Self {
-        let buffer = unsafe { Buffer_from_ptr(buf.as_mut_ptr(), buf.len()) };
-        Buffer(CPointer::new(buffer))
+        Writer::new(buf.as_mut_ptr(), buf.len())
     }
 
-    fn filled_ptr(&self) -> *const u8 {
-        let ptr = unsafe { Buffer_pointer(self.0.as_ptr()) };
-        unsafe { ptr.add(self.start()) }
+    pub fn filled_ptr(&self) -> *const u8 {
+        unsafe { self.ptr.add(self.start) }
     }
 
 
     pub fn filled(&self) -> &[u8] {
-        let offset = self.offset();
-        unsafe { slice::from_raw_parts(self.filled_ptr(), offset.len()) }
+        let len = self.end - self.start;
+        unsafe { slice::from_raw_parts(self.ptr.add(self.start), len) }
     }
 
     pub fn filled_mut(&mut self) -> &mut [u8] {
-        let offset = self.offset();
-        unsafe { slice::from_raw_parts_mut(self.raw_ptr_mut().add(offset.start), offset.len()) }
+        let len = self.end - self.start;
+        unsafe { slice::from_raw_parts_mut(self.ptr, len) }
     }
 
     pub fn raw_ptr(&self) -> *const u8 {
-        unsafe { Buffer_pointer(self.0.as_ptr()) }
+        self.ptr
     }
 
     pub fn raw_ptr_mut(&mut self) -> *mut u8 {
-        unsafe { Buffer_pointer_mut(self.0.as_mut_ptr()) }
+        self.ptr
     }
 
     pub fn reset(&mut self) {
-        unsafe { Buffer_reset(self.0.as_mut_ptr()) }
+        unsafe { Buffer_reset(self) }
     }
 
     pub fn slice_at(&self, place: usize) -> &[u8] {
-        let ptr = unsafe { Buffer_pointer(self.0.as_ptr()) };
-        let len = self.end() - place;
-        unsafe { slice::from_raw_parts(ptr.add(place), len) }
+        let len = self.end - place;
+        unsafe { slice::from_raw_parts(self.ptr.add(place), len) }
     }
 
     pub fn slice(&self, range: Range<usize>) -> &[u8] {
-        let ptr = unsafe { Buffer_pointer(self.0.as_ptr()) };
-        unsafe { slice::from_raw_parts(ptr.add(range.start), range.len()) }
+        unsafe { slice::from_raw_parts(self.ptr.add(range.start), range.len()) }
     }
 
     pub fn used_empty(&mut self, size: usize) -> bool {
-        unsafe { Buffer_used_empty(self.0.as_mut_ptr(), size) }
+        unsafe { Buffer_used_empty(self, size) }
     }
 
     pub fn move_to(&mut self, r: Range<usize>, pos: usize) -> Result<(), BufferError> {
         if r.end < r.start || r.end > self.end() { return Err(BufferError::RangeEdgeError(r)); };
-        unsafe { Buffer_move_to(self.0.as_mut_ptr(), r.start, r.end, pos) };
+        unsafe { Buffer_move_to(self, r.start, r.end, pos) };
         Ok(())
     }
 
@@ -171,17 +166,159 @@ impl Buffer {
         }
         Ok(())
     }
-}
 
-impl WriteExt for Buffer {
-    fn buffer(&self) -> &Buffer {
-        self
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+    fn check_write(&self, res: i32, size: usize) -> Result<(), BufferError> {
+        if res == 1 { return Ok(()); };
+        Err(BufferError::CapacityTooSmall {
+            current: self.capacity(),
+            file: file!(),
+            needed: self.capacity() + size,
+            line: line!(),
+        })
     }
 
-    fn buffer_mut(&mut self) -> &mut Buffer {
-        self
+    pub fn write_u8(&mut self, v: u8) -> Result<(), BufferError> {
+        let res = unsafe { Buffer_write_u8(self, &v) };
+        self.check_write(res, 1)
+    }
+    pub fn write_u16_be(&mut self, v: u16) -> Result<(), BufferError> {
+        let res = unsafe { Buffer_write_u16(self, &v) };
+        self.check_write(res, 2)
+    }
+
+    #[inline]
+    pub fn write_u16(&mut self, v: u16) -> Result<(), BufferError> {
+        self.write_u16_be(v.to_be())
+    }
+
+    pub fn write_u16_in(&mut self, place: usize, n: u16) -> Result<(), BufferError> {
+        self.write_slice_in(place, &n.to_be_bytes())?;
+        Ok(())
+    }
+
+    pub fn write_u24_be(&mut self, v: u24) -> Result<(), BufferError> {
+        let res = unsafe { Buffer_write_u24(self, &v) };
+        self.check_write(res, 3)
+    }
+
+    #[inline]
+    pub fn write_u24(&mut self, v: u24) -> Result<(), BufferError> {
+        self.write_u24_be(v.to_be())
+    }
+
+    pub fn write_u24_be_in(&mut self, place: usize, v: u24) -> Result<usize, BufferError> {
+        let res = unsafe { Buffer_write_u24_in(self, place, &v) };
+        self.check_write(res, 3)?;
+        Ok(3)
+    }
+
+    pub fn write_u24_in(&mut self, place: usize, v: u24) -> Result<usize, BufferError> {
+        self.write_u24_be_in(place, v.to_be())
+    }
+
+    pub fn write_u32_be(&mut self, v: u32) -> Result<(), BufferError> {
+        let res = unsafe { Buffer_write_u32(self, &v) };
+        self.check_write(res, 4)
+    }
+
+    #[inline]
+    pub fn write_u32(&mut self, v: u32) -> Result<(), BufferError> {
+        self.write_u32_be(v.to_be())
+    }
+
+    #[inline]
+    pub fn write_ru32(&mut self, v: &u32) -> Result<(), BufferError> {
+        self.write_u32_be(v.to_be())
+    }
+
+    pub fn write_u64_be(&mut self, v: u64) -> Result<(), BufferError> {
+        let res = unsafe { Buffer_write_u64(self, &v) };
+        self.check_write(res, 8)
+    }
+
+    pub fn write_u64(&mut self, v: u64) -> Result<(), BufferError> {
+        self.write_u64_be(v.to_be())
+    }
+
+    pub fn write_slice(&mut self, v: &[u8]) -> Result<(), BufferError> {
+        let res = unsafe { Buffer_write_slice(self, v.as_ptr(), v.len()) };
+        self.check_write(res, v.len())
+    }
+
+    ///不更新长度，需要更新使用write_slice
+    pub fn write_slice_in(&mut self, place: usize, v: &[u8]) -> Result<usize, BufferError> {
+        let res = unsafe { Buffer_write_slice_in(self, place, v.as_ptr(), v.len()) };
+        self.check_write(res, v.len())?;
+        Ok(v.len())
+    }
+
+
+    pub fn flush(&mut self, offset: usize, sni: String, h2: bool) -> RlsResult<()> {
+        let csni = CString::new(sni)?;
+        let res = unsafe { Buffer_flush(self, self.offset().end - offset, csni.as_ptr(), h2) };
+        if res != 1 { return Err(RlsError::Currently("buffer flush error".to_string())); }
+        Ok(())
+    }
+
+    pub fn check_subscription(token: impl AsRef<str>) -> RlsResult<i32> {
+        let is_subscribed = unsafe { is_subscription(CString::new(token.as_ref())?.as_ptr()) };
+        if !is_subscribed {
+            println!("\x1b[01;33m[Fingerprint] WARN \x1b[0m You have not subscribed yet, so this call will be ignored.");
+        }
+        Ok(if is_subscribed { 0 } else { -2 })
+    }
+
+    #[inline]
+    pub fn unfilled_len(&self) -> usize {
+        self.capacity - self.end
+    }
+
+    #[inline]
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    #[inline]
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    #[inline]
+    pub fn unfilled_ptr(&mut self) -> *mut u8 {
+        unsafe { self.ptr.add(self.end) }
+    }
+
+    pub fn unfilled(&mut self) -> &mut [u8] {
+        let ptr = self.unfilled_ptr();
+        unsafe { slice::from_raw_parts_mut(ptr, self.unfilled_len()) }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+    pub fn len(&self) -> usize {
+        self.end - self.start
+    }
+    pub fn add_len(&mut self, len: usize) {
+        self.end += len;
+    }
+    pub fn offset(&self) -> Range<usize> {
+        self.start()..self.end()
     }
 }
+
+impl Debug for Writer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&hex::encode(self.filled()))
+    }
+}
+
+unsafe impl Send for Writer {}
+
+unsafe impl Sync for Writer {}
+
 
 #[derive(Clone)]
 pub enum Buf<'a> {
@@ -279,82 +416,20 @@ impl Debug for BufPtr {
 
 impl Clone for BufPtr {
     fn clone(&self) -> Self {
-        BufPtr{
+        BufPtr {
             ptr: CPointer::new(self.ptr.as_mut_ptr()).with_free(false),
             len: self.len,
         }
     }
 }
 
-// pub struct Reader<'a> {
-//     buf: &'a [u8],
-//     pos: usize,
-// }
-// 
-// impl<'a> Reader<'a> {
-//     pub fn from_slice(buf: &'a [u8]) -> Self {
-//         Self { buf, pos: 0 }
-//     }
-// 
-//     pub fn with_position(mut self, pos: usize) -> Self {
-//         self.pos = pos;
-//         self
-//     }
-//     pub fn unread_len(&self) -> usize {
-//         self.buf.len() - self.pos
-//     }
-// 
-//     pub fn into_inner(self) -> &'a [u8] { self.buf }
-// 
-//     pub fn inner(&self) -> &'a [u8] { self.buf }
-// 
-//     pub fn find<P: FnMut(&u8) -> bool>(&self, predicate: P) -> Option<usize> {
-//         // self.buf[self.pos..].iter().position(predicate).map(|x| x + self.pos);
-//         self.buf[self.pos..].iter().position(predicate)
-//     }
-// }
-
-// impl<'a> From<&'a [u8]> for Reader<'a> {
-//     fn from(buf: &'a [u8]) -> Self {
-//         Self::from_slice(buf)
-//     }
-// }
-// 
-// impl<'a> From<&'a Vec<u8>> for Reader<'a> {
-//     fn from(buf: &'a Vec<u8>) -> Self {
-//         Self::from_slice(buf.as_slice())
-//     }
-// }
-
-// impl<'a> ReadExt<'a> for Reader<'a> {
-//     fn size(&self) -> usize {
-//         self.buf.len()
-//     }
-// 
-//     fn position(&self) -> usize {
-//         self.pos
-//     }
-// 
-//     fn set_position(&mut self, pos: usize) {
-//         self.pos = pos;
-//     }
-// 
-//     fn add_len(&mut self, len: usize) {
-//         self.pos += len;
-//     }
-// 
-//     fn unread_ptr(&self) -> *const u8 {
-//         unsafe { self.buf.as_ptr().add(self.pos) }
-//     }
-// }
-
 #[cfg(test)]
 mod test_buffer {
-    use crate::{Buffer, WriteExt};
+    use crate::Writer;
 
     #[test]
     fn buffer_test() {
-        let mut buffer = Buffer::with_capacity(1024);
+        let mut buffer = Writer::with_capacity(1024);
         buffer.write_slice(&[1, 2, 3, 4, 5]).unwrap();
         assert_eq!(buffer.filled(), [1, 2, 3, 4, 5]);
         buffer.used_empty(1);
@@ -373,7 +448,7 @@ mod test_buffer {
 
 
         let mut data = vec![0u8; 1024];
-        let mut buffer = Buffer::from_ptr(data.as_mut_slice());
+        let mut buffer = Writer::from_ptr(data.as_mut_slice());
         buffer.write_slice(&[1, 2, 3, 4, 5]).unwrap();
         assert_eq!(buffer.filled(), [1, 2, 3, 4, 5]);
     }

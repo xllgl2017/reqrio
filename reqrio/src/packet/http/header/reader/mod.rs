@@ -12,7 +12,7 @@ pub(super) use h1::H1HeaderReader;
 pub(super) use h2::H2HeaderReader;
 #[cfg(feature = "quic")]
 pub(super) use h3::H3HeaderReader;
-use reqtls::{Buffer, Url};
+use reqtls::{Writer, Url};
 
 pub struct HeaderParam<'a> {
     pub(crate) url: &'a Url,
@@ -53,7 +53,7 @@ impl<'a> ReadExt for HeaderReader<'a> {
         }
     }
 
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         match self {
             HeaderReader::H1(h1) => h1.read(buf),
             HeaderReader::H2(h2) => h2.read(buf),

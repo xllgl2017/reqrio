@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Formatter};
-use reqtls::{quic, Buf, Buffer, BufferError, Reader, WriteExt};
+use reqtls::{quic, Buf, Writer, BufferError, Reader};
 use crate::HlsError;
 use crate::pack::{QPackDecode, QPackType};
 
@@ -30,7 +30,7 @@ impl H3Setting {
         quic::variant_len(self.flag as usize) + quic::variant_len(self.value as usize)
     }
 
-    pub fn write_to<W: WriteExt>(&self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         quic::write_variant(self.flag as usize, writer)?;
         quic::write_variant(self.value as usize, writer)
     }
@@ -97,7 +97,7 @@ impl<'a> H3Frame<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(&self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         match self {
             H3Frame::Data(data) => {
                 quic::write_variant(H3Frame::DATA as usize, writer)?;
@@ -135,7 +135,7 @@ impl<'a> H3Frame<'a> {
 
     pub fn encode(&self, offset: usize) -> Result<Vec<u8>, BufferError> {
         let mut res = vec![0; 100];
-        let mut writer = Buffer::from_ptr(res.as_mut_slice());
+        let mut writer = Writer::from_ptr(res.as_mut_slice());
         if offset == 0 { writer.write_u8(0)?; }
         self.write_to(&mut writer)?;
         res.truncate(writer.len());

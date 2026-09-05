@@ -1,6 +1,6 @@
 use crate::error::HlsResult;
 pub use flag::FrameFlag;
-use reqtls::{u24, BufferError, Reader, WriteExt};
+use reqtls::{u24, BufferError, Reader, Writer};
 pub use setting::H2Setting;
 use std::fmt::Debug;
 pub use typo::FrameType;
@@ -84,7 +84,7 @@ impl<'a> H2EncodeFrame<'a> {
         self.frame_flag |= FrameFlag::Priority
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         let len = self.len() as u24;
         writer.write_u24(len)?;
         writer.write_u8(self.frame_type.to_u8())?;

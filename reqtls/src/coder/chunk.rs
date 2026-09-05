@@ -1,9 +1,8 @@
 use crate::coder::{CodingError, StreamDecode};
-use crate::{Reader, WriteExt};
+use crate::{Reader, Writer};
 use std::cmp::min;
-use std::marker::PhantomData;
 
-pub struct ChunkDecoder<W: WriteExt, C: StreamDecode<W>> {
+pub struct ChunkDecoder<C: StreamDecode> {
     coder: C,
     ///当前数据块需要的大小
     want_size: usize,
@@ -11,25 +10,23 @@ pub struct ChunkDecoder<W: WriteExt, C: StreamDecode<W>> {
     read_size: usize,
     /// trim end
     trim_end: bool,
-    _marker: PhantomData<W>,
     finish: bool,
 }
 
-impl<W: WriteExt, C: StreamDecode<W>> ChunkDecoder<W, C> {
+impl<C: StreamDecode> ChunkDecoder<C> {
     pub fn new(coder: C) -> Self {
         ChunkDecoder {
             coder,
             want_size: 0,
             read_size: 0,
             trim_end: true,
-            _marker: PhantomData,
             finish: false,
         }
     }
 
     pub fn finish(&self) -> bool { self.finish }
 
-    fn handle_decomp(&mut self, except: usize, reader: &mut Reader<'_>, out: &mut W) -> Result<bool, CodingError> {
+    fn handle_decomp(&mut self, except: usize, reader: &mut Reader<'_>, out: &mut Writer) -> Result<bool, CodingError> {
         let pos = reader.position();
         let mut chunk_reader = reader.read_reader(min(except, reader.unread_len()))?;
         let ret = self.coder.decompress(&mut chunk_reader, out);
@@ -43,7 +40,7 @@ impl<W: WriteExt, C: StreamDecode<W>> ChunkDecoder<W, C> {
         Ok(self.read_size == self.want_size && self.trim_end)
     }
 
-    fn handle_chunk<'a>(&mut self, reader: &mut Reader<'a>, out: &mut W) -> Result<(), CodingError> {
+    fn handle_chunk<'a>(&mut self, reader: &mut Reader<'a>, out: &mut Writer) -> Result<(), CodingError> {
         while let Ok(len) = reader.read_to(b"\r\n") {
             self.finish = len == [48];
             let len = usize::from_str_radix(std::str::from_utf8(len)?, 16)?;
@@ -57,8 +54,8 @@ impl<W: WriteExt, C: StreamDecode<W>> ChunkDecoder<W, C> {
     }
 }
 
-impl<W: WriteExt, C: StreamDecode<W>> StreamDecode<W> for ChunkDecoder<W, C> {
-    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut W) -> Result<(), CodingError> {
+impl<C: StreamDecode> StreamDecode for ChunkDecoder<C> {
+    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError> {
         if self.want_size == self.read_size {
             if !self.trim_end {
                 reader.read_u16()?;
@@ -72,7 +69,7 @@ impl<W: WriteExt, C: StreamDecode<W>> StreamDecode<W> for ChunkDecoder<W, C> {
         Ok(())
     }
 
-    fn flush(&mut self, writer: &mut W) -> Result<(), CodingError> {
+    fn flush(&mut self, writer: &mut Writer) -> Result<(), CodingError> {
         self.coder.flush(writer)
     }
 
@@ -85,14 +82,14 @@ impl<W: WriteExt, C: StreamDecode<W>> StreamDecode<W> for ChunkDecoder<W, C> {
 mod chunk_tests {
     use crate::coder::chunk::ChunkDecoder;
     use crate::coder::{BrotliDecoder, DeflateStream, StreamDecode};
-    use crate::{Buffer, Reader};
+    use crate::{Reader, Writer};
     use std::fs;
 
     #[test]
     fn test_chunk_decode() {
         let mut decoder = ChunkDecoder::new(());
         let context = b"10\r\nfjksdfhjdsfjdskj\r\n0\r\n\r\n";
-        let mut out = Buffer::with_capacity(1024);
+        let mut out = Writer::with_capacity(1024);
         decoder.decompress(&mut Reader::from_slice(context), &mut out).unwrap();
         assert_eq!(out.filled(), b"fjksdfhjdsfjdskj");
         assert!(decoder.finish);
@@ -101,7 +98,7 @@ mod chunk_tests {
     #[test]
     fn test_chunk_gzip() {
         let data = fs::read("../data/coder/chunk_gzip.bin").unwrap();
-        let mut decompressed = Buffer::with_capacity(data.len() * 10);
+        let mut decompressed = Writer::with_capacity(data.len() * 10);
         let mut decoder = ChunkDecoder::new(DeflateStream::new_decompress(DeflateStream::GZIP).unwrap());
         decoder.decompress(&mut Reader::from_slice(&data), &mut decompressed).unwrap();
         assert!(std::str::from_utf8(decompressed.filled()).is_ok())
@@ -118,7 +115,7 @@ mod chunk_tests {
             vec![245, 58, 93, 40, 214, 103, 248, 232, 203, 152, 212, 164, 239, 53, 142, 107, 129, 129, 133, 126, 78, 134, 58, 11, 200, 195, 45, 222, 239, 168, 252, 254, 141, 146, 13, 131, 239, 119, 164, 118, 184, 231, 125, 52, 47, 25, 220, 120, 238, 48, 240, 101, 194, 214, 206, 206, 205, 203, 37, 148, 118, 111, 251, 222, 38, 253, 46, 30, 107, 228, 249, 31, 228, 184, 175, 225, 5, 13, 87, 228, 53, 127, 234, 183, 12, 218, 41, 119, 27, 52, 23, 13, 49, 89, 95, 15, 53, 49, 12, 248, 232, 142, 62, 222, 91, 80, 186, 45, 145, 79, 241, 7, 134, 66, 200, 224, 203, 139, 207, 107, 167, 144, 24, 247, 94, 58, 71, 54, 77, 43, 46, 90, 198, 253, 28, 176, 107, 128, 145, 197, 250, 114, 95, 196, 231, 17, 252, 138, 151, 110, 22, 244, 215, 177, 15, 250, 24, 16, 225, 209, 155, 151, 213, 78, 182, 80, 246, 57, 212, 130, 234, 95, 236, 177, 147, 72, 214, 70, 186, 65, 245, 195, 121, 7, 224, 195, 47, 120, 244, 251, 181, 149, 145, 207, 9, 243, 184, 60, 20, 60, 246, 168, 217, 18, 158, 247, 7, 6, 225, 143, 16, 251, 4, 110, 64, 49, 67, 19, 183, 47, 214, 174, 115, 190, 134, 143, 221, 49, 39, 168, 120, 232, 173, 64, 59, 249, 94, 8, 126, 14, 214, 12, 246, 147, 59, 248, 184, 58, 122, 139, 211, 180, 60, 230, 28, 102, 172, 201, 162, 24, 97, 31, 150, 252, 216, 62, 136, 205, 161, 62, 12, 56, 176, 223, 112, 105, 38, 175, 75, 173, 42, 15, 62, 120, 156, 61, 142, 31, 159, 253, 105, 125, 125, 149, 95, 255, 6, 90, 2, 107, 7, 151, 195, 115, 251, 88, 55, 175, 217, 249, 50, 154, 12, 200, 141, 189, 108, 232, 167, 179, 235, 101, 82, 52, 201, 232, 122, 201, 125, 107, 134, 170, 220, 169, 106, 161, 213, 45, 128, 205, 210, 138, 215, 92, 15, 242, 183, 111, 22, 191, 39, 231, 11, 163, 183, 243, 237, 216, 164, 207, 243, 128, 215, 115, 163, 30, 0, 191, 255, 254, 221, 255, 13, 10],
             vec![49, 13, 10, 3, 13, 10, 48, 13, 10, 13, 10],
         ];
-        let mut decompressed = Buffer::with_capacity(8192);
+        let mut decompressed = Writer::with_capacity(8192);
         let mut decoder = ChunkDecoder::new(BrotliDecoder::new().unwrap());
         for datum in data.into_iter() {
             let mut reader = Reader::from_slice(&datum);

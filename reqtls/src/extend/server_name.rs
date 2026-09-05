@@ -1,4 +1,4 @@
-use crate::{BufferError, WriteExt};
+use crate::{BufferError, Writer};
 
 #[derive(Debug, Clone)]
 pub enum SNType<'a> {
@@ -14,7 +14,7 @@ impl<'a> SNType<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(&self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         match self {
             SNType::HostName(name) => {
                 writer.write_u8(SNType::HOST_NAME)?;
@@ -25,3 +25,7 @@ impl<'a> SNType<'a> {
         Ok(())
     }
 }
+
+
+
+

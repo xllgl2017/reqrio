@@ -262,14 +262,14 @@ impl Stream {
         }
     }
 
-    pub fn read<'a>(&'a mut self, buffer: &'a mut Buffer) -> StreamRead<'a> {
+    pub fn read<'a>(&'a mut self, buffer: &'a mut Writer) -> StreamRead<'a> {
         StreamRead {
             stream: self,
             buf: buffer,
         }
     }
 
-    pub fn write<'a>(&'a mut self, buf: &'a mut Buffer) -> StreamWrite<'a> {
+    pub fn write<'a>(&'a mut self, buf: &'a mut Writer) -> StreamWrite<'a> {
         StreamWrite {
             stream: self,
             buf,
@@ -301,14 +301,14 @@ impl Stream {
                     session: param.session,
                 }),
                 state: ConnState::Connected,
-                app_buf: Default::default(),
+                app_buf: Writer::with_capacity(16384),
             },
             #[cfg(feature = "aync")]
             proxy_connected: false,
             #[cfg(feature = "aync")]
             stream: Stream::NonConnection,
             #[cfg(feature = "aync")]
-            buffer: Buffer::none(),
+            buffer: Writer::none(),
             #[cfg(feature = "aync")]
             tls_connected: false,
         }

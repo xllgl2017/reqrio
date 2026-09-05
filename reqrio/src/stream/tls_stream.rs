@@ -22,8 +22,8 @@ pub struct TlsStream<S> {
     encrypted_channel: bool,
     pub(super) handshake_finished: bool,
     hello_retrying: bool,
-    pub(super) read_buffer: Buffer,
-    pub(super) write_buffer: Buffer,
+    pub(super) read_buffer: Writer,
+    pub(super) write_buffer: Writer,
     #[cfg(feature = "aync")]
     shutdown_wrote: bool,
     #[cfg(feature = "aync")]
@@ -40,8 +40,8 @@ impl<S> TlsStream<S> {
             encrypted_channel: false,
             handshake_finished: false,
             hello_retrying: false,
-            read_buffer: Buffer::with_capacity(16469),
-            write_buffer: Default::default(),
+            read_buffer: Writer::with_capacity(16469),
+            write_buffer: Writer::with_capacity(16469),
             #[cfg(feature = "aync")]
             shutdown_wrote: false,
             #[cfg(feature = "aync")]
@@ -59,7 +59,7 @@ impl<S> TlsStream<S> {
             sent_client_hello: false,
             state: ConnState::Connecting(Box::new(TlsStream::new(conn, stream))),
             config: Config::Client(config),
-            app_buf: Default::default(),
+            app_buf: Writer::with_capacity(16384),
         }
     }
 
@@ -68,7 +68,7 @@ impl<S> TlsStream<S> {
             sent_client_hello: true,
             state: ConnState::Connecting(Box::new(TlsStream::new(Connection::default().with_verify(config.verify), stream))),
             config: Config::Server(config),
-            app_buf: Default::default(),
+            app_buf: Writer::with_capacity(16384),
         }
     }
 
@@ -210,7 +210,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
 }
 
 impl<S> StreamHandle for TlsStream<S> {
-    fn stream_param(&mut self) -> (&Buffer, StreamParam<'_>) {
+    fn stream_param(&mut self) -> (&Writer, StreamParam<'_>) {
         (&self.read_buffer, StreamParam {
             handshake_finish: &mut self.handshake_finished,
             encrypted_channel: &mut self.encrypted_channel,

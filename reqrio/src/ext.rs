@@ -172,7 +172,7 @@ pub trait ReqStreamExt: ReqExt {
     fn http_stream_mut(&mut self) -> &mut HTTPStream;
     fn read_to_vec<T: ReadExt>(mut reader: T) -> HlsResult<Vec<u8>> {
         let mut res = vec![0; reader.len()];
-        let mut buffer = Buffer::from_ptr(&mut res);
+        let mut buffer = Writer::from_ptr(&mut res);
         loop {
             reader.read(&mut buffer)?;
             if reader.wrote() { break; }

@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use crate::dns::error::DNSError;
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 
 pub struct Domain<'a>(Vec<&'a str>);
 
@@ -37,7 +37,7 @@ impl<'b, 'a: 'b> Domain<'a> {
     }
 
     ///only support dns query
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         for item in self.0 {
             writer.write_u8(item.len() as u8)?;
             writer.write_slice(item.as_bytes())?;

@@ -1,5 +1,5 @@
 use crate::error::HlsResult;
-use reqtls::{Buffer, WriteExt};
+use reqtls::Writer;
 use std::fmt::{Debug, Formatter};
 use std::io::{Cursor, Read};
 use std::ops::Deref;
@@ -54,7 +54,7 @@ impl<R: AsRef<[u8]>> ReadExt for RefReader<R> {
     fn len(&self) -> usize {
         self.bufs.iter().map(|x| x.get_ref().as_ref().len()).sum()
     }
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         let start = buf.offset().end;
         for (index, reader) in self.bufs.iter_mut().enumerate() {
             if index < self.pos {
@@ -80,7 +80,7 @@ impl<R: AsRef<[u8]>> ReadExt for RefReader<R> {
 pub trait ReadExt {
     fn wrote(&self) -> bool;
     fn len(&self) -> usize;
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize>;
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize>;
 }
 
 pub enum StrCow<'a> {

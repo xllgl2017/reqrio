@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{Buf, BufferError, Reader, WriteExt};
+use crate::{Buf, BufferError, Reader, Writer};
 use crate::quic::{self, QUICError};
 
 #[repr(u16)]
@@ -119,7 +119,7 @@ impl AckRange {
         quic::variant_len(self.gap as usize) + quic::variant_len(self.range as usize)
     }
 
-    pub fn write_to<W: WriteExt>(&self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         quic::write_variant(self.gap as usize, writer)?;
         quic::write_variant(self.range as usize, writer)
     }
@@ -378,7 +378,7 @@ impl<'a> QUICFrame<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(&self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         match self {
             QUICFrame::Padding(size) => writer.write_slice(&vec![0; *size]),
             QUICFrame::Ping => writer.write_u8(0x01),

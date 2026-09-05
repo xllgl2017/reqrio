@@ -8,7 +8,7 @@ mod payload;
 mod typ;
 
 use crate::error::HlsResult;
-use crate::Buffer;
+use crate::Writer;
 
 ///```text
 ///     0    1   2   3   4   5   6   7
@@ -80,7 +80,7 @@ impl WsFrame {
         len
     }
 
-    pub fn from_reader(reader: &mut Reader, coder: Option<&mut DeflateStream>, demask_buffer: &mut Buffer) -> HlsResult<WsFrame> {
+    pub fn from_reader(reader: &mut Reader, coder: Option<&mut DeflateStream>, demask_buffer: &mut Writer) -> HlsResult<WsFrame> {
         let typ: WsFrameType = reader.read_u8()?.into();
         let masker = Marker::from_u8(reader.read_u8()?);
         let payload = WsPayload::from_reader(&masker, reader, coder, demask_buffer)?;

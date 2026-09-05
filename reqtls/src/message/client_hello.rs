@@ -76,7 +76,7 @@ impl<'a> ClientHello<'a> {
             + self.extensions.iter().map(|x| x.len(false)).sum::<usize>()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u16(self.version.into_inner())?;

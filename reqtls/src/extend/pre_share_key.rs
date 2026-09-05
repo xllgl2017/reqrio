@@ -1,6 +1,6 @@
 use crate::buffer::Buf;
 use crate::error::RlsResult;
-use crate::{rand, BufferError, Reader, WriteExt};
+use crate::{rand, BufferError, Reader, Writer};
 
 #[derive(Debug, Clone)]
 pub struct PskIdentity<'a> {
@@ -35,7 +35,7 @@ impl<'a> PskIdentity<'a> {
         6 + self.value.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.value.len() as u16)?;
         writer.write_slice(self.value.as_ref())?;
         writer.write_u32(self.age)
@@ -69,7 +69,7 @@ impl<'a> PskBinder<'a> {
         1 + self.value.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.value.len() as u8)?;
         writer.write_slice(self.value.as_ref())
     }
@@ -111,7 +111,7 @@ impl<'a> PreSharedKey<'a> {
         4 + self.binder.len() + self.identity.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.identity.len() as u16)?;
         self.identity.write_to(writer)?;
         writer.write_u16(self.binder.len() as u16)?;

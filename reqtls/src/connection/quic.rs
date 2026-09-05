@@ -3,7 +3,7 @@ use crate::error::RlsResult;
 use crate::message::{QUICFrame, QUICPacket};
 use crate::quic::QUICRange;
 use crate::suite::iv::Iv;
-use crate::{Buf, Buffer, BufferError, Cipher, CipherSuite, CipherType, Connection, PacketType, Reader, TlsSession, Version, WriteExt};
+use crate::{Buf, Writer, BufferError, Cipher, CipherSuite, CipherType, Connection, PacketType, Reader, TlsSession, Version};
 #[cfg(feature = "log")]
 use log::trace;
 use std::path::PathBuf;
@@ -117,7 +117,7 @@ impl QUICConnection {
     }
 
 
-    pub fn build_message(&mut self, mut packet: &mut QUICPacket, frames: &mut Vec<QUICFrame<'_>>, buffer: &mut Buffer) -> RlsResult<()> {
+    pub fn build_message(&mut self, mut packet: &mut QUICPacket, frames: &mut Vec<QUICFrame<'_>>, buffer: &mut Writer) -> RlsResult<()> {
         if packet.padding_size() != 0 {
             frames.push(QUICFrame::Padding(packet.padding_size()));
         }
@@ -170,12 +170,12 @@ mod tests {
     use std::ops::Range;
     use crate::connection::quic::QUICConnection;
     use crate::message::QUICFrame;
-    use crate::{Buf, Buffer, KeyExchangeAlg, Message, QUICPacket, Reader, RecordType, TlsSession, Version, WriteExt};
+    use crate::{Buf, Writer, KeyExchangeAlg, Message, QUICPacket, Reader, RecordType, TlsSession, Version};
 
-    fn decode(conn: &mut QUICConnection, origin: &[u8], queues: &mut Vec<(usize, u64, Range<usize>)>, bid: u64) -> Buffer {
+    fn decode(conn: &mut QUICConnection, origin: &[u8], queues: &mut Vec<(usize, u64, Range<usize>)>, bid: u64) -> Writer {
         let mut reader = Reader::from_slice(origin);
         let mut packet = QUICPacket::from_reader(&mut reader).unwrap();
-        let mut rb = Buffer::with_capacity(1500);
+        let mut rb = Writer::with_capacity(1500);
         let len = conn.read_message(&mut packet, &mut reader, rb.unfilled()).unwrap();
         let mut reader = Reader::from_slice(&rb.unfilled()[..len]);
         while reader.unread_len() > 0 {
@@ -188,8 +188,8 @@ mod tests {
         rb
     }
 
-    fn merge_buffer(mut queues: Vec<(usize, u64, Range<usize>)>, bufs: HashMap<u64, Buffer>) -> Buffer {
-        let mut buffer = Buffer::with_capacity(4096);
+    fn merge_buffer(mut queues: Vec<(usize, u64, Range<usize>)>, bufs: HashMap<u64, Writer>) -> Writer {
+        let mut buffer = Writer::with_capacity(4096);
         let mut last_offset = 0;
         while !queues.is_empty() {
             let pos = queues.iter().position(|x| x.0 == last_offset).unwrap();

@@ -1,7 +1,7 @@
-use std::ops::AddAssign;
-use reqtls::{BufferError, WriteExt};
 use super::decode::HPackDecodeBuf;
 use crate::pack::PackError;
+use reqtls::{BufferError, Writer};
+use std::ops::AddAssign;
 
 pub enum Index {
     /// name-value均能在表内找到
@@ -144,7 +144,7 @@ impl Index {
         }
     }
 
-    pub fn write_to<W: WriteExt>(&self, writer: &mut W) -> Result<bool, BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<bool, BufferError> {
         match self {
             Index::Indexed(v) => {
                 let max = self.max_value();

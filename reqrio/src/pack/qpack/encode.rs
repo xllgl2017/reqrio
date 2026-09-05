@@ -1,8 +1,8 @@
-use super::table::Table;
 use super::index::Index;
-use reqtls::{BufferError, WriteExt};
-use crate::pack::{huffman, PackItem};
+use super::table::Table;
 use super::QPackType;
+use crate::pack::{huffman, PackItem};
+use reqtls::{BufferError, Writer};
 
 pub struct QPackEncode {
     table: Table,
@@ -27,7 +27,7 @@ impl QPackEncode {
         self.base = base;
     }
 
-    pub fn encode_head<W: WriteExt>(&mut self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn encode_head(&mut self, writer: &mut Writer) -> Result<(), BufferError> {
         let delta_base = if self.base < self.table.dynamic_table().item_count() {
             self.table.dynamic_table().item_count() - self.base - 1
         } else { self.base - self.table.dynamic_table().item_count() };
@@ -38,7 +38,7 @@ impl QPackEncode {
         };
         index.write_to(writer)
     }
-    fn encode_literal<W: WriteExt>(&mut self, value: &str, writer: &mut W) -> Result<(), BufferError> {
+    fn encode_literal(&mut self, value: &str, writer: &mut Writer) -> Result<(), BufferError> {
         let value_len = if value.len() >= 0x7F { 0x7F } else { value.len() };
         //使用huffman编码
         writer.write_u8(value_len as u8 | if self.huffman { 0x80 } else { 0 })?;
@@ -49,7 +49,7 @@ impl QPackEncode {
         }
     }
 
-    pub fn encode_one<W: WriteExt>(&mut self, typ: QPackType, name: impl AsRef<str>, value: impl AsRef<str>, sid: &u64, writer: &mut W) -> Result<(), BufferError> {
+    pub fn encode_one(&mut self, typ: QPackType, name: impl AsRef<str>, value: impl AsRef<str>, sid: &u64, writer: &mut Writer) -> Result<(), BufferError> {
         let name = name.as_ref();
         let value = value.as_ref();
         let item = self.table.get_by_name_value(name, value, sid, true);
@@ -102,15 +102,15 @@ impl QPackEncode {
 
 #[cfg(test)]
 mod tests {
-    use reqtls::Buffer;
     use crate::hex;
     use crate::pack::qpack::encode::QPackEncode;
     use crate::pack::qpack::index::Index;
     use crate::pack::qpack::QPackType;
+    use reqtls::Writer;
 
     #[test]
     fn test_qpack_encode1() {
-        let mut writer = Buffer::with_capacity(1024);
+        let mut writer = Writer::with_capacity(1024);
         let mut encoder = QPackEncode::new(4096);
         encoder.set_huffman(false);
         encoder.encode_head(&mut writer).unwrap();
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_qpack_encode2() {
-        let mut writer = Buffer::with_capacity(1024);
+        let mut writer = Writer::with_capacity(1024);
         let mut encoder = QPackEncode::new(4096);
         Index::DynamicTableCapacity(220).write_to(&mut writer).unwrap();
         encoder.encode_one(QPackType::StreamEncoder, ":authority", "www.example.com", &1, &mut writer).unwrap();

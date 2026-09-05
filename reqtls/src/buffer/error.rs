@@ -16,7 +16,11 @@ pub enum BufferError {
         line: u32,
     },
     Overflow { capacity: usize, len: usize, need: usize },
-    IndexOutBound { size: usize, index: usize },
+    IndexOutBound {
+        index: usize,
+        want: usize,
+        size: usize,
+    },
     RangeEdgeError(Range<usize>),
     Nullptr,
     ResizeFail {
@@ -40,7 +44,7 @@ impl Display for BufferError {
                 line,
             } => write!(f, "The required capacity is {}, but the current capacity is {} at {}:{}.", needed, current, file, line),
             BufferError::Overflow { capacity, len, need } => write!(f, "The buffer capacity is {}, but write {} out of it.", capacity, len + need),
-            BufferError::IndexOutBound { size, index } => write!(f, "The index {} out of bounds {} ", index, size),
+            BufferError::IndexOutBound { size, index, want } => write!(f, "The index {} out of bounds {} ", index + want, size),
             BufferError::RangeEdgeError(range) => write!(f, "The range is {:?} of Buffer is fail", range),
             BufferError::Nullptr => write!(f, "Nullptr"),
             BufferError::ResizeFail { current, new, at_least } => write!(f, "resize to {} fail from {}, need: {}", new, current, at_least),

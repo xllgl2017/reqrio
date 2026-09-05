@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Formatter};
-use crate::{Buf, BufferError, Reader, WriteExt};
+use crate::{Buf, BufferError, Reader, Writer};
 
 
 pub struct Parameter<'a> {
@@ -75,7 +75,7 @@ impl<'a> Parameter<'a> {
             crate::quic::variant_len(self.value.len()) + self.value.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         crate::quic::write_variant(self.flag as usize, writer)?;
         crate::quic::write_variant(self.value.len(), writer)?;
         writer.write_slice(self.value.as_ref())

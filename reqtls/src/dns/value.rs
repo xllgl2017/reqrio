@@ -4,7 +4,7 @@ use crate::dns::add::AddOption;
 use crate::dns::domain::Domain;
 use crate::dns::error::DNSError;
 use crate::dns::SvcParam;
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 
 pub struct DnsType(u16);
 
@@ -146,7 +146,7 @@ impl<'b, 'a: 'b> DNSValue<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         if let DNSValue::OPT(value) = self {
             value.write_to(writer)
         } else { unreachable!() }

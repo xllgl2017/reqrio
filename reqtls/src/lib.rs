@@ -293,7 +293,7 @@ pub use boring::{
     hmac, AlgorithmSigner, Cipher, CipherType, PKey, PKeyCtx, Padding, RsaCipher, AeadCtx,
     RsaKey, RsaPadding, SignatureAlgorithm,
 };
-pub use buffer::{u24, Buf, Buffer, BufferError, Reader, WriteExt};
+pub use buffer::{u24, Buf, Writer, BufferError, Reader};
 pub use bytes::Bytes;
 pub use config::{ClientConfig, Config, ServerConfig};
 pub use connection::Connection;

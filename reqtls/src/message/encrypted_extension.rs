@@ -1,7 +1,7 @@
 use crate::error::RlsResult;
 use crate::message::HandshakeType;
 use crate::extend::Extension;
-use crate::{u24, BufferError, Reader, WriteExt, ALPN};
+use crate::{u24, BufferError, Reader, Writer, ALPN};
 
 #[derive(Debug)]
 pub struct EncryptedExtension<'a> {
@@ -23,7 +23,7 @@ impl<'a> EncryptedExtension<'a> {
         6 + self.extensions.iter().map(|x| x.len(true)).sum::<usize>()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type.as_u8())?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u16(self.len() as u16 - 6)?;

@@ -11,7 +11,7 @@ mod quic;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{BufferError, HandShakeError, Reader, RecordType, Version, WriteExt};
+use crate::{BufferError, HandShakeError, Reader, RecordType, Version, Writer};
 pub use alert::Alert;
 use certificate::CertificateStatus;
 pub use certificate::Certificates;
@@ -168,7 +168,7 @@ impl<'a> MessageParsed<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, kea: KeyExchangeAlg) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, kea: KeyExchangeAlg) -> Result<(), BufferError> {
         match self {
             MessageParsed::UnParsed => Ok(()),
             MessageParsed::ClientHello(v) => v.write_to(writer),

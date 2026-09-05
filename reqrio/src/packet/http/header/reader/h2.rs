@@ -3,7 +3,7 @@ use crate::pack::HPackEncode;
 use crate::packet::H2EncodeFrame;
 use crate::reader::{ReadExt, StrCow};
 use crate::{ContentType, HeaderKey, Method};
-use reqtls::{u24, Buffer, WriteExt};
+use reqtls::{u24, Writer};
 
 pub(crate) struct H2HeaderReader<'a> {
     pub(crate) keys: Vec<(StrCow<'a>, StrCow<'a>)>,
@@ -36,7 +36,7 @@ impl<'a> ReadExt for H2HeaderReader<'a> {
         unreachable!()
     }
 
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         let len: usize = self.keys.iter().map(|(k, v)| k.len() + v.len()).sum();
         if buf.unfilled_len() < 59 + len { return Ok(0); }
         let offset = buf.offset();
@@ -62,8 +62,8 @@ mod tests {
     use crate::pack::HPackEncode;
     use crate::packet::HeaderParam;
     use crate::reader::ReadExt;
-    use crate::{Buffer, ContentType, Header, Method};
-    use reqtls::{Uri, Url, WriteExt};
+    use crate::{ContentType, Header, Method, Writer};
+    use reqtls::{Uri, Url};
 
     #[test]
     fn test_h2_reader() {
@@ -103,10 +103,10 @@ mod tests {
             weight: &146,
             priority: &true,
         }, &ContentType::Null).unwrap();
-        let mut writer = Buffer::from_ptr(res.as_mut());
+        let mut writer = Writer::from_ptr(res.as_mut());
         let len = reader.read(&mut writer).unwrap();
         assert!(reader.wrote());
-        let mut raw = Buffer::with_capacity(3072);
+        let mut raw = Writer::with_capacity(3072);
         raw.write_u24(1957).unwrap(); //len
         raw.write_u8(1).unwrap(); //frame type
         raw.write_u8(37).unwrap(); //frame flag

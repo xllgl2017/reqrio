@@ -11,9 +11,9 @@ use crate::packet::{Marker, WsFrameType};
 
 pub struct WebSocket {
     stream: Stream,
-    read_buffer: Buffer,
-    write_buffer: Buffer,
-    demask_buffer: Buffer,
+    read_buffer: Writer,
+    write_buffer: Writer,
+    demask_buffer: Writer,
     coder: Option<DeflateStream>,
     mask: bool,
 }
@@ -55,7 +55,7 @@ impl WebSocket {
 }
 
 impl WebSocket {
-    pub fn new_with_buffer(resp: Response, stream: Stream, buffer: Buffer) -> HlsResult<WebSocket> {
+    pub fn new_with_buffer(resp: Response, stream: Stream, buffer: Writer) -> HlsResult<WebSocket> {
         if resp.header().status() != HttpStatus::SwitchingProtocols {
             return Err("Connect Failed".into());
         }
@@ -66,8 +66,8 @@ impl WebSocket {
         Ok(Self {
             stream,
             read_buffer: buffer,
-            write_buffer: Buffer::with_capacity(8206),
-            demask_buffer: Buffer::with_capacity(2048),
+            write_buffer: Writer::with_capacity(8206),
+            demask_buffer: Writer::with_capacity(2048),
             coder,
             mask: true,
         })
@@ -75,15 +75,15 @@ impl WebSocket {
 
     pub fn new(resp: Response, stream: Stream) -> HlsResult<WebSocket> {
         println!("{}", resp.raw_string());
-        WebSocket::new_with_buffer(resp, stream, Buffer::with_capacity(16384))
+        WebSocket::new_with_buffer(resp, stream, Writer::with_capacity(16384))
     }
 }
 
 pub struct WsRead<'a> {
     stream: &'a mut Stream,
     coder: &'a mut Option<DeflateStream>,
-    demask_buffer: &'a mut Buffer,
-    read_buffer: &'a mut Buffer,
+    demask_buffer: &'a mut Writer,
+    read_buffer: &'a mut Writer,
 }
 
 impl<'a> WsRead<'a> {
@@ -129,7 +129,7 @@ impl<'a> Future for WsRead<'a> {
 
 pub struct WsWrite<'a> {
     stream: &'a mut Stream,
-    write_buffer: &'a mut Buffer,
+    write_buffer: &'a mut Writer,
     buf: &'a [u8],
     typ: WsOpcode,
     mask: bool,

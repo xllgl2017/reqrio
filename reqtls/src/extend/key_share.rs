@@ -1,5 +1,5 @@
 use crate::buffer::Buf;
-use crate::{BufferError, NamedCurve, Reader, WriteExt};
+use crate::{BufferError, NamedCurve, Reader, Writer};
 use std::fmt::Debug;
 use crate::error::RlsResult;
 
@@ -36,7 +36,7 @@ impl<'a> KeyEntry<'a> {
         4 + self.exchange.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.group.into_inner())?;
         writer.write_u16(self.exchange.len() as u16)?;
         writer.write_slice(self.exchange.as_ref())
@@ -86,7 +86,7 @@ impl<'a> KeyShare<'a> {
         self.entries.iter().map(|x| x.len()).sum::<usize>() + 2
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.len() as u16 - 2)?;
         for entry in self.entries {
             entry.write_to(writer)?;

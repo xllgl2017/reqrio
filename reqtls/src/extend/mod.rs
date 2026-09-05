@@ -330,7 +330,7 @@ impl<'a> Extension<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, server: bool) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, server: bool) -> Result<(), BufferError> {
         match self {
             Extension::ServerName(value) => {
                 writer.write_u16(Extension::SERVER_NAME)?;

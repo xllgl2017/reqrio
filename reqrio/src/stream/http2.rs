@@ -6,7 +6,7 @@ use crate::request::RequestBuffer;
 use crate::{Body, Fingerprint, FrameFlag, FrameType, H2Frame, H2Setting, Header, HeaderValue, Response};
 #[cfg(feature = "log")]
 use crate::{warn, trace};
-use reqtls::{u24, Buffer, Reader, WriteExt};
+use reqtls::{u24, Writer, Reader};
 use std::collections::HashMap;
 use crate::stream::Stream;
 
@@ -15,15 +15,15 @@ pub struct HTTP2StreamS {
     decoder: HPackDecode,
     sid: u32,
     stream: Stream,
-    read_buffer: Buffer,
-    write_buffer: Buffer,
+    read_buffer: Writer,
+    write_buffer: Writer,
     increment: u32,
 }
 
 
 impl HTTP2StreamS {
     pub fn new(mut stream: Stream, fingerprint: &Fingerprint) -> HlsResult<HTTP2StreamS> {
-        let mut buffer = Buffer::with_capacity(24657);
+        let mut buffer = Writer::with_capacity(24657);
         buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
         fingerprint.h2().build_setting().write_to(&mut buffer)?;
         fingerprint.h2().build_window_update().write_to(&mut buffer)?;
@@ -34,12 +34,12 @@ impl HTTP2StreamS {
             sid: 1,
             stream,
             read_buffer: buffer,
-            write_buffer: Buffer::with_capacity(16438),
+            write_buffer: Writer::with_capacity(16438),
             increment: 0,
         })
     }
 
-    fn flush(stream: &mut Stream, buffer: &mut Buffer) -> HlsResult<()> {
+    fn flush(stream: &mut Stream, buffer: &mut Writer) -> HlsResult<()> {
         if buffer.is_empty() { return Ok(()); }
         stream.write(buffer).wait()?;
         buffer.reset();
@@ -117,8 +117,8 @@ impl H2Handle for HTTP2StreamS {
 }
 
 struct H2Param<'a> {
-    read_buffer: &'a Buffer,
-    write_buffer: &'a mut Buffer,
+    read_buffer: &'a Writer,
+    write_buffer: &'a mut Writer,
     encoder: &'a mut HPackEncode,
     decoder: &'a mut HPackDecode,
     increment: &'a mut u32,
@@ -183,15 +183,15 @@ pub struct HTTP2StreamA {
     decoder: HPackDecode,
     sid: u32,
     stream: Stream,
-    read_buffer: Buffer,
-    write_buffer: Buffer,
+    read_buffer: Writer,
+    write_buffer: Writer,
     increment: u32,
 }
 
 
 #[cfg(feature = "aync")]
 impl HTTP2StreamA {
-    pub fn new(stream: Stream, mut buffer: Buffer) -> HTTP2StreamA {
+    pub fn new(stream: Stream, mut buffer: Writer) -> HTTP2StreamA {
         // let mut buffer = Buffer::with_capacity(24657);
         // buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
         // fingerprint.h2().build_setting().write_to(&mut buffer)?;
@@ -204,11 +204,11 @@ impl HTTP2StreamA {
             sid: 1,
             stream,
             read_buffer: buffer,
-            write_buffer: Buffer::with_capacity(16438),
+            write_buffer: Writer::with_capacity(16438),
             increment: 0,
         }
     }
-    async fn flush(stream: &mut Stream, buffer: &mut Buffer) -> HlsResult<()> {
+    async fn flush(stream: &mut Stream, buffer: &mut Writer) -> HlsResult<()> {
         if buffer.is_empty() { return Ok(()); }
         stream.write(buffer).await?;
         Ok(())

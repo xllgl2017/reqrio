@@ -47,6 +47,7 @@ impl<'a> Reader<'a> {
         let mut out = 0;
         unsafe { Reader_read_u16_le(self, &mut out) }.ok(BufferError::IndexOutBound {
             index: self.pos,
+            want: 2,
             size: self.size,
         })?;
         Ok(out)
@@ -60,6 +61,7 @@ impl<'a> Reader<'a> {
         let mut out = 0;
         unsafe { Reader_read_u24_le(self, &mut out) }.ok(BufferError::IndexOutBound {
             index: self.pos,
+            want: 3,
             size: self.size,
         })?;
         Ok(out)
@@ -73,6 +75,7 @@ impl<'a> Reader<'a> {
         let mut out = 0;
         unsafe { Reader_read_u32_le(self, &mut out) }.ok(BufferError::IndexOutBound {
             index: self.pos,
+            want: 4,
             size: self.size,
         })?;
         Ok(out)
@@ -86,6 +89,7 @@ impl<'a> Reader<'a> {
         let mut out = 0;
         unsafe { Reader_read_u64_le(self, &mut out) }.ok(BufferError::IndexOutBound {
             index: self.pos,
+            want: 8,
             size: self.size,
         })?;
         Ok(out)
@@ -100,6 +104,7 @@ impl<'a> Reader<'a> {
         if ptr.is_null() {
             return Err(BufferError::IndexOutBound {
                 index: self.pos,
+                want: size,
                 size: self.size,
             });
         }
@@ -165,10 +170,11 @@ impl<'a> Reader<'a> {
         if self.pos >= self.size {
             return Err(BufferError::IndexOutBound {
                 index: self.pos,
+                want: 1,
                 size: self.size,
             });
         }
-        Ok(unsafe { self.ptr.read_unaligned() })
+        Ok(unsafe { self.ptr.add(self.pos).read_unaligned() })
     }
 }
 

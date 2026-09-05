@@ -1,7 +1,7 @@
 use super::HandshakeType;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
-use crate::{u24, BufferError, CertType, CompressionMethod, Reader, SignatureAlgorithm, Version, WriteExt};
+use crate::{u24, BufferError, CertType, CompressionMethod, Reader, SignatureAlgorithm, Version, Writer};
 use std::fmt::Debug;
 
 #[derive(Debug)]
@@ -49,7 +49,7 @@ impl<'a> Certificates<'a> {
         7 + self.certificates.iter().map(|x| 3 + x.len()).sum::<usize>()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u24(self.len() as u24 - 7)?;
@@ -90,7 +90,7 @@ impl<'a> CertificateStatus<'a> {
 
     pub fn len(&self) -> usize { self.bytes.len() }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.bytes.len() as u24)?;
         writer.write_slice(self.bytes.as_ref())
@@ -162,7 +162,7 @@ impl<'a> CertificateRequest<'a> {
         9 + self.cert_type.len() + self.hashes.len() * 2 + self.distinguished_name.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u8(self.cert_type.len() as u8)?;
@@ -220,7 +220,7 @@ impl<'a> CertificateVerify<'a> {
         8 + self.sign.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u16(self.sign_hash.into_inner())?;
@@ -272,7 +272,7 @@ impl<'a> CompressedCertificate<'a> {
         })
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u16(self.algorithm.into_inner())?;
         writer.write_u24(self.uncompressed_len)?;

@@ -1,5 +1,5 @@
 use crate::pack::qpack::QPackType;
-use reqtls::{BufferError, Reader, WriteExt};
+use reqtls::{BufferError, Reader, Writer};
 
 #[derive(Debug)]
 #[cfg_attr(debug_assertions, derive(PartialEq))]
@@ -299,7 +299,7 @@ impl Index {
         }
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         match self {
             Index::DynamicTableCapacity(size) => {
                 let value = if size >= 0x1F { 0x1F } else { size };
@@ -422,7 +422,7 @@ mod tests {
     use crate::hex;
     use crate::pack::qpack::index::Index;
     use crate::pack::qpack::QPackType;
-    use reqtls::{Buffer, Reader};
+    use reqtls::{Writer, Reader};
 
     #[test]
     fn test_qpack_index1() {
@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_qpack_encode1() {
-        let mut writer = Buffer::with_capacity(1024);
+        let mut writer = Writer::with_capacity(1024);
         Index::StreamCancellation(8).write_to(&mut writer).unwrap();
         Index::Increment(1).write_to(&mut writer).unwrap();
         Index::Acknowledgment(4).write_to(&mut writer).unwrap();

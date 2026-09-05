@@ -39,7 +39,7 @@ impl Proxy {
         Proxy::Socks5(url)
     }
 
-    pub(crate) fn write_context<W: WriteExt>(&self, peer_addr: &Addr, writer: &mut W, index: usize) -> HlsResult<bool> {
+    pub(crate) fn write_context(&self, peer_addr: &Addr, writer: &mut Writer, index: usize) -> HlsResult<bool> {
         match self {
             Proxy::Null => return Ok(true),
             Proxy::HttpPlain(v) => {
@@ -152,7 +152,7 @@ pub struct ProxyStream<S> {
     pub(crate) stream: S,
     pub(crate) handle_proxy: bool,
     pub(crate) http_proxy: bool,
-    pub(crate) buffer: Buffer,
+    pub(crate) buffer: Writer,
     pub(crate) resp: Response,
     #[cfg(feature = "aync")]
     pub(crate) timeout: Timeout,
@@ -165,7 +165,7 @@ impl<S> ProxyStream<S> {
             state: ProxyState::Connecting {
                 stream,
                 timeout,
-                buffer: Buffer::with_capacity(1024),
+                buffer: Writer::with_capacity(1024),
             },
             proxy,
             dst_addr: addr,

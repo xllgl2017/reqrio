@@ -1,7 +1,7 @@
 mod frame;
 
 use std::cmp::Ordering;
-use crate::{u24, Buf, Buffer, BufferError, Reader, WriteExt};
+use crate::{u24, Buf, Writer, BufferError, Reader};
 pub use frame::{QUICFrame, QUICFrameFlag, AckRange, TrpErrKind};
 
 
@@ -183,7 +183,7 @@ pub struct QUICPacket<'a> {
     pub(crate) num: u64,
     pub(crate) payload: Buf<'a>,
 
-    pub(crate) hdr_raw: Buffer,
+    pub(crate) hdr_raw: Writer,
     pub(crate) padding: usize,
     pub(crate) tag: Buf<'a>,
 }
@@ -200,7 +200,7 @@ impl<'a> Default for QUICPacket<'a> {
             pn_offset: 0,
             num: 0,
             payload: Buf::Ref(&[]),
-            hdr_raw: Buffer::with_capacity(256),
+            hdr_raw: Writer::with_capacity(256),
             padding: 0,
             tag: Buf::Ref(&[]),
         }
@@ -374,7 +374,7 @@ impl<'a> QUICPacket<'a> {
             packet.hdr_raw.write_slice(&reader.inner()[pos..reader.position()])?;
             Ok(packet)
         } else {
-            let mut hdr_raw = Buffer::with_capacity(30);
+            let mut hdr_raw = Writer::with_capacity(30);
             hdr_raw.write_u8(reader.inner()[pos])?;
             Ok(QUICPacket {
                 flag,

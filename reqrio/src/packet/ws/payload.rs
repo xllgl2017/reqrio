@@ -27,7 +27,7 @@ impl WsPayload {
         Ok(out_len)
     }
 
-    pub(crate) fn read_payload(&mut self, mut reader: Reader, masker: &Marker, coder: Option<&mut DeflateStream>, demask_buffer: &mut Buffer) -> Result<(), CodingError> {
+    pub(crate) fn read_payload(&mut self, mut reader: Reader, masker: &Marker, coder: Option<&mut DeflateStream>, demask_buffer: &mut Writer) -> Result<(), CodingError> {
         demask_buffer.reset();
         match (masker.mask, coder) {
             (true, None) => {
@@ -65,7 +65,7 @@ impl WsPayload {
         Ok(())
     }
 
-    pub fn from_reader(masker: &Marker, reader: &mut Reader, coder: Option<&mut DeflateStream>, demask_buffer: &mut Buffer) -> Result<WsPayload, CodingError> {
+    pub fn from_reader(masker: &Marker, reader: &mut Reader, coder: Option<&mut DeflateStream>, demask_buffer: &mut Writer) -> Result<WsPayload, CodingError> {
         let mut res = WsPayload::new();
         res.len = match masker.len_code {
             127 => reader.read_u64()? as usize,

@@ -205,7 +205,7 @@ impl<'a> Body<'a> {
     pub fn to_vec(&self) -> HlsResult<Vec<u8>> {
         let mut body = self.as_reader()?;
         let mut res = vec![0; body.len()];
-        let mut reader = Buffer::from_ptr(res.as_mut());
+        let mut reader = Writer::from_ptr(res.as_mut());
         let len = body.read(&mut reader)?;
         assert_eq!(len, res.len());
         Ok(res)
@@ -245,7 +245,7 @@ impl<'a> ReadExt for BodyReader<'a> {
         }
     }
 
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         match self {
             BodyReader::HTTP1(h1) => h1.read(buf),
             BodyReader::HTTP2(h2) => h2.read(buf),

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use crate::error::RlsResult;
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 
 #[derive(PartialEq, Copy, Clone)]
 pub struct CompressionMethod(u16);
@@ -88,7 +88,7 @@ impl CompressCertificate {
         self.algorithms.len() * 2 + 1
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.len() as u8 - 1)?;
         for ty in self.algorithms {
             writer.write_u16(ty.0)?;

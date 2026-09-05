@@ -1,7 +1,7 @@
 use crate::coder::ext::{StreamDecode, StreamEncode};
 use crate::coder::CodingError;
 use crate::ffi::CPointer;
-use crate::{ffi, Buffer, BufferError, Reader, WriteExt};
+use crate::{ffi, Writer, BufferError, Reader};
 #[cfg(feature = "log")]
 use log::trace;
 
@@ -78,7 +78,7 @@ impl DeflateStream {
     pub fn decompress_once<'a>(&mut self, reader: &mut Reader<'a>, out: &mut Vec<u8>, mut flush: bool) -> Result<usize, CodingError> {
         let mut wrote = 0;
         loop {
-            let mut writer = Buffer::from_ptr(out);
+            let mut writer = Writer::from_ptr(out);
             writer.add_len(wrote);
             let res = if reader.unread_len() == 0 {
                 flush = true;
@@ -96,8 +96,8 @@ impl DeflateStream {
     }
 }
 
-impl<W: WriteExt> StreamDecode<W> for DeflateStream {
-    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut W) -> Result<(), CodingError> {
+impl StreamDecode for DeflateStream {
+    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError> {
         let mut unread_len = reader.unread_len();
         let mut out_len = out.unfilled_len();
         let state = unsafe {
@@ -128,7 +128,7 @@ impl<W: WriteExt> StreamDecode<W> for DeflateStream {
         Ok(())
     }
 
-    fn flush(&mut self, out: &mut W) -> Result<(), CodingError> {
+    fn flush(&mut self, out: &mut Writer) -> Result<(), CodingError> {
         let mut out_len = out.unfilled_len();
         let state = unsafe { DEFLATE_STREAM_flush(self.stream.as_mut_ptr(), out.unfilled_ptr(), &mut out_len) };
         if !matches!(state, DeflateState::OK|DeflateState::STREAM_END) {
@@ -163,7 +163,7 @@ impl StreamEncode for DeflateStream {
     }
 
     fn finalize(&mut self, out: &mut [u8]) -> Result<usize, CodingError> {
-        let mut writer = Buffer::from_ptr(out);
+        let mut writer = Writer::from_ptr(out);
         self.flush(&mut writer)?;
         Ok(writer.len())
     }
@@ -174,13 +174,13 @@ impl StreamEncode for DeflateStream {
 mod zlib_ng_tests {
     use crate::coder::deflate::DeflateStream;
     use crate::coder::ext::{StreamDecode, StreamEncode};
-    use crate::{coder, Buffer, Reader, WriteExt};
+    use crate::{coder, Writer, Reader};
 
     #[test]
     fn test_deflate() {
         let compressed = [109, 137, 177, 13, 0, 32, 12, 195, 206, 226, 161, 16, 85, 45, 19, 129, 129, 239, 169, 212, 181, 150, 23, 203, 2, 5, 198, 106, 112, 213, 51, 33, 104, 21, 233, 59, 227, 186, 246, 252];
         let mut decoder = DeflateStream::new_decompress(DeflateStream::DEFLATE).unwrap();
-        let mut out = Buffer::with_capacity(1024);
+        let mut out = Writer::with_capacity(1024);
         let mut reader = Reader::from_slice(&compressed);
         decoder.decompress(&mut reader, &mut out).unwrap();
         // decoder.decompress(reader.read_reader(reader.unread_len()).unwrap(), &mut out).unwrap();
@@ -201,13 +201,13 @@ mod zlib_ng_tests {
         let compressed = [31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 109, 137, 177, 13, 0, 32, 12, 195, 206, 226, 161, 16, 85, 45, 19, 129, 129, 239, 169, 212, 181, 150, 23, 203, 2, 5, 198, 106, 112, 213, 51, 33, 104, 21, 233, 59, 227, 186, 246, 252, 93, 161, 13, 5, 58, 0, 0, 0];
         let mut decoder = DeflateStream::new_decompress(DeflateStream::GZIP).unwrap();
         let mut out = vec![0; 1];
-        let mut writer = Buffer::from_ptr(out.as_mut());
+        let mut writer = Writer::from_ptr(out.as_mut());
         let mut reader = Reader::from_slice(&compressed);
         let res = decoder.decompress(&mut reader, &mut writer);
         assert!(res.is_err());
         out.resize(1024, 0);
         let wrote = writer.filled().len();
-        let mut writer = Buffer::from_ptr(out.as_mut());
+        let mut writer = Writer::from_ptr(out.as_mut());
         writer.add_len(wrote);
         decoder.flush(&mut writer).unwrap();
         assert_eq!(writer.filled(), b"sdfsdfklllllllllllllllllllljsdfsdfkhsdkfhsdfsdfsdfyt7ujsre");

@@ -1,5 +1,5 @@
 use crate::error::RlsResult;
-use crate::{BufferError, NamedCurve, Reader, WriteExt};
+use crate::{BufferError, NamedCurve, Reader, Writer};
 use std::fmt::Debug;
 
 
@@ -27,7 +27,7 @@ impl SupportedGroups {
         self.values.len() * 2 + 2
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.len() as u16 - 2)?;
         for value in self.values {
             writer.write_u16(value.into_inner())?;

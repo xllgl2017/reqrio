@@ -7,7 +7,7 @@ mod stream;
 mod domain;
 mod value;
 
-use crate::{rand, BufferError, Reader, WriteExt};
+use crate::{rand, BufferError, Reader, Writer};
 use add::Additional;
 use answer::DNSAnswer;
 use authoritative::Authoritative;
@@ -272,26 +272,26 @@ impl<'a> DNS<'a> {
     pub fn from_bytes(reader: &'a [u8]) -> Result<DNS<'a>, DNSError> {
         let mut reader = Reader::from_slice(reader);
         if reader.size() < 12 { return Err(DNSError::Buffer(BufferError::Insufficient)); }
-        let tid = reader.read_u16()?;
-        let flag = DNSFlag::from_bytes(reader.read_slice(2)?);
+        let tid = reader.read_u16().unwrap();
+        let flag = DNSFlag::from_bytes(reader.read_slice(2).unwrap());
         reader.set_position(4);
-        let questions = reader.read_u16()?;
-        let answer = reader.read_u16()?;
-        let authority = reader.read_u16()?;
-        let additional = reader.read_u16()?;
+        let questions = reader.read_u16().unwrap();
+        let answer = reader.read_u16().unwrap();
+        let authority = reader.read_u16().unwrap();
+        let additional = reader.read_u16().unwrap();
 
 
         //query
         let mut queries = vec![];
         for _ in 0..questions {
-            let query = DNSQuery::from_bytes(&mut reader)?;
+            let query = DNSQuery::from_bytes(&mut reader).unwrap();
             queries.push(query);
         }
 
         //answer
         let mut answers = vec![];
         for _ in 0..answer {
-            let answer = DNSAnswer::from_bytes(&mut reader)?;
+            let answer = DNSAnswer::from_bytes(&mut reader).unwrap();
             answers.push(answer)
         }
 
@@ -299,7 +299,7 @@ impl<'a> DNS<'a> {
         let mut authorities = vec![];
 
         for _ in 0..authority {
-            let authority = Authoritative::from_bytes(&mut reader)?;
+            let authority = Authoritative::from_bytes(&mut reader).unwrap();
             authorities.push(authority)
         }
         //add
@@ -307,7 +307,7 @@ impl<'a> DNS<'a> {
 
         for _ in 0..additional {
             // println!("222={:x?}", &reader[reader.position()..]);
-            let add = Additional::from_bytes(&mut reader)?;
+            let add = Additional::from_bytes(&mut reader).unwrap();
             // println!("{:#?}", add);
             adds.push(add)
         }
@@ -325,7 +325,7 @@ impl<'a> DNS<'a> {
         })
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.tid)?;
         writer.write_u16(self.flag.into_u16())?;
         writer.write_u16(self.questions)?;

@@ -55,7 +55,7 @@ pub struct TlsConnecting<'a, S> {
     pub(super) sent_client_hello: bool,
     pub(super) config: Config<'a>,
     pub(crate) state: ConnState<S>,
-    pub(super) app_buf: Buffer,
+    pub(super) app_buf: Writer,
 }
 
 impl<'a, S: Read + Write> TlsConnecting<'a, S> {
@@ -120,7 +120,7 @@ pub enum ProxyState<S> {
     Connecting {
         stream: S,
         timeout: Timeout,
-        buffer: Buffer,
+        buffer: Writer,
     },
     Finish,
 }
@@ -214,7 +214,7 @@ pub struct StreamConnect<'a, S> {
     #[cfg(feature = "aync")]
     pub(crate) stream: Stream,
     #[cfg(feature = "aync")]
-    pub(crate) buffer: Buffer,
+    pub(crate) buffer: Writer,
     #[cfg(feature = "aync")]
     pub(crate) tls_connected: bool,
 }
@@ -270,7 +270,7 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
                         .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
                     connector.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, proxy_stream)));
                     connector.proxy_connected = true;
-                    let mut buffer = Buffer::with_capacity(24657);
+                    let mut buffer = Writer::with_capacity(24657);
                     buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
                     connector.fingerprint.h2().build_setting().write_to(&mut buffer)?;
                     connector.fingerprint.h2().build_window_update().write_to(&mut buffer)?;
@@ -295,7 +295,7 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
         match Pin::new(&mut writer).poll(cx)? {
             Poll::Ready(_) => {
                 let stream = mem::replace(&mut connector.stream, Stream::NonConnection);
-                let buffer = mem::replace(&mut connector.buffer, Buffer::none());
+                let buffer = mem::replace(&mut connector.buffer, Writer::none());
                 Poll::Ready(Ok((ALPN::Http20, HTTPStream::AsyncH2(HTTP2StreamA::new(stream, buffer)))))
             }
             Poll::Pending => Poll::Pending,

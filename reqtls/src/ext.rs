@@ -9,14 +9,14 @@ pub struct StreamParam<'a> {
     pub handshake_finish: &'a mut bool,
     pub encrypted_channel: &'a mut bool,
     pub hello_retrying: &'a mut bool,
-    pub write_buffer: &'a mut Buffer,
+    pub write_buffer: &'a mut Writer,
     pub conn: &'a mut Connection,
 }
 
 pub trait StreamHandle {
     const CHANGE_CIPHER_SPEC: [u8; 6] = [20, 3, 3, 0, 1, 1];
 
-    fn stream_param(&mut self) -> (&Buffer, StreamParam<'_>);
+    fn stream_param(&mut self) -> (&Writer, StreamParam<'_>);
 
     fn handle_client_hello(&mut self, config: &mut ClientConfig) -> RlsResult<()> {
         let (_, param) = self.stream_param();

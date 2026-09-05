@@ -28,7 +28,7 @@ impl<'a> ReadExt for RawBodyReader<'a> {
         }
     }
 
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         match self {
             RawBodyReader::Data(data) => data.read(buf),
             RawBodyReader::Bytes(bytes) => bytes.read(buf),
@@ -72,7 +72,7 @@ impl<'a> ReadExt for H2FrameHead<'a> {
         9 + self.pd_len as usize
     }
 
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         let start = buf.offset().end;
         if buf.unfilled_len() < 14 { return Ok(buf.offset().end - start); }
         buf.write_u24(self.pd_len)?;
@@ -122,7 +122,7 @@ impl<'a> ReadExt for H2BodyReader<'a> {
         self.frames.iter().map(|x| x.len()).sum()
     }
 
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         let start = buf.offset().end;
         for (index, frame) in self.frames.iter_mut().enumerate() {
             if index < self.pos { continue; }
@@ -134,7 +134,7 @@ impl<'a> ReadExt for H2BodyReader<'a> {
             if buf.unfilled_len() < frame.pd_len as usize { return Ok(buf.offset().end - start); }
             let want = frame.pd_len as usize - self.frame_wrote;
             let end = if buf.unfilled().len() < want { buf.unfilled_len() } else { want };
-            let mut render = Buffer::from_ptr(&mut buf.unfilled()[..end]);
+            let mut render = Writer::from_ptr(&mut buf.unfilled()[..end]);
             let len = self.body.read(&mut render)?;
             buf.add_len(len);
             assert_eq!(len, want);
@@ -178,7 +178,7 @@ impl<'a> H3BodyReader<'a> {
 impl<'a> ReadExt for H3BodyReader<'a> {
     fn wrote(&self) -> bool { self.wrote }
     fn len(&self) -> usize { (1 + self.len_size) * self.buf_num + self.body.len() }
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         let start = buf.offset().end;
         for i in 0..self.buf_num {
             if i < self.current { continue; }
@@ -194,7 +194,7 @@ impl<'a> ReadExt for H3BodyReader<'a> {
             }
             let size = min(self.frame_size - self.pos, buf.unfilled_len());
             let unfilled = &mut buf.unfilled()[..size];
-            let mut reader = Buffer::from_ptr(unfilled);
+            let mut reader = Writer::from_ptr(unfilled);
             self.pos += self.body.read(&mut reader)?;
             buf.add_len(reader.len());
             if self.pos == self.frame_size || self.body.wrote() {
@@ -216,7 +216,7 @@ mod tests {
     use crate::body::reader::{H3BodyReader, RawBodyReader};
     use crate::reader::*;
     use crate::{json, Body, BodyData};
-    use reqtls::Buffer;
+    use reqtls::Writer;
 
     #[test]
     fn test_h1_reader() {
@@ -228,7 +228,7 @@ mod tests {
         let body = data.form();
         let mut body_reader = body.as_reader().unwrap();
         let mut res = vec![0; 1024];
-        let mut writer = Buffer::from_ptr(res.as_mut());
+        let mut writer = Writer::from_ptr(res.as_mut());
         let len = body_reader.read(&mut writer).unwrap();
         assert_eq!(&res[..len], b"a=1&b=%E6%94%B6%E5%88%B0%E5%8F%8D%E9%A6%88&v=%7B%22k%22%3A1%2C%22b%22%3Atrue%7D");
         let body = Body::from(data);
@@ -257,7 +257,7 @@ mod tests {
         let data = (0..100).collect::<Vec<_>>();
         let body = RawBodyReader::Bytes(RefReader::new_buf(&data));
         let mut reader = H3BodyReader::new_size(50, body);
-        let mut writer = Buffer::with_capacity(40);
+        let mut writer = Writer::with_capacity(40);
         let len = reader.read(&mut writer).unwrap();
         assert_eq!(writer.filled(), [0, 64, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]);
         assert_eq!(len, 40);

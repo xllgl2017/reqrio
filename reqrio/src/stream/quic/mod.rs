@@ -30,12 +30,12 @@ pub(crate) struct Queue {
 
 pub struct QUICStream<S> {
     socket: S,
-    ur_buffer: Buffer,
+    ur_buffer: Writer,
     tr_last_offset: usize,
-    tr_buffer: Buffer,
-    uw_buffer: Buffer,
+    tr_buffer: Writer,
+    uw_buffer: Writer,
 
-    tw_buffer: Buffer,
+    tw_buffer: Writer,
     conn: QUICConnection,
     sent_num: HashMap<u64, Range<usize>>,
 
@@ -51,10 +51,10 @@ pub struct QUICStream<S> {
 
     packet_offsets: Vec<(PacketType, Range<usize>)>,
     current: PacketType,
-    idle_buffer: Vec<(u64, Buffer)>,
+    idle_buffer: Vec<(u64, Writer)>,
 
     buffer_size: u64,
-    task_buffer: HashMap<u64, (Buffer, usize)>,
+    task_buffer: HashMap<u64, (Writer, usize)>,
     buffer_queues: HashMap<QId, Vec<Queue>>,
 
     timeout: Timeout,
@@ -69,11 +69,11 @@ impl<S> QUICStream<S> {
         QUICConnect {
             state: QUICConnState::Connecting(Box::new(QUICStream {
                 socket,
-                ur_buffer: Buffer::with_capacity(6000),
+                ur_buffer: Writer::with_capacity(6000),
                 tr_last_offset: 0,
-                tr_buffer: Buffer::with_capacity(8192),
-                uw_buffer: Buffer::with_capacity(1500),
-                tw_buffer: Buffer::with_capacity(16438),
+                tr_buffer: Writer::with_capacity(8192),
+                uw_buffer: Writer::with_capacity(1500),
+                tw_buffer: Writer::with_capacity(16438),
                 conn: QUICConnection::new(session, key_log, config.verify),
                 sent_num: HashMap::new(),
                 addr: remote_addr,
@@ -188,7 +188,7 @@ impl<S> QUICStream<S> {
         }
     }
 
-    fn free_buffer(task_buffer: &mut HashMap<u64, (Buffer, usize)>, idle_buffer: &mut Vec<(u64, Buffer)>, bid: u64) -> Result<(), QUICError> {
+    fn free_buffer(task_buffer: &mut HashMap<u64, (Writer, usize)>, idle_buffer: &mut Vec<(u64, Writer)>, bid: u64) -> Result<(), QUICError> {
         if task_buffer[&bid].1 <= 1 {
             if let Some((mut buffer, _)) = task_buffer.remove(&bid) {
                 buffer.reset();
@@ -216,7 +216,7 @@ impl<S> QUICStream<S> {
         let (bid, mut idle_buffer) = if self.idle_buffer.is_empty() {
             let bid = self.buffer_size;
             self.buffer_size = bid + 1;
-            (bid, Buffer::with_capacity(1500))
+            (bid, Writer::with_capacity(1500))
         } else { self.idle_buffer.remove(0) };
         let len = self.conn.read_message(&mut packet, &mut reader, idle_buffer.unfilled()).unwrap();
         idle_buffer.add_len(len);
@@ -231,7 +231,7 @@ impl<S> QUICStream<S> {
         self.handle_frames(bid, idle_buffer)
     }
 
-    fn handle_frames(&mut self, bid: u64, buffer: Buffer) -> Result<(), QUICError> {
+    fn handle_frames(&mut self, bid: u64, buffer: Writer) -> Result<(), QUICError> {
         let mut reader = Reader::from_slice(buffer.filled());
         let mut buf_ref = 0;
         while reader.unread_len() > 0 {
@@ -285,7 +285,7 @@ impl<S> QUICStream<S> {
 
     pub(crate) fn handle_queues<F>(&mut self, off: Range<usize>, streams: &mut HashMap<u64, http3::StreamParam>, mut worker: F) -> HlsResult<()>
     where
-        F: FnMut(&mut HashMap<u64, http3::StreamParam>, &u64, &mut Vec<Queue>, &HashMap<u64, (Buffer, usize)>) -> HlsResult<Option<u64>>,
+        F: FnMut(&mut HashMap<u64, http3::StreamParam>, &u64, &mut Vec<Queue>, &HashMap<u64, (Writer, usize)>) -> HlsResult<Option<u64>>,
     {
         self.handle_packet(off)?;
         let mut keys = Vec::with_capacity(self.buffer_queues.len());
@@ -341,7 +341,7 @@ impl<S> QUICStream<S> {
 }
 
 impl<S> StreamHandle for QUICStream<S> {
-    fn stream_param(&mut self) -> (&Buffer, StreamParam<'_>) {
+    fn stream_param(&mut self) -> (&Writer, StreamParam<'_>) {
         (&self.tr_buffer, StreamParam {
             handshake_finish: &mut self.handshake_finish,
             encrypted_channel: &mut self.encrypted_channel,

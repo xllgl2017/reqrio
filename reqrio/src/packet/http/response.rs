@@ -1,18 +1,18 @@
-use std::mem;
 use crate::error::HlsResult;
 use crate::json::JsonValue;
 use crate::*;
 use reqtls::coder::{BrotliDecoder, ChunkDecoder, CodingError, DeflateStream, StreamDecode, ZstdDecoder};
+use std::mem;
 use std::str::Utf8Error;
 
 pub struct Response {
     #[cfg(feature = "export")]
     pub(crate) sid: u64,
     header: Header,
-    pub(crate) raw: Buffer,
-    coder: Option<Box<dyn StreamDecode<Buffer> + Send + Sync>>,
+    pub(crate) raw: Writer,
+    coder: Option<Box<dyn StreamDecode + Send + Sync>>,
     read_size: usize,
-    h2_buffer: Buffer,
+    h2_buffer: Writer,
 }
 
 impl Default for Response {
@@ -21,10 +21,10 @@ impl Default for Response {
             #[cfg(feature = "export")]
             sid: 0,
             header: Header::default(),
-            raw: Buffer::with_capacity(8192),
+            raw: Writer::with_capacity(8192),
             coder: None,
             read_size: 0,
-            h2_buffer: Buffer::with_capacity(8192),
+            h2_buffer: Writer::with_capacity(8192),
         }
     }
 }
@@ -39,14 +39,14 @@ impl Response {
         Response {
             sid: 0,
             header,
-            raw: Buffer::with_capacity(0),
+            raw: Writer::with_capacity(0),
             coder: None,
             read_size: 0,
-            h2_buffer: Buffer::with_capacity(0),
+            h2_buffer: Writer::with_capacity(0),
         }
     }
 
-    fn write_buffer(buffer: &mut Buffer, buf: &[u8]) -> Result<usize, BufferError> {
+    fn write_buffer(buffer: &mut Writer, buf: &[u8]) -> Result<usize, BufferError> {
         loop {
             match buffer.write_slice(buf) {
                 Ok(_) => break,
@@ -128,7 +128,7 @@ impl Response {
         Ok(())
     }
 
-    pub fn extend_buffer(&mut self, buffer: &mut Buffer) -> HlsResult<bool> {
+    pub fn extend_buffer(&mut self, buffer: &mut Writer) -> HlsResult<bool> {
         if self.header.is_empty() {
             let pos = buffer.filled().windows(HTTP_GAP.len()).position(|w| w == HTTP_GAP);
             let Some(pos) = pos else { return Ok(false) };
@@ -147,7 +147,7 @@ impl Response {
             Response::write_buffer(&mut self.h2_buffer, raw)?;
             Ok(())
         } else {
-            let mut buffer = mem::replace(&mut self.h2_buffer, Buffer::with_capacity(0));
+            let mut buffer = mem::replace(&mut self.h2_buffer, Writer::with_capacity(0));
             let _ = buffer.check_move(raw.len());
             Response::write_buffer(&mut buffer, raw)?;
             let (size, _) = self.extend_body(buffer.filled())?;

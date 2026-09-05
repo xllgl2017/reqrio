@@ -11,7 +11,7 @@ use tokio::io::ReadBuf;
 pub struct QUICPacketRead<'a, S> {
     pub(crate) socket: &'a mut S,
     pub(crate) packet_offsets: &'a mut Vec<(PacketType, Range<usize>)>,
-    pub(crate) buffer: &'a mut Buffer,
+    pub(crate) buffer: &'a mut Writer,
     pub(crate) current: PacketType,
     #[cfg(feature = "aync")]
     pub(crate) timeout: &'a mut Timeout,

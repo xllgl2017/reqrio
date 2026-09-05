@@ -104,7 +104,7 @@ fn main() {
 
 
     let t = Time::now();
-    Buffer::check_subscription(fs::read_to_string("TOKEN").unwrap()).unwrap();
+    Writer::check_subscription(fs::read_to_string("TOKEN").unwrap()).unwrap();
     let fingerprint = random_fingerprint("www.baidu.com").unwrap();
     let mut req = ScReq::new()
         .with_alpn(ALPN::Http20)

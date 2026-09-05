@@ -3,7 +3,7 @@ use super::super::message::HandshakeType;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{u24, BufferError, Reader, Version, WriteExt};
+use crate::{u24, BufferError, Reader, Version, Writer};
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Copy, Clone)]
@@ -169,7 +169,7 @@ impl<'a> ServerHellmanParam<'a> {
         8 + self.pub_key.len() + self.signature.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.curve_type as u8)?;
         writer.write_u16(self.named_curve.0)?;
         writer.write_u8(self.pub_key.len() as u8)?;
@@ -236,7 +236,7 @@ impl<'a> ServerKeyExchange<'a> {
         4 + self.hellman_param.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.hellman_param.len() as u24)?;
         self.hellman_param.write_to(writer)
@@ -279,7 +279,7 @@ impl<'a> ClientHellmanParam<'a> {
         key_size + self.pub_key.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, alg: KeyExchangeAlg) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, alg: KeyExchangeAlg) -> Result<(), BufferError> {
         match alg {
             KeyExchangeAlg::RSA | KeyExchangeAlg::ECC => writer.write_u16(self.pub_key.len() as u16)?,
             _ => writer.write_u8(self.pub_key.len() as u8)?,
@@ -320,7 +320,7 @@ impl<'a> ClientKeyExchange<'a> {
         4 + self.hellman_param.len(kea)
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, kea: KeyExchangeAlg) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, kea: KeyExchangeAlg) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.hellman_param.len(kea) as u24)?;
         self.hellman_param.write_to(writer, kea)

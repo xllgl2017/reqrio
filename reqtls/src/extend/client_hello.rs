@@ -1,6 +1,6 @@
 use super::ech::{Aead, KDF};
 use crate::error::RlsResult;
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 
 #[derive(Debug, Clone, Copy)]
 enum ClientHelloType {
@@ -33,7 +33,7 @@ impl CipherSuite {
 
     pub fn len(&self) -> usize { 4 }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.kdf as u16)?;
         writer.write_u16(self.aead as u16)
     }
@@ -83,7 +83,7 @@ impl<'a> EncryptClientHello<'a> {
         6 + self.cipher_suite.len() + self.enc.len() + self.payload.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.type_ as u8)?;
         self.cipher_suite.write_to(writer)?;
         writer.write_u8(self.config_id)?;
