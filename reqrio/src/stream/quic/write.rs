@@ -1,4 +1,3 @@
-use reqtls::WriteExt;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Range;
@@ -14,7 +13,7 @@ use crate::*;
 pub struct QUICPacketWrite<'a, S> {
     pub(crate) packet: QUICPacket<'a>,
     pub(crate) frames: Vec<QUICFrame<'a>>,
-    pub(crate) uw_buffer: &'a mut Buffer,
+    pub(crate) uw_buffer: &'a mut Writer,
     pub(crate) conn: &'a mut QUICConnection,
     pub(crate) socket: &'a mut S,
     pub(crate) chunk_size: usize,

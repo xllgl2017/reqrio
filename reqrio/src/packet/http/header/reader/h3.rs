@@ -1,7 +1,7 @@
 use crate::error::HlsResult;
 use crate::pack::{QPackEncode, QPackType};
 use crate::reader::{ReadExt, StrCow};
-use reqtls::{Buffer, WriteExt};
+use reqtls::Writer;
 
 pub struct H3HeaderReader<'a> {
     pub(crate) keys: Vec<(StrCow<'a>, StrCow<'a>)>,
@@ -15,7 +15,7 @@ impl<'a> ReadExt for H3HeaderReader<'a> {
 
     fn len(&self) -> usize { unreachable!() }
 
-    fn read(&mut self, buf: &mut Buffer) -> HlsResult<usize> {
+    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
         let len: usize = self.keys.iter().map(|(k, v)| k.len() + v.len()).sum();
         if buf.unfilled_len() < 59 + len { return Ok(0); }
         let offset = buf.offset();
@@ -39,7 +39,7 @@ mod tests {
     use crate::packet::HeaderParam;
     use crate::reader::ReadExt;
     use crate::{json, ContentType, Header};
-    use reqtls::Buffer;
+    use reqtls::Writer;
 
     #[test]
     fn test_h3_reader() {
@@ -72,7 +72,7 @@ mod tests {
             weight: &0,
             priority: &false,
         }, &ContentType::Null).unwrap();
-        let mut buffer = Buffer::with_capacity(4096);
+        let mut buffer = Writer::with_capacity(4096);
         let len = reader.read(&mut buffer).unwrap();
         assert_eq!(len, 427);
         assert!(reader.wrote())

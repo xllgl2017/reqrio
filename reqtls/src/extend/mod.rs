@@ -22,21 +22,24 @@ pub use certificate::CompressCertificate;
 pub use certificate::CompressionMethod;
 pub use client_hello::EncryptClientHello;
 pub use ech::{Aead, EchConfig};
-pub use formats::{EcPointFormats, EcPointFormat};
+pub use formats::{EcPointFormat, EcPointFormats};
 pub use group::SupportedGroups;
-pub use key_share::KeyShare;
+pub use key_share::{KeyEntry, KeyShare};
 use pre_share_key::PreSharedKey;
 pub use psk_key::PskMode;
 #[cfg(feature = "quic")]
 pub use quic::Parameter;
-pub use server_name::SNType;
+pub use server_name::ServerName;
 pub use status::StatusRequest;
-use std::fmt::{Debug, Display, Formatter};
+#[cfg(debug_assertions)]
+use std::fmt::Debug;
+use std::fmt::{Display, Formatter};
 pub use version::SupportVersions;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Extension<'a> {
-    ServerName(Vec<SNType<'a>>),
+    ServerName(Vec<ServerName>),
     StatusRequest(StatusRequest),
     SupportedGroups(SupportedGroups),
     EcPointFormats(EcPointFormats),
@@ -51,7 +54,7 @@ pub enum Extension<'a> {
     SupportedVersions(SupportVersions),
     PskKeyExchangeMode(Vec<PskMode>),
     PostHandshakeAuth,
-    KeyShare(KeyShare<'a>),
+    KeyShare(KeyShare),
     RenegotiationInfo,
     EncryptedClientHello(EncryptClientHello<'a>),
     ApplicationSetting(ALPS),
@@ -64,6 +67,7 @@ pub enum Extension<'a> {
         value: Buf<'a>,
     },
 }
+
 
 impl<'a> Extension<'a> {
     pub const SERVER_NAME: u16 = 0x0;
@@ -96,7 +100,7 @@ impl<'a> Extension<'a> {
             Extension::SUPPORTED_GROUP => Some(Extension::SupportedGroups(SupportedGroups::random())),
             Extension::EC_POINT_FORMATS => Some(Extension::EcPointFormats(EcPointFormats::random())),
             Extension::SIGNATURE_ALGORITHMS => Some(Extension::SignatureAlgorithms(SignatureAlgorithms::random())),
-            Extension::APPLICATION_LAYER_PROTOCOL_NEGOTIATION => Some(Extension::ApplicationLayerProtocolNegotiation(ALPS::new(vec![ALPN::Http20, ALPN::Http11]))),
+            Extension::APPLICATION_LAYER_PROTOCOL_NEGOTIATION => Some(Extension::ApplicationLayerProtocolNegotiation(ALPS::new(vec![ALPN::HTTP20, ALPN::HTTP11]))),
             Extension::SIGNED_CERTIFICATE_TIMESTAMP => Some(Extension::SignedCertificateTimestamp),
             Extension::ENCRYPT_THE_MAC => Some(Extension::EncryptTheMac),
             Extension::EXTEND_MASTER_SECRET => Some(Extension::ExtendMasterSecret),
@@ -112,8 +116,8 @@ impl<'a> Extension<'a> {
             Extension::KEY_SHARE => Some(Extension::KeyShare(KeyShare::default())),
             Extension::RENEGOTIATION_INFO => Some(Extension::RenegotiationInfo),
             Extension::ENCRYPTED_CLIENT_HELLO => Some(Extension::EncryptedClientHello(EncryptClientHello::new())),
-            Extension::APPLICATION_SETTING => Some(Extension::ApplicationSetting(ALPS::new(vec![ALPN::Http20, ALPN::Http11]))),
-            Extension::APPLICATION_SETTING_OLD => Some(Extension::ApplicationSettingOld(ALPS::new(vec![ALPN::Http20, ALPN::Http11]))),
+            Extension::APPLICATION_SETTING => Some(Extension::ApplicationSetting(ALPS::new(vec![ALPN::HTTP20, ALPN::HTTP11]))),
+            Extension::APPLICATION_SETTING_OLD => Some(Extension::ApplicationSettingOld(ALPS::new(vec![ALPN::HTTP20, ALPN::HTTP11]))),
             Extension::PRE_SHARED_KEY => Some(Extension::PreSharedKey(PreSharedKey::random())),
             Extension::PADDING => Some(Extension::Padding(202)),
             _ => None
@@ -134,16 +138,17 @@ impl<'a> Extension<'a> {
                         let list_len = reader.read_u16()? as usize;
                         let mut reader = reader.read_reader(list_len)?;
                         while reader.unread_len() > 0 {
-                            match reader.read_u8()? {
-                                SNType::HOST_NAME => {
-                                    let len = reader.read_u16()? as usize;
-                                    res.push(SNType::HostName(reader.read_str(len)?));
-                                }
-                                _ => {
-                                    #[cfg(feature = "log")]
-                                    warn!("[Extension] unknown SNType!")
-                                }
-                            }
+                            res.push(ServerName::from_reader(&mut reader)?);
+                            // match reader.read_u8()? {
+                            //     SNType::HOST_NAME => {
+                            //         let len = reader.read_u16()? as usize;
+                            //         res.push(SNType::HostName(reader.read_str(len)?));
+                            //     }
+                            //     _ => {
+                            //         #[cfg(feature = "log")]
+                            //         warn!("[Extension] unknown SNType!")
+                            //     }
+                            // }
                         }
                     }
                     Extension::ServerName(res)
@@ -329,7 +334,7 @@ impl<'a> Extension<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, server: bool) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, server: bool) -> Result<(), BufferError> {
         match self {
             Extension::ServerName(value) => {
                 writer.write_u16(Extension::SERVER_NAME)?;
@@ -459,35 +464,37 @@ impl<'a> Extension<'a> {
 
     pub fn set_server_name(&mut self, value: &'a str) {
         if let Extension::ServerName(vs) = self {
-            let name = vs.iter_mut().find(|x| matches!(x, SNType::HostName(_)));
-            match name {
-                Some(SNType::HostName(name)) => *name = value,
-                None => vs.push(SNType::HostName(value))
-            }
+            vs.clear();
+            vs.push(ServerName::new_sni(value));
+            // let name = vs.iter_mut().find(|x| matches!(x, SNType::HostName(_)));
+            // match name {
+            //     Some(SNType::HostName(name)) => *name = value,
+            //     None => vs.push(SNType::HostName(value))
+            // }
         }
     }
 
-    pub fn set_key_share(&mut self, key_share: KeyShare<'a>) {
+    pub fn set_key_share(&mut self, key_share: KeyShare) {
         if let Extension::KeyShare(key) = self {
             *key = key_share;
         }
     }
 
-    pub fn key_share(&self) -> Option<&KeyShare<'a>> {
+    pub fn key_share(&self) -> Option<&KeyShare> {
         if let Extension::KeyShare(key) = self {
             Some(key)
         } else { None }
     }
 
-    pub fn key_share_mut(&mut self) -> Option<&mut KeyShare<'a>> {
+    pub fn key_share_mut(&mut self) -> Option<&mut KeyShare> {
         if let Extension::KeyShare(key) = self {
             Some(key)
         } else { None }
     }
 
-    pub fn server_name(&self) -> Option<&Vec<SNType<'a>>> {
+    pub fn server_name(&self) -> Option<&ServerName> {
         match self {
-            Extension::ServerName(v) => Some(v),
+            Extension::ServerName(v) => v.first(),
             _ => None
         }
     }

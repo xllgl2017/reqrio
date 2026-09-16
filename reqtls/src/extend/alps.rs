@@ -1,8 +1,9 @@
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt, ALPN};
+use crate::{BufferError, Reader, Writer, ALPN};
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ALPS {
     values: Vec<ALPN>,
 }
@@ -24,7 +25,7 @@ impl ALPS {
         self.values.iter().map(|x| x.len()).sum::<usize>() + 2
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.len() as u16 - 2)?;
         for value in self.values {
             value.write_to(writer)?;
@@ -34,17 +35,17 @@ impl ALPS {
 
     pub fn remove_h2_alpn(&mut self) {
         if self.values.len() <= 1 {
-            self.values = vec![ALPN::Http11]
+            self.values = vec![ALPN::HTTP11]
         } else {
-            self.values = self.values.clone().into_iter().filter(|x| x != &ALPN::Http20).collect();
+            self.values = self.values.clone().into_iter().filter(|x| x != &ALPN::HTTP20).collect();
         }
     }
 
     pub fn add_h2_alpn(&mut self) {
         self.values.clear();
         self.values = vec![
-            ALPN::Http20,
-            ALPN::Http11,
+            ALPN::HTTP20,
+            ALPN::HTTP11,
         ]
     }
 

@@ -1,15 +1,16 @@
 use super::super::version::Version;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 use crate::error::RlsResult;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SupportVersions {
     versions: Vec<Version>,
 }
 
 
 impl SupportVersions {
-    pub fn new(versions:Vec<Version>) -> Self {
+    pub fn new(versions: Vec<Version>) -> Self {
         SupportVersions { versions }
     }
     pub fn from_reader(mut reader: Reader<'_>, server: bool) -> RlsResult<SupportVersions> {
@@ -29,7 +30,7 @@ impl SupportVersions {
         if !server { self.versions.len() * 2 + 1 } else { self.versions.len() * 2 }
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, server: bool) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, server: bool) -> Result<(), BufferError> {
         if !server {
             writer.write_u8(self.len(server) as u8 - 1)?;
         }

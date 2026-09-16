@@ -1,49 +1,47 @@
 use crate::error::RlsResult;
-use crate::{BufferError, CipherSuite, CipherType, Version};
 #[cfg(feature = "quic")]
 use crate::message::QUICPacket;
-use crate::suite::iv::Iv;
+use crate::{Aead, BufferError, CipherSuite, Version};
+use crate::boring::Iv;
 
-pub struct PayloadDecodeBuffer<'a> {
+#[repr(C)]
+pub struct TlsDecodeBuffer<'a> {
+    suite: &'static CipherSuite,
+    quic: bool,
+    head: &'a [u8],
     origin: &'a [u8],
     decoded: &'a mut [u8],
 }
 
-
-pub struct CipherDecodeBuffer<'a> {
-    suite: &'static CipherSuite,
-    quic: bool,
-    head: &'a [u8],
-    payload: PayloadDecodeBuffer<'a>,
-}
-
-impl<'a> CipherDecodeBuffer<'a> {
+impl<'a> TlsDecodeBuffer<'a> {
     pub fn from_buffer(origin: &'a [u8], decoded: &'a mut [u8], suite: &'static CipherSuite) -> RlsResult<Self> {
         if decoded.len() < origin.len() - 5 - suite.trans_iv_len {
             return Err(BufferError::CapacityTooSmall {
                 current: decoded.len(),
                 file: file!(),
-                needed: origin.len(),
+                needed: origin.len() - 5 - suite.trans_iv_len,
                 line: line!(),
             }.into());
         }
         let (head, origin) = origin.split_at(5);
-        Ok(CipherDecodeBuffer {
+        Ok(TlsDecodeBuffer {
             suite,
             quic: false,
             head,
-            payload: PayloadDecodeBuffer { origin, decoded },
+            origin,
+            decoded,
         })
     }
 
     #[cfg(feature = "quic")]
-    pub fn from_quic(packet: &'a QUICPacket, decoded: &'a mut [u8]) -> RlsResult<Self> {
-        Ok(CipherDecodeBuffer {
-            head: packet.hdr_raw(),
+    pub fn from_quic(packet: &'a QUICPacket, decoded: &'a mut [u8]) -> Self {
+        TlsDecodeBuffer {
             suite: &CipherSuite::TLS_AES_128_GCM_SHA256,
-            payload: PayloadDecodeBuffer { origin: packet.payload.as_ref(), decoded },
             quic: true,
-        })
+            head: packet.hdr_raw(),
+            origin: packet.payload.as_ref(),
+            decoded,
+        }
     }
 
     pub fn aad(&self, seq: u64) -> RlsResult<Vec<u8>> {
@@ -59,9 +57,8 @@ impl<'a> CipherDecodeBuffer<'a> {
     fn tls12_aad(&self, seq: u64) -> Vec<u8> {
         let mut res = vec![0; 13];
         res[0..8].copy_from_slice(seq.to_be_bytes().as_ref());
-        res[8] = self.head[0];
-        res[9..11].copy_from_slice(&self.head[1..3]);
-        let payload_len = self.payload.origin.len() as u16 - self.suite.trans_iv_len as u16 - 16;
+        res[8..11].copy_from_slice(&self.head[..3]);
+        let payload_len = self.origin.len() as u16 - self.suite.trans_iv_len as u16 - 16;
         res[11..13].copy_from_slice(&payload_len.to_be_bytes());
         res
     }
@@ -69,36 +66,42 @@ impl<'a> CipherDecodeBuffer<'a> {
     ///tls1.3 aad: head[0..3]||pd_len(tag)
     fn tls13_aad(&self) -> Vec<u8> {
         let mut res = vec![0; 5];
-        res[0..3].copy_from_slice(&self.head[0..3]);
-        let payload_len = self.payload.origin.len() as u16;
+        res[0..3].copy_from_slice(&self.head[..3]);
+        let payload_len = self.origin.len() as u16;
         res[3..5].copy_from_slice(&payload_len.to_be_bytes());
         res
     }
 
     pub fn encrypted_payload(&self) -> &[u8] {
-        &self.payload.origin[self.suite.trans_iv_len..]
+        &self.origin[self.suite.trans_iv_len..]
+
+        // let len = self.origin.len() - self.suite.trans_iv_len;
+        // unsafe { slice::from_raw_parts(self.origin.add(self.suite.trans_iv_len), len) }
     }
 
     pub fn explicit_iv(&self) -> &[u8] {
-        &self.payload.origin[..self.suite.trans_iv_len]
+        &self.origin[..self.suite.trans_iv_len]
+        // unsafe { slice::from_raw_parts(self.origin, self.suite.trans_iv_len) }
     }
 
     pub fn decrypted_buffer(&mut self) -> &mut [u8] {
-        self.payload.decoded
+        self.decoded
+        // unsafe { slice::from_raw_parts_mut(self.decoded, self.origin_len - self.suite.trans_iv_len) }
     }
 
-    pub fn head(&self) -> &[u8] { self.head }
-
     pub fn nonce(&self, iv: &Iv, seq: u64) -> Vec<u8> {
-        match self.suite.cipher() {
-            CipherType::AES_128_GCM | CipherType::AES_256_GCM => match *self.suite.version {
-                Version::TLS_1_3 => iv.as_array(seq, Some(self.explicit_iv())),
+        match *self.suite.aead() {
+            Aead::AES_128_GCM | Aead::AES_256_GCM => match *self.suite.version {
+                Version::TLS_1_3 => iv.as_array(seq, None).into_owned(),
                 _ => iv.decrypting_iv(Some(self.explicit_iv())).into_owned()
             },
-            CipherType::CHACHA20_POLY1305 => iv.as_array(seq, Some(self.explicit_iv())),
-            CipherType::AES_128_CBC |
-            CipherType::AES_256_CBC |
-            CipherType::SM4_CBC => iv.decrypting_iv(Some(self.explicit_iv())).into_owned(),
+            Aead::ChaCha20_POLY1305 => iv.as_array(seq, None).into_owned(),
+            Aead::AES_128_CBC_SHA |
+            Aead::AES_128_CBC_SHA256 |
+            Aead::AES_256_CBC_SHA |
+            Aead::AES_256_CBC_SHA256 |
+            Aead::AES_256_CBC_SHA384 |
+            Aead::SM4_CBC_SM3 => iv.decrypting_iv(Some(self.explicit_iv())).into_owned(),
             _ => panic!("gen iv failed"),
         }
     }

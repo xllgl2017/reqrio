@@ -67,12 +67,9 @@ macro_rules! c_pointer_free {
 
 pub(crate) use c_pointer_free;
 
-c_pointer_free!(EC_KEY, EC_KEY_free);
 c_pointer_free!(u8, OPENSSL_free);
-c_pointer_free!(EC_POINT, EC_POINT_free);
 c_pointer_free!(EVP_PKEY, EVP_PKEY_free);
 c_pointer_free!(EVP_PKEY_CTX, EVP_PKEY_CTX_free);
-// c_pointer_free!(EVP_CIPHER_CTX, EVP_CIPHER_CTX_free);
 c_pointer_free!(EVP_ENCODE_CTX,EVP_ENCODE_CTX_free);
 c_pointer_free!(EVP_MD_CTX, EVP_MD_CTX_free);
 c_pointer_free!(HMAC_CTX, HMAC_CTX_free);

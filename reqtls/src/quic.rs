@@ -1,13 +1,13 @@
 pub use super::message::{AckRange, QUICFrame, QUICFrameFlag, QUICPacket};
 pub use crate::connection::QUICConnection;
 pub use crate::error::QUICError;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 use std::cmp::max;
 use std::ops::Range;
 
 pub fn read_variant(reader: &mut Reader) -> Result<usize, BufferError> {
     if reader.unread_len() == 0 { return Err(BufferError::Insufficient); }
-    let flag = reader.current();
+    let flag = reader.current()?;
     match flag >> 6 {
         0b00 => Ok(reader.read_u8()? as usize),
         0b01 => Ok((reader.read_u16()? & 0x3FFF) as usize),
@@ -28,7 +28,7 @@ pub fn variant_len(val: usize) -> usize {
 }
 
 
-pub fn write_variant<W: WriteExt>(val: usize, writer: &mut W) -> Result<(), BufferError> {
+pub fn write_variant(val: usize, writer: &mut Writer) -> Result<(), BufferError> {
     match val {
         ..0x40 => writer.write_u8(val as u8),
         0x40..0x4000 => writer.write_u16(val as u16 | 0x4000),

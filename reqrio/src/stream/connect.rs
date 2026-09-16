@@ -55,7 +55,7 @@ pub struct TlsConnecting<'a, S> {
     pub(super) sent_client_hello: bool,
     pub(super) config: Config<'a>,
     pub(crate) state: ConnState<S>,
-    pub(super) app_buf: Buffer,
+    pub(super) app_buf: Writer,
 }
 
 impl<'a, S: Read + Write> TlsConnecting<'a, S> {
@@ -120,7 +120,7 @@ pub enum ProxyState<S> {
     Connecting {
         stream: S,
         timeout: Timeout,
-        buffer: Buffer,
+        buffer: Writer,
     },
     Finish,
 }
@@ -214,7 +214,7 @@ pub struct StreamConnect<'a, S> {
     #[cfg(feature = "aync")]
     pub(crate) stream: Stream,
     #[cfg(feature = "aync")]
-    pub(crate) buffer: Buffer,
+    pub(crate) buffer: Writer,
     #[cfg(feature = "aync")]
     pub(crate) tls_connected: bool,
 }
@@ -225,7 +225,7 @@ impl<'a> StreamConnect<'a, std::net::TcpStream> {
         match self.url.scheme() {
             Scheme::Http | Scheme::Ws => {
                 let stream = HTTPStream::SyncH1(HTTP1StreamS::new(Stream::SyncHttp(proxy_stream)));
-                Ok((ALPN::Http11, stream))
+                Ok((ALPN::HTTP11, stream))
             }
             Scheme::Https | Scheme::Wss => {
                 let config = self.tls_connecting.config.client_mut().ok_or("missing client config")?;
@@ -235,9 +235,9 @@ impl<'a> StreamConnect<'a, std::net::TcpStream> {
                     .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
                 self.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, proxy_stream)));
                 let tls_stream = self.tls_connecting.wait()?;
-                let alpn = tls_stream.alpn().cloned().unwrap_or(ALPN::Http11);
-                let stream = match alpn {
-                    ALPN::Http20 => HTTPStream::SyncH2(HTTP2StreamS::new(Stream::SyncHttps(tls_stream), self.fingerprint)?),
+                let alpn = tls_stream.alpn().cloned().unwrap_or(ALPN::HTTP11);
+                let stream = match &alpn {
+                    h2 if h2 == ALPN::HTTP20 => HTTPStream::SyncH2(HTTP2StreamS::new(Stream::SyncHttps(tls_stream), self.fingerprint)?),
                     _ => HTTPStream::SyncH1(HTTP1StreamS::new(Stream::SyncHttps(tls_stream)))
                 };
                 Ok((alpn, stream))
@@ -260,7 +260,7 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
             match connector.url.scheme() {
                 Scheme::Http | Scheme::Ws => {
                     let stream = HTTPStream::AsyncH1(HTTP1StreamA::new(Stream::AsyncHttp(proxy_stream)));
-                    return Poll::Ready(Ok((ALPN::Http11, stream)));
+                    return Poll::Ready(Ok((ALPN::HTTP11, stream)));
                 }
                 Scheme::Https | Scheme::Wss => {
                     let config = connector.tls_connecting.config.client_mut().ok_or("missing client config")?;
@@ -270,7 +270,7 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
                         .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
                     connector.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, proxy_stream)));
                     connector.proxy_connected = true;
-                    let mut buffer = Buffer::with_capacity(24657);
+                    let mut buffer = Writer::with_capacity(24657);
                     buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
                     connector.fingerprint.h2().build_setting().write_to(&mut buffer)?;
                     connector.fingerprint.h2().build_window_update().write_to(&mut buffer)?;
@@ -282,9 +282,9 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
         if !connector.tls_connected {
             match Pin::new(&mut connector.tls_connecting).poll(cx)? {
                 Poll::Ready(tls_stream) => {
-                    let alpn = tls_stream.alpn().cloned().unwrap_or(ALPN::Http11);
-                    if alpn != ALPN::Http20 {
-                        return Poll::Ready(Ok((ALPN::Http11, HTTPStream::AsyncH1(HTTP1StreamA::new(Stream::AsyncHttps(tls_stream))))));
+                    let alpn = tls_stream.alpn().cloned().unwrap_or(ALPN::HTTP11);
+                    if alpn != ALPN::HTTP20 {
+                        return Poll::Ready(Ok((ALPN::HTTP11, HTTPStream::AsyncH1(HTTP1StreamA::new(Stream::AsyncHttps(tls_stream))))));
                     }
                     connector.stream = Stream::AsyncHttps(tls_stream);
                 }
@@ -295,8 +295,8 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
         match Pin::new(&mut writer).poll(cx)? {
             Poll::Ready(_) => {
                 let stream = mem::replace(&mut connector.stream, Stream::NonConnection);
-                let buffer = mem::replace(&mut connector.buffer, Buffer::none());
-                Poll::Ready(Ok((ALPN::Http20, HTTPStream::AsyncH2(HTTP2StreamA::new(stream, buffer)))))
+                let buffer = mem::replace(&mut connector.buffer, Writer::none());
+                Poll::Ready(Ok((ALPN::HTTP20, HTTPStream::AsyncH2(HTTP2StreamA::new(stream, buffer)))))
             }
             Poll::Pending => Poll::Pending,
         }

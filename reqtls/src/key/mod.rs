@@ -1,15 +1,16 @@
 mod block;
 mod derived;
 
-use crate::boring::{EcCurve, EvpCurve, Hybrid};
-use crate::buffer::Buf;
-use crate::bytes::Bytes;
+use crate::boring::BoringResExt;
+use crate::buffer::BufPtr;
 use crate::error::RlsResult;
-use crate::{rand, NamedCurve, RlsError, Version};
-
-pub use block::{TlsSession, KeyType};
+use crate::{ffi, Buf, BufferError, NamedCurve, Version};
+use std::os::raw::c_int;
+use crate::ffi::CPointer;
+pub use block::{KeyType, TlsSession};
 pub(crate) use derived::DerivedKey;
 
+#[repr(C)]
 pub struct TrafficSecret {
     client_traffic: [u8; 48],
     server_traffic: [u8; 48],
@@ -34,54 +35,113 @@ impl TrafficSecret {
     }
 }
 
+unsafe extern "C" {
+    fn SecretKey_new(group: u16) -> *mut SECRET_KEY;
+    fn SecretKey_new_pre_master_secret(ver: u16) -> *mut SECRET_KEY;
+    fn SecretKey_free(secret_key: *mut SECRET_KEY);
+    fn SecretKey_pubkey(secret_key: *const SECRET_KEY) -> *const u8;
+    fn SecretKey_diffie_hellman(
+        secret_key: *const SECRET_KEY,
+        pubkey: *const u8,
+        pubkey_len: usize,
+        out: *mut u8,
+        out_len: *mut usize,
+    ) -> c_int;
+}
 
+ffi::c_pointer_free!(SECRET_KEY, SecretKey_free);
+
+#[repr(C)]
 #[allow(non_camel_case_types)]
-pub enum SecretKey {
-    None,
-    Evp(EvpCurve),
-    Ec(EcCurve),
-    PreMasterSecret(Bytes),
-    Hybrid(Box<Hybrid>),
+pub struct SECRET_KEY {
+    group: u16,
+}
+
+pub struct SecretKey {
+    group: NamedCurve,
+    ptr: CPointer<SECRET_KEY>,
 }
 
 impl SecretKey {
-    pub fn new_pre_master_secret(version: &Version) -> RlsResult<SecretKey> {
-        let mut premaster_secret = vec![0; 48];
-        premaster_secret[0..2].copy_from_slice(version.as_u16().to_be_bytes().as_ref());
-        rand::fill(&mut premaster_secret[2..]);
-        Ok(SecretKey::PreMasterSecret(Bytes::new(premaster_secret)))
-    }
-
-    pub fn new(name_cure: &NamedCurve) -> RlsResult<SecretKey> {
-        match name_cure.as_u16() {
-            NamedCurve::X25519 => Ok(SecretKey::Evp(EvpCurve::new_x25519()?)),
-            NamedCurve::SecP256r1 => Ok(SecretKey::Ec(EcCurve::new_p256()?)),
-            NamedCurve::SecP384r1 => Ok(SecretKey::Ec(EcCurve::new_p384()?)),
-            NamedCurve::SecP521r1 => Ok(SecretKey::Ec(EcCurve::new_p521()?)),
-            NamedCurve::X25519MLKEM768 => Ok(SecretKey::Hybrid(Box::new(Hybrid::new_x25519_768()?))),
-            NamedCurve::SecP256r1MLKEM768 => Ok(SecretKey::Hybrid(Box::new(Hybrid::new_p256r1_768()?))),
-            NamedCurve::ECC_SM2 => Ok(SecretKey::new_pre_master_secret(&Version::TLCP)?),
-            _ => Err(format!("Unsupported name curve-{:?}", name_cure).into()),
-        }
-    }
-    pub fn diffie_hellman(&mut self, pub_key: impl AsRef<[u8]>) -> RlsResult<Vec<u8>> {
-        match self {
-            SecretKey::Evp(v) => Ok(v.diffie_hellman(pub_key)?),
-            SecretKey::Ec(v) => Ok(v.diffie_hellman(pub_key)?),
-            SecretKey::None => Err(RlsError::Currently("PriKey mut init before".to_string())),
-            SecretKey::PreMasterSecret(bytes) => Ok(bytes.as_bytes()),
-            SecretKey::Hybrid(key) => Ok(key.diffie_hellman(false, pub_key.as_ref())?),
-        }
-    }
-
-    pub fn pub_key(&self) -> RlsResult<Buf<'_>> {
-        match self {
-            SecretKey::Evp(v) => Ok(v.pub_key()?),
-            SecretKey::Ec(v) => Ok(Buf::Ptr(v.pub_key()?)),
-            SecretKey::None => Ok(Buf::Ref(&[])),
-            SecretKey::PreMasterSecret(bytes) => Ok(Buf::Ref(bytes.as_ref())),
-            SecretKey::Hybrid(key) => Ok(Buf::Ref(key.pubkey())),
-        }
+    pub fn new(group: NamedCurve) -> Result<SecretKey, String> {
+        let secret_key = unsafe { SecretKey_new(group.as_u16()) };
+        Ok(SecretKey {
+            group,
+            ptr: CPointer::new_checked(secret_key, format!("group '{}' not supported", group))?,
+        })
     }
 }
 
+impl SecretKey {
+    pub fn new_pre_master_secret(version: &Version) -> Result<SecretKey, &'static str> {
+        let secret_key = unsafe { SecretKey_new_pre_master_secret(version.as_u16()) };
+        Ok(SecretKey {
+            group: NamedCurve::PRE_MASTER,
+            ptr: CPointer::new_checked(secret_key, "new pre-master-secret failed")?,
+        })
+    }
+
+    pub fn diffie_hellman(&self, pub_key: impl AsRef<[u8]>) -> RlsResult<Vec<u8>> {
+        let mut out = vec![0; 66];
+        let mut len = 0;
+        let pub_key = pub_key.as_ref();
+        unsafe {
+            SecretKey_diffie_hellman(
+                self.ptr.as_ptr(),
+                pub_key.as_ptr(),
+                pub_key.len(),
+                out.as_mut_ptr(),
+                &mut len,
+            )
+        }.ok("diffie_hellman failed")?;
+        out.truncate(len);
+        Ok(out)
+    }
+
+    pub fn pub_key(&self) -> Result<Buf<'_>, BufferError> {
+        let ptr = unsafe { SecretKey_pubkey(self.ptr.as_ptr()) };
+        let mut ptr = BufPtr::from_ptr(ptr);
+        ptr.check_ptr(self.group.pubkey_len())?;
+        Ok(Buf::Ptr(ptr))
+    }
+
+    pub fn named_curve(&self) -> NamedCurve {
+        self.group
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{NamedCurve, SecretKey};
+
+    #[test]
+    fn test_secret_key() {
+        let p256 = SecretKey::new(NamedCurve::SecP256r1).unwrap();
+        assert_eq!(p256.pub_key().map(|x| x.len()).unwrap(), 65);
+        let ec_p256 = SecretKey::new(NamedCurve::SecP256r1).unwrap();
+        let s1 = p256.diffie_hellman(ec_p256.pub_key().unwrap()).unwrap();
+        let s2 = ec_p256.diffie_hellman(p256.pub_key().unwrap()).unwrap();
+        assert_eq!(s1, s2);
+
+        let p384 = SecretKey::new(NamedCurve::SecP384r1).unwrap();
+        assert_eq!(p384.pub_key().map(|x| x.len()).unwrap(), 97);
+        let ec_p384 = SecretKey::new(NamedCurve::SecP384r1).unwrap();
+        let s1 = p384.diffie_hellman(ec_p384.pub_key().unwrap()).unwrap();
+        let s2 = ec_p384.diffie_hellman(p384.pub_key().unwrap()).unwrap();
+        assert_eq!(s1, s2);
+
+        let p521 = SecretKey::new(NamedCurve::SecP521r1).unwrap();
+        assert_eq!(p521.pub_key().map(|x| x.len()).unwrap(), 133);
+        let ec_p521 = SecretKey::new(NamedCurve::SecP521r1).unwrap();
+        let s1 = p521.diffie_hellman(ec_p521.pub_key().unwrap()).unwrap();
+        let s2 = ec_p521.diffie_hellman(p521.pub_key().unwrap()).unwrap();
+        assert_eq!(s1, s2);
+
+        let x25519 = SecretKey::new(NamedCurve::X25519).unwrap();
+        assert_eq!(x25519.pub_key().map(|x| x.len()).unwrap(), 32);
+        let evp_x25519 = SecretKey::new(NamedCurve::X25519).unwrap();
+        let s1 = x25519.diffie_hellman(evp_x25519.pub_key().unwrap()).unwrap();
+        let s2 = evp_x25519.diffie_hellman(x25519.pub_key().unwrap()).unwrap();
+        assert_eq!(s1, s2);
+    }
+}

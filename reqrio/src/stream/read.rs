@@ -12,7 +12,7 @@ use tokio::io::{AsyncRead, ReadBuf};
 
 #[must_use = "streams do nothing unless `.wait()/.await`"]
 pub struct BufReading<'a, S> {
-    pub(crate) buf: &'a mut Buffer,
+    pub(crate) buf: &'a mut Writer,
     pub(crate) stream: &'a mut S,
     pub(crate) want_size: usize,
     #[cfg(feature = "aync")]
@@ -21,10 +21,10 @@ pub struct BufReading<'a, S> {
 
 impl<'a, S: Read> BufReading<'a, S> {
     pub(crate) fn wait(self) -> HlsResult<usize> {
-        debug_assert!(self.want_size > 0);
-        self.buf.check_move(self.want_size).unwrap();
+        if self.buf.len() >= self.want_size { return Ok(self.buf.len()); }
+        debug_assert!(self.want_size > 0 && self.buf.len() < self.want_size);
+        self.buf.check_move(self.want_size)?;
         while self.buf.len() < self.want_size {
-            debug_assert!(self.buf.unfilled_len() > 0);
             match self.stream.read(self.buf.unfilled()).map_err(|e| e.kind()) {
                 Ok(0) => return Err(HlsError::PeerClosedConnection),
                 Ok(len) => self.buf.add_len(len),
@@ -42,8 +42,9 @@ impl<'a, S: AsyncRead + Unpin> Future for BufReading<'a, S> {
     type Output = HlsResult<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if self.buf.len() >= self.want_size { return Poll::Ready(Ok(self.buf.len())); }
         let reading = self.get_mut();
-        debug_assert!(reading.want_size > 0);
+        debug_assert!(reading.want_size > 0 && reading.buf.len() < reading.want_size);
         reading.buf.check_move(reading.want_size)?;
         while reading.buf.len() < reading.want_size {
             let stream = Pin::new(&mut reading.stream);
@@ -68,7 +69,7 @@ impl<'a, S: AsyncRead + Unpin> Future for BufReading<'a, S> {
 #[must_use = "streams do nothing unless `.wait()/.await`"]
 pub struct RecordReading<'a, S> {
     pub(crate) stream: &'a mut S,
-    pub(crate) buf: &'a mut Buffer,
+    pub(crate) buf: &'a mut Writer,
     #[cfg(feature = "aync")]
     pub(crate) timeout: &'a mut Timeout,
 }
@@ -127,7 +128,7 @@ impl<'a, S: AsyncRead + Unpin> Future for RecordReading<'a, S> {
 #[must_use = "streams do nothing unless `.wait()/.await`"]
 pub struct StreamRead<'a> {
     pub(crate) stream: &'a mut Stream,
-    pub(crate) buf: &'a mut Buffer,
+    pub(crate) buf: &'a mut Writer,
 }
 
 impl<'a> StreamRead<'a> {

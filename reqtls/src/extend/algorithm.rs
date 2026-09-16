@@ -1,9 +1,10 @@
 use crate::boring::SignatureAlgorithm;
 use crate::error::RlsResult;
-use crate::{rand, BufferError, ReadExt, Reader, WriteExt};
+use crate::{rand, BufferError, Reader, Writer};
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SignatureAlgorithms {
     hash: Vec<SignatureAlgorithm>,
 }
@@ -19,7 +20,7 @@ impl SignatureAlgorithms {
         self.hash.len() * 2 + 2
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.len() as u16 - 2)?;
         for hash in self.hash {
             writer.write_u16(hash.into_inner())?;

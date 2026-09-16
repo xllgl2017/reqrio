@@ -1,6 +1,6 @@
-use std::error::Error;
 use crate::error::RlsResult;
-use crate::{BufferError, WriteExt};
+use crate::{BufferError, Writer};
+use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io;
 
@@ -156,7 +156,7 @@ impl Alert {
         })
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.level as u8)?;
         writer.write_u8(self.desc as u8)
     }

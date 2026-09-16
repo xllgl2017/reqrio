@@ -1,9 +1,11 @@
 use crate::error::RlsResult;
-use crate::{BufferError, NamedCurve, ReadExt, Reader, WriteExt};
+use crate::{BufferError, NamedCurve, Reader, Writer};
+#[cfg(debug_assertions)]
 use std::fmt::Debug;
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SupportedGroups {
     values: Vec<NamedCurve>,
 }
@@ -27,7 +29,7 @@ impl SupportedGroups {
         self.values.len() * 2 + 2
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.len() as u16 - 2)?;
         for value in self.values {
             writer.write_u16(value.into_inner())?;

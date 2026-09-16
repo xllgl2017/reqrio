@@ -1,15 +1,15 @@
 mod aead;
 mod kdf;
 
-use std::fmt::Debug;
-use crate::dns::DNSError;
-use crate::{ReadExt, Reader};
 use super::client_hello::CipherSuite;
+use crate::dns::DNSError;
+use crate::{Buf, Reader};
 pub use aead::Aead;
 pub use kdf::KDF;
-use crate::bytes::Bytes;
+#[cfg(debug_assertions)]
+use std::fmt::Debug;
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[allow(dead_code)]
 pub struct EchConfig {
     len: u16,
@@ -25,7 +25,7 @@ impl EchConfig {
             content: EchContent {
                 config_id: 0,
                 kem_id: DHKem(0),
-                key: Bytes::none(),
+                key: Buf::Ref(&[]),
                 ciphers: vec![],
                 max_name_len: 0,
                 name: "".to_string(),
@@ -48,6 +48,7 @@ struct DHKem(u16);
 impl DHKem {
     const X25519_HDK: u16 = 0x0020;
 
+    #[cfg(debug_assertions)]
     fn spec(&self) -> &str {
         match self.0 {
             DHKem::X25519_HDK => "X25519",
@@ -56,18 +57,19 @@ impl DHKem {
     }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for DHKem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}(0x{:x})", self.spec(), self.0)
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[allow(dead_code)]
 pub struct EchContent {
     config_id: u8,
     kem_id: DHKem,
-    key: Bytes,
+    key: Buf<'static>,
     ciphers: Vec<CipherSuite>,
     max_name_len: u8,
     name: String,
@@ -94,7 +96,7 @@ impl EchContent {
         Ok(EchContent {
             config_id,
             kem_id,
-            key: Bytes::new(key.to_vec()),
+            key: Buf::Vec(key.to_vec()),
             ciphers,
             max_name_len,
             name: name.to_string(),

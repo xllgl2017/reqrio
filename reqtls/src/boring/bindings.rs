@@ -35,11 +35,6 @@ pub(crate) struct EVP_ENCODE_CTX {
 
 
 unsafe extern "C" {
-    pub(crate) fn CRYPTO_memcmp(
-        a: *const c_void,
-        b: *const c_void,
-        len: usize,
-    ) -> c_int;
 
     pub(crate) fn HMAC(
         evp_md: *const EVP_MD,
@@ -85,155 +80,10 @@ unsafe extern "C" {
     ) -> c_int;
 }
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-#[allow(non_camel_case_types)]
-pub(crate) struct EC_KEY {
-    _unused: [u8; 0],
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-#[allow(non_camel_case_types)]
-pub(crate) struct EC_POINT {
-    _unused: [u8; 0],
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-#[allow(non_camel_case_types)]
-pub(crate) struct EC_GROUP {
-    _unused: [u8; 0],
-}
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub(crate) union MLKEM768_private_key__bindgen_ty_1 {
-    pub(crate) bytes: [u8; 7776],
-    pub(crate) alignment: u16,
-}
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub(crate) struct MLKEM768_private_key {
-    pub(crate) opaque: MLKEM768_private_key__bindgen_ty_1,
-}
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub(crate) union MLKEM768_public_key__bindgen_ty_1 {
-    pub(crate) bytes: [u8; 6208],
-    pub(crate) alignment: u16,
-}
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub(crate) struct MLKEM768_public_key {
-    pub(crate) opaque: MLKEM768_public_key__bindgen_ty_1,
-}
-
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-#[allow(non_camel_case_types)]
-pub(crate) struct BN_CTX {
-    _unused: [u8; 0],
-}
-#[allow(non_upper_case_globals)]
-pub(crate) const NID_X9_62_prime256v1: i32 = 415;
-#[allow(non_upper_case_globals)]
-pub(crate) const NID_secp384r1: i32 = 715;
-#[allow(non_upper_case_globals)]
-pub(crate) const NID_secp521r1: i32 = 716;
-
-#[repr(C)]
-pub(crate) struct CBS {
-    pub(crate) data: *const u8,
-    pub(crate) len: usize,
-}
-
-#[repr(transparent)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
-pub(crate) struct point_conversion_form_t(pub(crate) c_int);
-
-impl point_conversion_form_t {
-    // pub(crate) const POINT_CONVERSION_COMPRESSED: point_conversion_form_t = point_conversion_form_t(2);
-    pub(crate) const POINT_CONVERSION_UNCOMPRESSED: point_conversion_form_t = point_conversion_form_t(4);
-    // pub(crate) const POINT_CONVERSION_HYBRID: point_conversion_form_t = point_conversion_form_t(6);
-}
 
 unsafe extern "C" {
-    pub(crate) fn EC_KEY_new_by_curve_name(nid: c_int) -> *mut EC_KEY;
-
-    pub(crate) fn EC_KEY_generate_key(key: *mut EC_KEY) -> c_int;
-
-    pub(crate) fn EC_KEY_free(key: *mut EC_KEY);
-
-    pub(crate) fn EC_KEY_get0_public_key(key: *const EC_KEY) -> *const EC_POINT;
-
-    pub(crate) fn EC_KEY_get0_group(key: *const EC_KEY) -> *const EC_GROUP;
-
-    pub(crate) fn EC_POINT_new(group: *const EC_GROUP) -> *mut EC_POINT;
-
-    pub(crate) fn EC_POINT_free(point: *mut EC_POINT);
 
     pub(crate) fn OPENSSL_free(ptr: *mut c_void);
-
-    pub(crate) fn MLKEM768_generate_key(
-        out_encoded_public_key: *mut u8,
-        optional_out_seed: *mut u8,
-        out_private_key: *mut MLKEM768_private_key,
-    );
-
-    pub(crate) unsafe fn MLKEM768_parse_public_key(
-        out_public_key: *mut MLKEM768_public_key,
-        in_: *mut CBS,
-    ) -> c_int;
-
-    pub(crate) unsafe fn MLKEM768_decap(
-        out_shared_secret: *mut u8,
-        ciphertext: *const u8,
-        ciphertext_len: usize,
-        private_key: *const MLKEM768_private_key,
-    ) -> c_int;
-
-    pub(crate) unsafe fn MLKEM768_encap(
-        out_ciphertext: *mut u8,
-        out_shared_secret: *mut u8,
-        public_key: *const MLKEM768_public_key,
-    );
-
-    pub(crate) fn EC_POINT_point2buf(
-        group: *const EC_GROUP,
-        point: *const EC_POINT,
-        form: point_conversion_form_t,
-        out_buf: *mut *mut u8,
-        ctx: *mut BN_CTX,
-    ) -> usize;
-
-    pub(crate) fn EC_POINT_oct2point(
-        group: *const EC_GROUP,
-        point: *mut EC_POINT,
-        buf: *const u8,
-        len: usize,
-        ctx: *mut BN_CTX,
-    ) -> c_int;
-
-    pub(crate) fn ECDH_compute_key(
-        out: *mut c_void,
-        outlen: usize,
-        pub_key: *const EC_POINT,
-        priv_key: *const EC_KEY,
-        kdf: Option<
-            unsafe extern "C" fn(
-                in_: *const c_void,
-                inlen: usize,
-                out: *mut c_void,
-                outlen: *mut usize,
-            ) -> *mut c_void,
-        >,
-    ) -> c_int;
 }
 
 #[repr(C)]
@@ -249,8 +99,6 @@ pub(crate) struct EVP_PKEY {
 pub(crate) struct EVP_PKEY_CTX {
     _unused: [u8; 0],
 }
-
-pub(crate) const EVP_PKEY_X25519: i32 = 948;
 
 unsafe extern "C" {
     pub(crate) fn EVP_PKEY_new() -> *mut EVP_PKEY;

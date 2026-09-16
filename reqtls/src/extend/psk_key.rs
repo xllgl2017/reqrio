@@ -1,3 +1,4 @@
+#[cfg(debug_assertions)]
 use std::fmt::Debug;
 
 #[derive(Copy, Clone)]
@@ -9,6 +10,7 @@ impl PskMode {
 
     pub fn into_inner(self) -> u8 { self.0 }
 
+    #[cfg(debug_assertions)]
     fn spec(&self) -> &str {
         match self.0 {
             PskMode::PSK_DHE_KE => "PSK_DHE_KE",
@@ -17,6 +19,7 @@ impl PskMode {
     }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for PskMode {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}(0x{:02x})", self.spec(), self.0)

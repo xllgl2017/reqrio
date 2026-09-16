@@ -22,8 +22,8 @@ pub struct TlsStream<S> {
     encrypted_channel: bool,
     pub(super) handshake_finished: bool,
     hello_retrying: bool,
-    pub(super) read_buffer: Buffer,
-    pub(super) write_buffer: Buffer,
+    pub(super) read_buffer: Writer,
+    pub(super) write_buffer: Writer,
     #[cfg(feature = "aync")]
     shutdown_wrote: bool,
     #[cfg(feature = "aync")]
@@ -40,8 +40,8 @@ impl<S> TlsStream<S> {
             encrypted_channel: false,
             handshake_finished: false,
             hello_retrying: false,
-            read_buffer: Buffer::with_capacity(16469),
-            write_buffer: Default::default(),
+            read_buffer: Writer::with_capacity(16469),
+            write_buffer: Writer::with_capacity(16469),
             #[cfg(feature = "aync")]
             shutdown_wrote: false,
             #[cfg(feature = "aync")]
@@ -59,7 +59,7 @@ impl<S> TlsStream<S> {
             sent_client_hello: false,
             state: ConnState::Connecting(Box::new(TlsStream::new(conn, stream))),
             config: Config::Client(config),
-            app_buf: Default::default(),
+            app_buf: Writer::with_capacity(16384),
         }
     }
 
@@ -68,7 +68,7 @@ impl<S> TlsStream<S> {
             sent_client_hello: true,
             state: ConnState::Connecting(Box::new(TlsStream::new(Connection::default().with_verify(config.verify), stream))),
             config: Config::Server(config),
-            app_buf: Default::default(),
+            app_buf: Writer::with_capacity(16384),
         }
     }
 
@@ -111,7 +111,7 @@ impl<S: Write> TlsStream<S> {
     pub fn shutdown(&mut self) -> HlsResult<()> {
         self.write_buffer.reset();
         let out = self.write_buffer.unfilled();
-        let record_len = self.conn.make_message(RecordType::Alert, out, &[1, 0])?;
+        let record_len = self.conn.make_message(RecordType::Alert, &[1, 0], out)?;
         self.write_buffer.add_len(record_len);
         self.write_buffer().wait()
     }
@@ -151,7 +151,7 @@ impl<S: Write> Write for TlsStream<S> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         for chunk in buf.chunks(16384) {
             self.write_buffer.reset();
-            let record_len = self.conn.make_message(RecordType::ApplicationData, self.write_buffer.unfilled(), chunk)?;
+            let record_len = self.conn.make_message(RecordType::ApplicationData, chunk, self.write_buffer.unfilled())?;
             self.write_buffer.add_len(record_len);
             self.write_buffer().wait()?;
         }
@@ -171,7 +171,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
             if stream.write_buffer.is_empty() {
                 let chunk_size = min(16384, buf.len());
                 let chunk = &buf[stream.write_offset..stream.write_offset + chunk_size];
-                let record_len = stream.conn.make_message(RecordType::ApplicationData, stream.write_buffer.unfilled(), chunk)?;
+                let record_len = stream.conn.make_message(RecordType::ApplicationData, chunk, stream.write_buffer.unfilled())?;
                 stream.write_buffer.add_len(record_len);
                 stream.write_offset += chunk_size;
             }
@@ -190,7 +190,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         let stream = self.get_mut();
         if stream.write_buffer.is_empty() {
-            let len = stream.conn.make_message(RecordType::Alert, stream.write_buffer.unfilled(), &Alert::close_notify().to_bytes())?;
+            let len = stream.conn.make_message(RecordType::Alert, &Alert::close_notify().to_bytes(), stream.write_buffer.unfilled())?;
             stream.write_buffer.add_len(len);
         }
         match stream.shutdown_wrote {
@@ -210,7 +210,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
 }
 
 impl<S> StreamHandle for TlsStream<S> {
-    fn stream_param(&mut self) -> (&Buffer, StreamParam<'_>) {
+    fn stream_param(&mut self) -> (&Writer, StreamParam<'_>) {
         (&self.read_buffer, StreamParam {
             handshake_finish: &mut self.handshake_finished,
             encrypted_channel: &mut self.encrypted_channel,

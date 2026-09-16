@@ -39,7 +39,7 @@ impl Default for Header {
     fn default() -> Self {
         Header {
             method: Method::GET,
-            alpn: ALPN::Custom(vec![]),
+            alpn: ALPN::default(),
             uri: Uri::default(),
             status: HttpStatus::None,
             keys: vec![],
@@ -53,7 +53,7 @@ impl Header {
         Header {
             method: Method::GET,
             uri: Uri::default(),
-            alpn: ALPN::Http30,
+            alpn: ALPN::HTTP30,
             status: HttpStatus::None,
             keys: vec![
                 //h2 order
@@ -95,11 +95,11 @@ impl Header {
         Header {
             method: Method::GET,
             uri: Uri::default(),
-            alpn: ALPN::Http20,
+            alpn: ALPN::HTTP20,
             status: HttpStatus::None,
             keys: vec![
                 //h2 order
-                HeaderKey::new_reserved("pragma",""),
+                HeaderKey::new_reserved("pragma", ""),
                 HeaderKey::new_reserved("cache-control", ""),
                 HeaderKey::new_reserved("ect", ""),
                 HeaderKey::new_reserved("sec-ch-ua", ""),
@@ -138,7 +138,7 @@ impl Header {
         Header {
             method: Method::GET,
             uri: Uri::default(),
-            alpn: ALPN::Http11,
+            alpn: ALPN::HTTP11,
             status: HttpStatus::None,
             keys: vec![
                 HeaderKey::new_reserved("Host", ""),
@@ -468,7 +468,7 @@ impl Header {
 
     pub fn parse_h2(packs: Vec<PackItem>) -> HlsResult<Header> {
         let mut header = Header {
-            alpn: ALPN::Http20,
+            alpn: ALPN::HTTP20,
             ..Header::default()
         };
         for pack in packs {
@@ -486,10 +486,10 @@ impl Header {
     pub(crate) fn init_by_alpn(&mut self, alpn: ALPN) {
         if alpn == self.alpn { return; }
         self.alpn = alpn;
-        let keys = match self.alpn {
+        let keys = match &self.alpn {
             #[cfg(feature = "quic")]
-            ALPN::Http30 => Header::new_req_h3().keys,
-            ALPN::Http20 => Header::new_req_h2().keys,
+            h3 if h3 == ALPN::HTTP30 => Header::new_req_h3().keys,
+            h2 if h2 == ALPN::HTTP20 => Header::new_req_h2().keys,
             _ => Header::new_req_h1().keys
         };
         let keys = mem::replace(&mut self.keys, keys);
@@ -634,10 +634,10 @@ impl Header {
     }
 
     pub(crate) fn as_reader<'a>(&'a self, param: HeaderParam<'a>, ct: &'a ContentType) -> HlsResult<HeaderReader<'a>> {
-        Ok(match self.alpn {
-            ALPN::Http20 => HeaderReader::H2(self.as_h2_reader(param, ct)?),
+        Ok(match &self.alpn {
+            h2 if h2 == ALPN::HTTP20 => HeaderReader::H2(self.as_h2_reader(param, ct)?),
             #[cfg(feature = "quic")]
-            ALPN::Http30 => HeaderReader::H3(self.as_h3_reader(param, ct)?),
+            h3 if h3 == ALPN::HTTP30 => HeaderReader::H3(self.as_h3_reader(param, ct)?),
             _ => HeaderReader::H1(self.as_h1_reader(param, ct))
         })
     }
@@ -700,13 +700,13 @@ impl Display for Header {
         let mut write_header = false;
         match self.status {
             HttpStatus::None => {
-                if matches!(self.alpn, ALPN::Http11|ALPN::Http10) {
+                if self.alpn == ALPN::HTTP11 {
                     write!(f, "{} {} {}", self.method, self.uri, self.alpn)?;
                     write_header = true;
                 }
             }
             _ => {
-                if matches!(self.alpn, ALPN::Http11|ALPN::Http10) {
+                if self.alpn == ALPN::HTTP11 {
                     write!(f, "{} {} {}", self.alpn, self.status.code(), self.status.spec())?;
                     write_header = true;
                 }
@@ -775,7 +775,7 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.xxx.hKMvQpkzp5YpEN_B2
             .replace("\n", "\r\n").replace("Host-Ip:", "Host-Ip: "));
 
         let mut header = Header::default();
-        header.init_by_alpn(ALPN::Http11);
+        header.init_by_alpn(ALPN::HTTP11);
         header.set_by_json(headers).unwrap();
         header.insert("host", "xxxxx").unwrap();
         header.insert("content-length", "748").unwrap();

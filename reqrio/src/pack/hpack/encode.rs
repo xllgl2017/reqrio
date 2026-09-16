@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
-use crate::pack::{huffman, PackItem};
-use reqtls::{BufferError, WriteExt};
 use super::index::Index;
 use super::table::Table;
+use crate::pack::{huffman, PackItem};
+use reqtls::{BufferError, Writer};
+use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
 
 pub struct HPackEncode {
     table: Table,
@@ -22,14 +22,14 @@ impl HPackEncode {
         }
     }
 
-    fn encode_index<W: WriteExt>(&self, index: impl AsRef<Index>, writer: &mut W) -> Result<(), BufferError> {
+    fn encode_index(&self, index: impl AsRef<Index>, writer: &mut Writer) -> Result<(), BufferError> {
         let index = index.as_ref();
         let finish = index.write_to(writer)?;
         if finish { return Ok(()); }
         super::super::encode_integer(writer, index.remain())
     }
 
-    fn encode_string<W: WriteExt>(&self, value: impl AsRef<[u8]>, writer: &mut W) -> Result<(), BufferError> {
+    fn encode_string(&self, value: impl AsRef<[u8]>, writer: &mut Writer) -> Result<(), BufferError> {
         let huffman_encoded = huffman::encode(value.as_ref());
         let huffman = huffman_encoded.len() < value.as_ref().len();
         let value = if huffman { huffman_encoded.as_slice() } else { value.as_ref() };
@@ -39,7 +39,7 @@ impl HPackEncode {
         writer.write_slice(value.as_ref())
     }
 
-    pub fn encode_one<W: WriteExt>(&mut self, name: impl AsRef<str>, value: impl AsRef<str>, writer: &mut W) -> Result<(), BufferError> {
+    pub fn encode_one(&mut self, name: impl AsRef<str>, value: impl AsRef<str>, writer: &mut Writer) -> Result<(), BufferError> {
         let name = name.as_ref();
         let value = value.as_ref();
         let item = self.table.get_by_name_value(name, value);
@@ -89,15 +89,15 @@ impl HPackEncode {
 
 #[cfg(test)]
 mod tests {
-    use crate::Buffer;
     use crate::pack::hpack::index::Index;
     use crate::pack::HPackEncode;
+    use crate::Writer;
 
     #[test]
     fn test_index_encode() {
         let encoder = HPackEncode::default();
         //test-indexed
-        let mut buffer = Buffer::with_capacity(1024);
+        let mut buffer = Writer::with_capacity(1024);
         encoder.encode_index(Index::Indexed(33), &mut buffer).unwrap();
         encoder.encode_index(Index::Indexed(234), &mut buffer).unwrap();
         encoder.encode_index(Index::Indexed(898), &mut buffer).unwrap();
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn test_string_encode() {
         let encoder = HPackEncode::default();
-        let mut buffer = Buffer::with_capacity(1024);
+        let mut buffer = Writer::with_capacity(1024);
         encoder.encode_string("foo".as_bytes(), &mut buffer).unwrap();
         assert_eq!(buffer.filled(), [130, 148, 231]);
         buffer.reset();
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_hpack_encode() {
-        let mut buffer = Buffer::with_capacity(1024);
+        let mut buffer = Writer::with_capacity(1024);
         let mut encode = HPackEncode::default();
         //static table indexed
         encode.encode_one(":method", "GET", &mut buffer).unwrap();

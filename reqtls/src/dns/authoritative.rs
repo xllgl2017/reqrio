@@ -1,5 +1,4 @@
 use super::{DNSClass, DNSError, DNSValue, DnsType, Domain};
-use crate::buffer::ReadExt;
 use crate::Reader;
 
 #[derive(Debug)]

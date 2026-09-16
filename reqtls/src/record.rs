@@ -2,7 +2,7 @@ use super::version::Version;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{HandShakeError, Message, MessageParsed, ReadExt, Reader, WriteExt, ALPN};
+use crate::{HandShakeError, Message, MessageParsed, Reader, Writer, ALPN};
 
 #[derive(Debug, Copy, Clone)]
 pub enum RecordType {
@@ -30,7 +30,7 @@ impl RecordType {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct RecordLayer<'a> {
     pub content_type: RecordType,
     pub version: Version,
@@ -77,10 +77,10 @@ impl<'a> RecordLayer<'a> {
         })
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, kea: KeyExchangeAlg) -> RlsResult<()> {
+    pub fn write_to(self, writer: &mut Writer, kea: KeyExchangeAlg) -> RlsResult<()> {
         let offset = writer.offset().end;
         let sni = self.messages[0].parsed.client().and_then(|x| x.host_name()).unwrap_or("").to_string();
-        let h2 = self.messages[0].parsed.client().map(|x| x.alps().map(|x| x.values().iter().any(|x| x == &ALPN::Http20)).unwrap_or(false)).unwrap_or(false);
+        let h2 = self.messages[0].parsed.client().map(|x| x.alps().map(|x| x.values().iter().any(|x| x == &ALPN::HTTP20)).unwrap_or(false)).unwrap_or(false);
         writer.write_u8(self.content_type as u8)?;
         writer.write_u16(self.version.into_inner())?;
         let len = self.messages.iter().map(|x| x.parsed.len(kea)).sum::<usize>();

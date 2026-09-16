@@ -1,13 +1,13 @@
-use crate::buffer::{CipherDecodeBuffer, CipherEncodeBuffer};
+use crate::boring::AeadDir;
+use crate::buffer::{CipherEncodeBuffer, TlsDecodeBuffer};
 use crate::error::RlsResult;
+use crate::key::KeyType;
 use crate::message::{QUICFrame, QUICPacket};
 use crate::quic::QUICRange;
-use crate::suite::iv::Iv;
-use crate::{Buf, Buffer, BufferError, Cipher, CipherSuite, CipherType, Connection, PacketType, Reader, TlsSession, Version, WriteExt};
+use crate::{Aead, Buf, BufferError, Cipher, CipherSuite, CipherType, Connection, PacketType, Reader, TlsSession, Version, Writer};
 #[cfg(feature = "log")]
 use log::trace;
 use std::path::PathBuf;
-use crate::key::KeyType;
 
 pub struct QUICConnection {
     recv_sample: Cipher,
@@ -20,7 +20,7 @@ pub struct QUICConnection {
 impl QUICConnection {
     pub fn new(session: TlsSession, key_log: Option<PathBuf>, verify: bool) -> QUICConnection {
         let mut conn = Connection::new_client(session, key_log, true).with_verify(verify);
-        conn.cipher_suite = &CipherSuite::TLS_AES_128_GCM_SHA256;
+        conn.suite = &CipherSuite::TLS_AES_128_GCM_SHA256;
         conn.version = Version::TLS_1_3;
         QUICConnection {
             conn,
@@ -34,7 +34,7 @@ impl QUICConnection {
 
     /// [rfc9001 5.2](https://datatracker.ietf.org/doc/html/rfc9001#name-initial-secrets)
     pub fn make_initial_cipher(&mut self, cid: &Buf<'_>, force: bool) -> RlsResult<()> {
-        if !self.conn.recv_cipher.is_null() && !self.conn.send_cipher.is_null() & !force { return Ok(()); }
+        if !self.conn.decryptor.is_null() && !self.conn.encryptor.is_null() & !force { return Ok(()); }
         //清空现有的handshake bytes
         self.conn.session_bytes.clear();
         if !force { self.conn.derived.init(KeyType::Initial, &CipherSuite::TLS_AES_128_GCM_SHA256); }
@@ -48,8 +48,8 @@ impl QUICConnection {
 
     ///update sample cipher
     pub fn make_sample_cipher(&mut self, typ: KeyType) -> RlsResult<()> {
-        println!("{:?}-{:?}-{}", self.conn.cipher_suite, self.current, self.conn.server);
-        let cipher = self.get_cipher(self.conn.cipher_suite.cipher());
+        println!("{:?}-{:?}-{}", self.conn.suite, self.current, self.conn.server);
+        let cipher = self.get_cipher(self.conn.suite.aead());
         self.send_sample = Cipher::new(cipher);
         self.recv_sample = Cipher::new(cipher);
         let shk = self.conn.derived.key_block().send_hp_key(typ, self.conn.server);
@@ -60,26 +60,27 @@ impl QUICConnection {
         Ok(())
     }
 
-    fn get_cipher(&self, cipher: CipherType) -> CipherType {
-        match cipher {
-            CipherType::AES_128_GCM => CipherType::AES_128_ECB,
-            CipherType::AES_256_GCM => CipherType::AES_256_ECB,
-            CipherType::CHACHA20_POLY1305 => CipherType::CHACHA20_POLY1305,
+    fn get_cipher(&self, aead: &Aead) -> CipherType {
+        match *aead {
+            Aead::AES_128_GCM => CipherType::AES_128_ECB,
+            Aead::AES_256_GCM => CipherType::AES_256_ECB,
+            Aead::ChaCha20_POLY1305 => CipherType::CHACHA20_POLY1305,
             _ => unreachable!()
         }
     }
 
     fn init_cipher(&mut self, suite: Option<&'static CipherSuite>, typ: KeyType) -> RlsResult<()> {
         if self.current == typ { return Ok(()); }
-        let suite = suite.unwrap_or(self.conn.cipher_suite);
+        let suite = suite.unwrap_or(self.conn.suite);
         println!("{:?}>>{:?}; suite={:?}", self.current, typ, suite);
-        self.recv_sample = Cipher::new(self.get_cipher(suite.cipher()));
+        self.recv_sample = Cipher::new(self.get_cipher(suite.aead()));
         let rhk = self.conn.derived.key_block().recv_hp_key(typ, self.conn.server);
         self.recv_sample.set_secret_key(rhk, None);
         let rk = self.conn.derived.key_block().recv_key(typ, self.conn.server);
-        self.conn.recv_cipher.set_key(rk, &[], suite)?;
         let ri = self.conn.derived.key_block().recv_iv(typ, self.conn.server);
-        self.conn.recv_cipher.set_iv(Iv::new(ri, vec![]));
+        self.conn.decryptor.init_aead(*suite.aead(), AeadDir::Open, rk, ri)?;
+        // self.conn.decryptor.set_key(rk, ri, suite, AeadDir::Open)?;
+        // self.conn.recv_cipher.set_iv(Iv::new().with_init(ri));
         self.current = typ;
         Ok(())
     }
@@ -108,16 +109,17 @@ impl QUICConnection {
                 line: line!(),
             }.into());
         }
-        let buffer = CipherDecodeBuffer::from_quic(packet, buffer)?;
+        let mut buffer = TlsDecodeBuffer::from_quic(packet, buffer);
+        let aad = buffer.aad(packet.num)?;
+        let nonce = buffer.nonce(&self.conn.decryptor.iv, packet.num);
 
-
-        let len = self.conn.recv_cipher.decrypt(Some(packet.num), buffer).unwrap();
+        let len = self.conn.decryptor.open(&nonce, &aad, &mut buffer).unwrap();
         self.recv_nums.insert(packet.num);
         Ok(len)
     }
 
 
-    pub fn build_message(&mut self, mut packet: &mut QUICPacket, frames: &mut Vec<QUICFrame<'_>>, buffer: &mut Buffer) -> RlsResult<()> {
+    pub fn build_message(&mut self, packet: &mut QUICPacket, frames: &mut Vec<QUICFrame<'_>>, buffer: &mut Writer) -> RlsResult<()> {
         if packet.padding_size() != 0 {
             frames.push(QUICFrame::Padding(packet.padding_size()));
         }
@@ -128,14 +130,16 @@ impl QUICConnection {
             frame.write_to(buffer)?;
         }
         buffer.add_len(16);
-        self.make_message(buffer.filled_mut(), &mut packet)?;
+        self.make_message(buffer.filled_mut(), packet)?;
         Ok(())
     }
 
 
     pub fn make_message<'a>(&mut self, buffer: &mut [u8], packet: &mut QUICPacket<'a>) -> RlsResult<()> {
-        let encode_buffer = CipherEncodeBuffer::new_quic(buffer, packet, self.conn.cipher_suite);
-        self.conn.send_cipher.encrypt(Some(packet.num), encode_buffer)?;
+        let mut encode_buffer = CipherEncodeBuffer::new_quic(buffer, packet, self.conn.suite);
+        let aad = encode_buffer.aad(packet.num);
+        let nonce = self.conn.encryptor.iv.as_array(packet.num, None);
+        self.conn.encryptor.seal(&nonce, &aad, &mut encode_buffer)?;
         let sample = &buffer[packet.pn_offset + 4..packet.pn_offset + 20];
         let mut mask = self.send_sample.encrypt(sample)?;
         mask.truncate(5);
@@ -166,16 +170,16 @@ impl QUICConnection {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::ops::Range;
     use crate::connection::quic::QUICConnection;
     use crate::message::QUICFrame;
-    use crate::{Buf, Buffer, KeyExchangeAlg, Message, QUICPacket, ReadExt, Reader, RecordType, TlsSession, Version, WriteExt};
+    use crate::{Buf, KeyExchangeAlg, Message, QUICPacket, Reader, RecordType, TlsSession, Version, Writer};
+    use std::collections::HashMap;
+    use std::ops::Range;
 
-    fn decode(conn: &mut QUICConnection, origin: &[u8], queues: &mut Vec<(usize, u64, Range<usize>)>, bid: u64) -> Buffer {
+    fn decode(conn: &mut QUICConnection, origin: &[u8], queues: &mut Vec<(usize, u64, Range<usize>)>, bid: u64) -> Writer {
         let mut reader = Reader::from_slice(origin);
         let mut packet = QUICPacket::from_reader(&mut reader).unwrap();
-        let mut rb = Buffer::with_capacity(1500);
+        let mut rb = Writer::with_capacity(1500);
         let len = conn.read_message(&mut packet, &mut reader, rb.unfilled()).unwrap();
         let mut reader = Reader::from_slice(&rb.unfilled()[..len]);
         while reader.unread_len() > 0 {
@@ -188,8 +192,8 @@ mod tests {
         rb
     }
 
-    fn merge_buffer(mut queues: Vec<(usize, u64, Range<usize>)>, bufs: HashMap<u64, Buffer>) -> Buffer {
-        let mut buffer = Buffer::with_capacity(4096);
+    fn merge_buffer(mut queues: Vec<(usize, u64, Range<usize>)>, bufs: HashMap<u64, Writer>) -> Writer {
+        let mut buffer = Writer::with_capacity(4096);
         let mut last_offset = 0;
         while !queues.is_empty() {
             let pos = queues.iter().position(|x| x.0 == last_offset).unwrap();

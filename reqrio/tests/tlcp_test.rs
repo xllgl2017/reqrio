@@ -13,7 +13,7 @@ fn build_finger() -> Result<Fingerprint, HlsError> {
         ],
         extensions: vec![
             Extension::Reserved { typ: 0xfafa, value: Buf::Ref(&[]) },
-            Extension::ServerName(vec![SNType::HostName("")]),
+            Extension::ServerName(vec![ServerName::new_sni("")]),
             Extension::Reserved { typ: 0x8a8a, value: Buf::Ref(&[0]) },
         ],
     }, token)

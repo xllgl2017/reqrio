@@ -1,8 +1,9 @@
 use super::ech::{Aead, KDF};
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{Buf, BufferError, Reader, Writer};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 enum ClientHelloType {
     OuterClientHello = 0,
 }
@@ -17,7 +18,8 @@ impl ClientHelloType {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub(super) struct CipherSuite {
     pub(super) kdf: KDF,
     pub(super) aead: Aead,
@@ -33,22 +35,23 @@ impl CipherSuite {
 
     pub fn len(&self) -> usize { 4 }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u16(self.kdf as u16)?;
         writer.write_u16(self.aead as u16)
     }
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct EncryptClientHello<'a> {
     type_: ClientHelloType,
     cipher_suite: CipherSuite,
     config_id: u8,
     enc_len: u16,
-    enc: &'a [u8],
+    enc: Buf<'a>,
     payload_len: u16,
-    payload: &'a [u8],
+    payload: Buf<'a>,
 }
 
 impl<'a> EncryptClientHello<'a> {
@@ -61,9 +64,9 @@ impl<'a> EncryptClientHello<'a> {
             },
             config_id: 0,
             enc_len: 0,
-            enc: &[],
+            enc: Buf::Ref(&[]),
             payload_len: 0,
-            payload: &[],
+            payload: Buf::Ref(&[]),
         }
     }
 
@@ -73,9 +76,9 @@ impl<'a> EncryptClientHello<'a> {
         res.cipher_suite = CipherSuite::from_reader(&mut reader)?;
         res.config_id = reader.read_u8()?;
         res.enc_len = reader.read_u16()?;
-        res.enc = reader.read_slice(res.enc_len as usize)?;
+        res.enc = Buf::Ref(reader.read_slice(res.enc_len as usize)?);
         res.payload_len = reader.read_u16()?;
-        res.payload = reader.read_slice(res.payload_len as usize)?;
+        res.payload = Buf::Ref(reader.read_slice(res.payload_len as usize)?);
         Ok(res)
     }
 
@@ -83,7 +86,7 @@ impl<'a> EncryptClientHello<'a> {
         6 + self.cipher_suite.len() + self.enc.len() + self.payload.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.type_ as u8)?;
         self.cipher_suite.write_to(writer)?;
         writer.write_u8(self.config_id)?;

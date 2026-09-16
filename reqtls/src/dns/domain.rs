@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Formatter};
-use crate::buffer::ReadExt;
 use crate::dns::error::DNSError;
-use crate::{BufferError, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 
 pub struct Domain<'a>(Vec<&'a str>);
 
@@ -13,8 +12,8 @@ impl<'b, 'a: 'b> Domain<'a> {
     pub fn from_bytes(reader: &'b mut Reader<'a>) -> Result<Domain<'a>, DNSError> {
         let mut names = Vec::with_capacity(100);
         let mut pos = reader.position();
-        while reader.current() != 0 {
-            match reader.current() >> 6 == 0b11 {
+        while reader.current()? != 0 {
+            match reader.current()? >> 6 == 0b11 {
                 true => {
                     let read_pos = reader.read_u16()? as usize & 0b0011_1111_1111_1111;
                     if reader.position() - 2 == pos { pos += 2; }
@@ -38,7 +37,7 @@ impl<'b, 'a: 'b> Domain<'a> {
     }
 
     ///only support dns query
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         for item in self.0 {
             writer.write_u8(item.len() as u8)?;
             writer.write_slice(item.as_bytes())?;

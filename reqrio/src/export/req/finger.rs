@@ -74,7 +74,7 @@ pub extern "system" fn Fingerprint_add_ext_version(fingerprint: *mut Fingerprint
 #[allow(non_snake_case)]
 pub extern "system" fn Fingerprint_add_ext_curve(fingerprint: *mut Fingerprint, ext_typ: u16, curve: u16) {
     let fingerprint = unsafe { fingerprint.as_mut() };
-    let curve: NamedCurve = curve.into();
+    let curve=NamedCurve::new(curve);
     if let Some(fingerprint) = fingerprint {
         match fingerprint.tls_mut().find_mut(ext_typ) {
             Some(Extension::SupportedGroups(values)) => values.add_group(curve),
@@ -277,11 +277,11 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
                     extensions.push(Extension::SupportedVersions(SupportVersions::new(values)));
                 }
                 Extension::SUPPORTED_GROUP  if !value.is_null() => {
-                    let values: Vec<NamedCurve> = value.members().map(|x| x.as_u16().unwrap_or(0).into()).collect();
+                    let values: Vec<NamedCurve> = value.members().map(|x| NamedCurve::new(x.as_u16().unwrap_or(0))).collect();
                     extensions.push(Extension::SupportedGroups(SupportedGroups::new(values)));
                 }
                 Extension::KEY_SHARE if !value.is_null() => {
-                    let values: Vec<NamedCurve> = value.members().map(|x| x.as_u16().unwrap_or(0).into()).collect();
+                    let values: Vec<NamedCurve> = value.members().map(|x| NamedCurve::new(x.as_u16().unwrap_or(0))).collect();
                     extensions.push(Extension::KeyShare(KeyShare::new(values)));
                 }
                 Extension::APPLICATION_LAYER_PROTOCOL_NEGOTIATION  if !value.is_null() => {

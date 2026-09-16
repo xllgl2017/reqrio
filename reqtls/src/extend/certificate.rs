@@ -1,7 +1,9 @@
 use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
+#[cfg(debug_assertions)]
+use std::fmt::Debug;
+use std::fmt::{Display, Formatter};
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 
 #[derive(PartialEq, Copy, Clone)]
 pub struct CompressionMethod(u16);
@@ -31,7 +33,7 @@ impl CompressionMethod {
     }
 }
 
-
+#[cfg(debug_assertions)]
 impl Debug for CompressionMethod {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.0 {
@@ -61,7 +63,8 @@ impl From<u16> for CompressionMethod {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CompressCertificate {
     algorithms: Vec<CompressionMethod>,
 }
@@ -88,7 +91,7 @@ impl CompressCertificate {
         self.algorithms.len() * 2 + 1
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.len() as u8 - 1)?;
         for ty in self.algorithms {
             writer.write_u16(ty.0)?;

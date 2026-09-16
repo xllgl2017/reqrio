@@ -85,7 +85,7 @@ pub fn zstd_decompress(data: impl AsRef<[u8]>) -> Result<Vec<u8>, CodingError> {
     let mut decoder = ZstdDecoder::new()?;
     let mut wrote = 0;
     loop {
-        let mut writer = Buffer::from_ptr(out.as_mut());
+        let mut writer = Writer::from_ptr(out.as_mut());
         writer.add_len(wrote);
         let res = decoder.decompress(&mut reader, &mut writer);
         wrote = writer.filled().len();
@@ -122,7 +122,7 @@ pub fn br_decompress(buf: impl AsRef<[u8]>) -> Result<Vec<u8>, CodingError> {
     let mut out = vec![0; reader.size() * 2];
     let mut decoder = BrotliDecoder::new()?;
     let len = loop {
-        let mut writer = Buffer::from_ptr(out.as_mut());
+        let mut writer = Writer::from_ptr(out.as_mut());
         match decoder.decompress(&mut reader, &mut writer) {
             Ok(_) => break writer.filled().len(),
             Err(CodingError::Buffer(BufferError::CapacityTooSmall { .. })) => {

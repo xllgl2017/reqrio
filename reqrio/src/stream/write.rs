@@ -12,7 +12,7 @@ use tokio::io::AsyncWrite;
 #[must_use = "do nothing unless `.wait()/.await`"]
 pub struct BufWriting<'a, S> {
     pub(crate) stream: &'a mut S,
-    pub(crate) buf: &'a mut Buffer,
+    pub(crate) buf: &'a mut Writer,
     #[cfg(feature = "aync")]
     pub(crate) timeout: &'a mut Timeout,
 }
@@ -53,7 +53,7 @@ impl<'a, S: AsyncWrite + Unpin> Future for BufWriting<'a, S> {
 #[must_use = "do nothing unless `.wait()/.await`"]
 pub struct StreamWrite<'a> {
     pub(crate) stream: &'a mut Stream,
-    pub(crate) buf: &'a mut Buffer,
+    pub(crate) buf: &'a mut Writer,
 }
 
 impl<'a> StreamWrite<'a> {

@@ -45,7 +45,7 @@ impl Default for AcReq {
             certs: vec![],
             key: RsaKey::none(),
             ca_certs: vec![],
-            alpn: ALPN::Http20,
+            alpn: ALPN::HTTP20,
             key_log: None,
             url: Default::default(),
             tls_session: None,

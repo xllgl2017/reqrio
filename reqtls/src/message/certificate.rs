@@ -1,10 +1,11 @@
 use super::HandshakeType;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
-use crate::{u24, BufferError, CertType, CompressionMethod, ReadExt, Reader, SignatureAlgorithm, Version, WriteExt};
+use crate::{u24, BufferError, CertType, CompressionMethod, Reader, SignatureAlgorithm, Version, Writer};
+#[cfg(debug_assertions)]
 use std::fmt::Debug;
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Certificates<'a> {
     handshake_type: HandshakeType,
     certificates: Vec<Buf<'a>>,
@@ -49,7 +50,7 @@ impl<'a> Certificates<'a> {
         7 + self.certificates.iter().map(|x| 3 + x.len()).sum::<usize>()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u24(self.len() as u24 - 7)?;
@@ -73,7 +74,7 @@ impl<'a> Certificates<'a> {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CertificateStatus<'a> {
     handshake_type: HandshakeType,
     bytes: Buf<'a>,
@@ -90,7 +91,7 @@ impl<'a> CertificateStatus<'a> {
 
     pub fn len(&self) -> usize { self.bytes.len() }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.bytes.len() as u24)?;
         writer.write_slice(self.bytes.as_ref())
@@ -98,7 +99,7 @@ impl<'a> CertificateStatus<'a> {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CertificateRequest<'a> {
     handshake_type: HandshakeType,
     cert_type: Vec<CertType>,
@@ -162,7 +163,7 @@ impl<'a> CertificateRequest<'a> {
         9 + self.cert_type.len() + self.hashes.len() * 2 + self.distinguished_name.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u8(self.cert_type.len() as u8)?;
@@ -183,7 +184,7 @@ impl<'a> CertificateRequest<'a> {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CertificateVerify<'a> {
     handshake_type: HandshakeType,
     sign_hash: SignatureAlgorithm,
@@ -220,7 +221,7 @@ impl<'a> CertificateVerify<'a> {
         8 + self.sign.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u16(self.sign_hash.into_inner())?;
@@ -246,7 +247,7 @@ impl<'a> CertificateVerify<'a> {
 }
 
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct CompressedCertificate<'a> {
     handshake_type: HandshakeType,
     algorithm: CompressionMethod,
@@ -272,7 +273,7 @@ impl<'a> CompressedCertificate<'a> {
         })
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u16(self.algorithm.into_inner())?;
         writer.write_u24(self.uncompressed_len)?;

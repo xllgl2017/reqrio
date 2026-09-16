@@ -264,7 +264,6 @@ mod suite;
 mod connection;
 mod record;
 mod version;
-mod bytes;
 mod error;
 pub mod rand;
 mod boring;
@@ -290,19 +289,18 @@ pub use boring::{
     base64, certificate::BasicConstraint, certificate::CertExtend, certificate::CertSigner,
     certificate::CertStore, certificate::CertType, certificate::Certificate, certificate::DnType,
     certificate::KeyIdentifier, certificate::KeyUsage, certificate::SubjectAltName, cipher, hash,
-    hmac, AlgorithmSigner, Cipher, CipherType, PKey, PKeyCtx, Padding, RsaCipher,
+    hmac, AlgorithmSigner, Cipher, CipherType, Padding, RsaCipher, AeadCtx, AeadDir,
     RsaKey, RsaPadding, SignatureAlgorithm,
 };
-pub use buffer::{u24, Buf, Buffer, BufferError, ReadExt, Reader, WriteExt};
-pub use bytes::Bytes;
+pub use buffer::{u24, Buf, Writer, BufferError, Reader};
 pub use config::{ClientConfig, Config, ServerConfig};
 pub use connection::Connection;
 pub use error::{HandShakeError, RlsError};
 pub use ext::{StreamHandle, StreamParam};
 pub use extend::{
     EcPointFormats, EcPointFormat, CompressionMethod, KeyShare, PskMode, SupportVersions, Extension,
-    StatusRequest, SupportedGroups, SignatureAlgorithms, CompressCertificate, ALPS, SNType, 
-    EncryptClientHello,
+    StatusRequest, SupportedGroups, SignatureAlgorithms, CompressCertificate, ALPS, Aead,
+    EncryptClientHello, ServerName, KeyEntry,
 };
 pub use finger::*;
 pub use hash::{HashType, Hasher, Hmac};
@@ -313,7 +311,7 @@ pub use key::{SecretKey, TlsSession, KeyType};
 pub use log::*;
 pub use message::{Alert, CertificateRequest, CertificateVerify, Certificates, ClientHello, Message,
                   ClientKeyExchange, MessageParsed, NamedCurve, ServerHello, ServerHelloDone,
-                  ServerKeyExchange, SessionTicket, TlsSessionTicket};
+                  ServerKeyExchange, SessionTicket, TlsSessionTicket, HandshakeType};
 #[cfg(feature = "quic")]
 pub use message::{PacketType, QUICPacket, QUICFlag};
 pub use record::{RecordLayer, RecordType};

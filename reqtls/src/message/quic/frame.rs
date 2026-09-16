@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{Buf, BufferError, ReadExt, Reader, WriteExt};
+use crate::{Buf, BufferError, Reader, Writer};
 use crate::quic::{self, QUICError};
 
 #[repr(u16)]
@@ -52,7 +52,7 @@ impl From<u16> for TrpErrKind {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct QUICFrameFlag {
     fin: bool,
     len: bool,
@@ -102,7 +102,7 @@ impl From<u64> for QUICFrameFlag {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct AckRange {
     pub gap: u64,
     pub range: u64,
@@ -119,7 +119,7 @@ impl AckRange {
         quic::variant_len(self.gap as usize) + quic::variant_len(self.range as usize)
     }
 
-    pub fn write_to<W: WriteExt>(&self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         quic::write_variant(self.gap as usize, writer)?;
         quic::write_variant(self.range as usize, writer)
     }
@@ -179,7 +179,7 @@ impl From<u64> for QUICFrameType {
 }
 
 #[repr(u64)]
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum QUICFrame<'a> {
     Padding(usize),
     Ping,
@@ -378,7 +378,7 @@ impl<'a> QUICFrame<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(&self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         match self {
             QUICFrame::Padding(size) => writer.write_slice(&vec![0; *size]),
             QUICFrame::Ping => writer.write_u8(0x01),

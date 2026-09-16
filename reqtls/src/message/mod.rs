@@ -11,7 +11,7 @@ mod quic;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{BufferError, HandShakeError, ReadExt, Reader, RecordType, Version, WriteExt};
+use crate::{BufferError, HandShakeError, Reader, RecordType, Version, Writer};
 pub use alert::Alert;
 use certificate::CertificateStatus;
 pub use certificate::Certificates;
@@ -23,13 +23,16 @@ pub use key_exchange::{ClientKeyExchange, NamedCurve, ServerKeyExchange};
 pub use quic::*;
 pub use server_hello::{ServerHello, ServerHelloDone};
 pub use session_ticket::{SessionTicket, TlsSessionTicket};
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+#[cfg(debug_assertions)]
+use std::fmt::Formatter;
 
 pub struct Message<'a> {
     pub encoded: Buf<'a>,
     pub parsed: MessageParsed<'a>,
 }
 
+#[cfg(debug_assertions)]
 impl<'a> Debug for Message<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Message {{")?;
@@ -168,7 +171,7 @@ impl<'a> MessageParsed<'a> {
         }
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, kea: KeyExchangeAlg) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, kea: KeyExchangeAlg) -> Result<(), BufferError> {
         match self {
             MessageParsed::UnParsed => Ok(()),
             MessageParsed::ClientHello(v) => v.write_to(writer),
@@ -235,6 +238,7 @@ impl<'a> MessageParsed<'a> {
     }
 }
 
+#[cfg(debug_assertions)]
 impl<'a> Debug for MessageParsed<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

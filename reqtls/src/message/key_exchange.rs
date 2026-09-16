@@ -3,10 +3,11 @@ use super::super::message::HandshakeType;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{u24, BufferError, ReadExt, Reader, Version, WriteExt};
+use crate::{u24, BufferError, Reader, Version, Writer};
 use std::fmt::{Debug, Display, Formatter};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum CurveType {
     NamedCurve = 0x3
 }
@@ -29,25 +30,23 @@ pub struct NamedCurve(u16);
 
 #[allow(non_upper_case_globals)]
 impl NamedCurve {
-    pub const X25519: u16 = 0x1d;
-    pub const X448: u16 = 0x1e;
-    pub const X25519MLKEM768: u16 = 0x11ec;
-    pub const SecP256r1MLKEM768: u16 = 0x11eb;
-    pub const SecP384r1MLKEM1024: u16 = 0x11ed;
-    pub const SecP256r1: u16 = 0x0017;
-    pub const SecP384r1: u16 = 0x0018;
-    pub const SecP521r1: u16 = 0x0019;
-    pub const FFDHE2048: u16 = 0x0100;
-    pub const FFDHE3072: u16 = 0x0101;
-    pub const FFDHE4096: u16 = 0x0102;
-    pub const FFDHE6144: u16 = 0x0103;
-    pub const FFDHE8192: u16 = 0x0104;
+    pub const X25519: NamedCurve = NamedCurve::new(0x1d);
+    pub const X448: NamedCurve = NamedCurve::new(0x1e);
+    pub const X25519MLKEM768: NamedCurve = NamedCurve::new(0x11ec);
+    pub const SecP256r1MLKEM768: NamedCurve = NamedCurve::new(0x11eb);
+    pub const SecP384r1MLKEM1024: NamedCurve = NamedCurve::new(0x11ed);
+    pub const SecP256r1: NamedCurve = NamedCurve::new(0x0017);
+    pub const SecP384r1: NamedCurve = NamedCurve::new(0x0018);
+    pub const SecP521r1: NamedCurve = NamedCurve::new(0x0019);
+    pub const FFDHE2048: NamedCurve = NamedCurve::new(0x0100);
+    pub const FFDHE3072: NamedCurve = NamedCurve::new(0x0101);
+    pub const FFDHE4096: NamedCurve = NamedCurve::new(0x0102);
+    pub const FFDHE6144: NamedCurve = NamedCurve::new(0x0103);
+    pub const FFDHE8192: NamedCurve = NamedCurve::new(0x0104);
+    pub const ECC_SM2: NamedCurve = NamedCurve::new(0xFFFF);
+    pub const PRE_MASTER: NamedCurve = NamedCurve::new(0xFFFE);
 
-
-    pub const ECC_SM2: u16 = 0xFFFF;
-
-
-    pub const ALL: [u16; 13] = [
+    pub const ALL: [NamedCurve; 13] = [
         NamedCurve::X25519,
         NamedCurve::X448,
         NamedCurve::SecP256r1,
@@ -63,8 +62,8 @@ impl NamedCurve {
         NamedCurve::FFDHE8192
     ];
 
-    fn spec(&self) -> &str {
-        match self.0 {
+    const fn spec(&self) -> &str {
+        match *self {
             NamedCurve::X25519 => "X25519",
             NamedCurve::X448 => "X448",
             NamedCurve::X25519MLKEM768 => "X25519MLKEM768",
@@ -81,28 +80,37 @@ impl NamedCurve {
         }
     }
 
-    pub fn new(v: u16) -> NamedCurve {
+    pub const fn new(v: u16) -> NamedCurve {
         NamedCurve(v)
     }
 
-    pub fn into_inner(self) -> u16 { self.0 }
+    pub const fn into_inner(self) -> u16 { self.0 }
 
-    pub fn as_u16(&self) -> u16 {
+    pub const fn as_u16(&self) -> u16 {
         self.0
     }
 
     pub fn is_reserved(&self) -> bool {
         crate::REVERSED.contains(&self.0)
     }
+
+    pub fn pubkey_len(&self) -> usize {
+        match *self {
+            NamedCurve::X25519 => 32,
+            NamedCurve::SecP256r1 => 65,
+            NamedCurve::SecP384r1 => 97,
+            NamedCurve::SecP521r1 => 133,
+            NamedCurve::X25519MLKEM768 => 1216,
+            NamedCurve::SecP256r1MLKEM768 => 1249,
+            NamedCurve::PRE_MASTER => 48,
+            _ => unreachable!("{}", self)
+        }
+    }
 }
 
-impl From<u16> for NamedCurve {
-    fn from(v: u16) -> Self { NamedCurve(v) }
-}
-
-impl PartialEq<u16> for &NamedCurve {
-    fn eq(&self, other: &u16) -> bool {
-        &self.0 == other
+impl PartialEq<NamedCurve> for &NamedCurve {
+    fn eq(&self, other: &NamedCurve) -> bool {
+        self.0 == other.0
     }
 }
 
@@ -118,14 +126,8 @@ impl Display for NamedCurve {
     }
 }
 
-impl PartialEq<u16> for NamedCurve {
-    fn eq(&self, other: &u16) -> bool {
-        &self.0 == other
-    }
-}
 
-
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ServerHellmanParam<'a> {
     curve_type: CurveType,
     named_curve: NamedCurve,
@@ -169,7 +171,7 @@ impl<'a> ServerHellmanParam<'a> {
         8 + self.pub_key.len() + self.signature.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.curve_type as u8)?;
         writer.write_u16(self.named_curve.0)?;
         writer.write_u8(self.pub_key.len() as u8)?;
@@ -206,7 +208,7 @@ impl<'a> ServerHellmanParam<'a> {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ServerKeyExchange<'a> {
     handshake_type: HandshakeType,
     hellman_param: ServerHellmanParam<'a>,
@@ -236,7 +238,7 @@ impl<'a> ServerKeyExchange<'a> {
         4 + self.hellman_param.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.hellman_param.len() as u24)?;
         self.hellman_param.write_to(writer)
@@ -249,7 +251,7 @@ impl<'a> ServerKeyExchange<'a> {
     pub fn hellman_param_mut(&mut self) -> &mut ServerHellmanParam<'a> { &mut self.hellman_param }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ClientHellmanParam<'a> {
     pub_key_len: u16,
     pub_key: Buf<'a>,
@@ -279,7 +281,7 @@ impl<'a> ClientHellmanParam<'a> {
         key_size + self.pub_key.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, alg: KeyExchangeAlg) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, alg: KeyExchangeAlg) -> Result<(), BufferError> {
         match alg {
             KeyExchangeAlg::RSA | KeyExchangeAlg::ECC => writer.write_u16(self.pub_key.len() as u16)?,
             _ => writer.write_u8(self.pub_key.len() as u8)?,
@@ -292,7 +294,7 @@ impl<'a> ClientHellmanParam<'a> {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ClientKeyExchange<'a> {
     handshake_type: HandshakeType,
     hellman_param: ClientHellmanParam<'a>,
@@ -320,7 +322,7 @@ impl<'a> ClientKeyExchange<'a> {
         4 + self.hellman_param.len(kea)
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W, kea: KeyExchangeAlg) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, kea: KeyExchangeAlg) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.hellman_param.len(kea) as u24)?;
         self.hellman_param.write_to(writer, kea)

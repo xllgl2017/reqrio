@@ -3,18 +3,19 @@ use crate::error::RlsResult;
 use crate::extend::SignatureAlgorithms;
 use crate::extend::alps::ALPS;
 use crate::extend::group::SupportedGroups;
-use crate::extend::{CompressCertificate, Extension, SNType, StatusRequest};
+use crate::extend::{CompressCertificate, Extension, StatusRequest};
 use crate::*;
+#[cfg(debug_assertions)]
 use std::fmt::Debug;
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum TlsFinger {
     Default,
     ClientHello {
         ///record layer version
         record_version: Version,
         ///client hello bytes
-        bytes: Bytes,
+        bytes: Buf<'static>,
     },
     Custom {
         ///record layer version
@@ -38,7 +39,7 @@ impl TlsFinger {
                 reader.read_u8()?;
                 let mut res = ClientHello::from_bytes(&mut reader)?;
                 match alpn {
-                    ALPN::Http20 => res.add_h2_alpn(),
+                    h2 if h2 == ALPN::HTTP20 => res.add_h2_alpn(),
                     _ => res.remove_h2_alpn()
                 }
                 Ok(res)
@@ -124,8 +125,8 @@ impl TlsFinger {
                 Extension::KeyShare(KeyShare::new(groups)),
                 Extension::CompressionCertificate(CompressCertificate::new(vec![CompressionMethod::NULL])),
                 Extension::SupportedVersions(SupportVersions::new(versions)),
-                Extension::ApplicationLayerProtocolNegotiation(ALPS::new(vec![ALPN::Http20, ALPN::Http11])),
-                Extension::ServerName(vec![SNType::HostName("")]),
+                Extension::ApplicationLayerProtocolNegotiation(ALPS::new(vec![ALPN::HTTP20, ALPN::HTTP11])),
+                Extension::ServerName(vec![ServerName::new_sni("")]),
                 Extension::EcPointFormats(EcPointFormats::new(TlsFinger::random_formats())),
                 Extension::RenegotiationInfo,
                 Extension::ExtendMasterSecret,
@@ -221,8 +222,8 @@ impl TlsFinger {
                 }
             });
         }
-        extensions.push(Extension::ServerName(vec![SNType::HostName("")]));
-        extensions.push(Extension::ApplicationLayerProtocolNegotiation(ALPS::new(vec![ALPN::Http20, ALPN::Http11])));
+        extensions.push(Extension::ServerName(vec![ServerName::new_sni("")]));
+        extensions.push(Extension::ApplicationLayerProtocolNegotiation(ALPS::new(vec![ALPN::HTTP20, ALPN::HTTP11])));
         Ok(TlsFinger::Custom {
             record_version: Version::TLS_1_0,
             message_version: Version::TLS_1_2,
@@ -238,7 +239,7 @@ impl TlsFinger {
         let len = u16::from_be_bytes([client_hello[3], client_hello[4]]) as usize + 5;
         let _ = client_hello.split_off(len);
         let client_hello = client_hello.split_off(5);
-        Ok(TlsFinger::ClientHello { record_version: ver, bytes: Bytes::new(client_hello) })
+        Ok(TlsFinger::ClientHello { record_version: ver, bytes: Buf::Vec(client_hello) })
     }
 
     pub fn add_cipher_suite(&mut self, suite: CipherSuite) {

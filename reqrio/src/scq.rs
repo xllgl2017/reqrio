@@ -43,7 +43,7 @@ impl Default for ScReq {
             certs: vec![],
             key: RsaKey::none(),
             ca_certs: vec![],
-            alpn: ALPN::Http20,
+            alpn: ALPN::HTTP20,
             key_log: None,
             url: Url::default(),
             tls_session: None,

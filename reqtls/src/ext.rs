@@ -2,21 +2,23 @@ use crate::config::{ClientConfig, Config};
 use crate::error::RlsResult;
 use crate::*;
 #[cfg(feature = "log")]
-use log::{debug, trace, warn};
+use log::debug;
+#[cfg(all(debug_assertions, feature = "log"))]
+use log::{trace, warn};
 use std::collections::HashMap;
 
 pub struct StreamParam<'a> {
     pub handshake_finish: &'a mut bool,
     pub encrypted_channel: &'a mut bool,
     pub hello_retrying: &'a mut bool,
-    pub write_buffer: &'a mut Buffer,
+    pub write_buffer: &'a mut Writer,
     pub conn: &'a mut Connection,
 }
 
 pub trait StreamHandle {
     const CHANGE_CIPHER_SPEC: [u8; 6] = [20, 3, 3, 0, 1, 1];
 
-    fn stream_param(&mut self) -> (&Buffer, StreamParam<'_>);
+    fn stream_param(&mut self) -> (&Writer, StreamParam<'_>);
 
     fn handle_client_hello(&mut self, config: &mut ClientConfig) -> RlsResult<()> {
         let (_, param) = self.stream_param();
@@ -35,7 +37,7 @@ pub trait StreamHandle {
         let mut secrets = HashMap::new();
         let key_share = match config.alpn {
             #[cfg(feature = "quic")]
-            ALPN::Http30 => match client_hello.key_share_mut().is_some() {
+            h3 if h3 == ALPN::HTTP30 => match client_hello.key_share_mut().is_some() {
                 true => client_hello.key_share_mut(),
                 false => return Err(HandShakeError::QUICMissingKeyShare.into()),
             }
@@ -45,16 +47,16 @@ pub trait StreamHandle {
             None => client_hello.remove_tls13(),
             Some(key_share) => {
                 key_share.key_entries().iter().for_each(|key| {
-                    if let Ok(secret) = SecretKey::new(key.name_curve()) {
-                        secrets.insert(*key.name_curve(), secret);
+                    if let Ok(secret) = SecretKey::new(key.group()) {
+                        secrets.insert(key.group(), secret);
                     }
                 });
                 let mut deletes = vec![];
                 for (i, key_entry) in key_share.key_entries_mut().iter_mut().enumerate() {
-                    if let Some(secret) = secrets.get(key_entry.name_curve()) {
-                        key_entry.set_exchange_key(secret.pub_key()?)
+                    if let Some(secret) = secrets.get(&key_entry.group()) {
+                        key_entry.set_key(secret.pub_key()?)
                     }
-                    if key_entry.exchange_key().is_empty() { deletes.push(i); }
+                    if key_entry.is_empty() { deletes.push(i); }
                 }
                 deletes.reverse();
                 for del in deletes {
@@ -63,7 +65,7 @@ pub trait StreamHandle {
             }
         }
         #[cfg(feature = "quic")]
-        if config.alpn == &ALPN::Http30 { client_hello.build_quic()?; }
+        if config.alpn == &ALPN::HTTP30 { client_hello.build_quic()?; }
         let mut record = RecordLayer::handshake(config.fingerprint.record_version());
         record.messages = vec![client_hello.into()];
 
@@ -81,20 +83,24 @@ pub trait StreamHandle {
         let hello_retry = param.conn.set_by_server_hello(&server_hello, version)?;
         if hello_retry {
             #[cfg(feature = "log")]
-            debug!("[ParsingServerHello] hello_retry=true; retry_share={:?}",server_hello.key_share_extend().map(|x|x.key_entry().name_curve()));
+            debug!("[ParsingServerHello] hello_retry=true; retry_share={:?}",server_hello.key_share_extend().map(|x|x.key_entry().group()));
+
+            let secrets = param.conn.secret_keys_mut();
+            secrets.clear();
+            let server_entries = server_hello.key_share_extend().ok_or(HandShakeError::RetryNoKeyShare)?.key_entries();
+            for entry in server_entries.iter() {
+                let secret = SecretKey::new(entry.group())?;
+                secrets.insert(entry.group(), secret);
+            }
             let mut reader = Reader::from_slice(param.conn.session_bytes());
             reader.read_u8()?;
             let mut client = ClientHello::from_bytes(&mut reader)?;
-            let mut secrets = HashMap::new();
-            for entry in server_hello.key_share_extend().ok_or(HandShakeError::RetryNoKeyShare)?.key_entries() {
-                let secret = SecretKey::new(entry.name_curve())?;
-                secrets.insert(*entry.name_curve(), secret);
+            let entries = client.key_share_mut().ok_or(HandShakeError::RetryNoKeyShare)?.key_entries_mut();
+            *entries = server_entries.to_vec();
+            for entry in entries.iter_mut() {
+                let secrets = param.conn.secret_keys().get(&entry.group()).ok_or(HandShakeError::RetryGroupNotSupported(entry.group()))?;
+                entry.set_key(secrets.pub_key()?);
             }
-            let mut key_share = KeyShare::default();
-            for (name_curve, secret) in secrets.iter_mut() {
-                key_share.add_entry(*name_curve, secret.pub_key()?);
-            }
-            client.set_key_share(key_share);
             let record = RecordLayer {
                 content_type: RecordType::HandShake,
                 len: 0,
@@ -103,7 +109,6 @@ pub trait StreamHandle {
             };
             record.write_to(param.write_buffer, param.conn.cipher_suite().exchange_alg())?;
             param.conn.hello_retry(&param.write_buffer.filled()[5..])?;
-            param.conn.set_secret_keys(secrets);
             *param.hello_retrying = true;
             return Ok(true);
         }
@@ -189,7 +194,7 @@ pub trait StreamHandle {
     }
 
     fn handle_handshake(param: &mut StreamParam<'_>, mut config: Option<&mut Config<'_>>, message: Message<'_>, version: Version) -> RlsResult<()> {
-        #[cfg(feature = "log")]
+        #[cfg(all(debug_assertions, feature = "log"))]
         trace!("[HandleHandshake] message: {:?}]", message);
         match message.parsed {
             MessageParsed::ServerHello(server_hello) => {
@@ -263,7 +268,7 @@ pub trait StreamHandle {
                 param.conn.update_session(message.encoded.as_ref())?;
             }
             _ => {
-                #[cfg(feature = "log")]
+                #[cfg(all(debug_assertions, feature = "log"))]
                 warn!("unhandled message: {:?}", message);
             }
         }
@@ -276,7 +281,7 @@ pub trait StreamHandle {
         let record = RecordLayer::from_bytes(read_buffer.filled(), param.conn.cipher_suite().exchange_alg(), *param.encrypted_channel)?;
         match record.content_type {
             RecordType::CipherSpec => {
-                #[cfg(feature = "log")]
+                #[cfg(all(debug_assertions, feature = "log"))]
                 trace!("[HandleRecord] {:?}", record);
                 *param.encrypted_channel = !*param.hello_retrying;
                 if param.conn.secret_key().is_none() && param.conn.version() == &Version::TLS_1_2 {
@@ -284,13 +289,13 @@ pub trait StreamHandle {
                 }
             }
             RecordType::Alert => {
-                #[cfg(feature = "log")]
+                #[cfg(all(debug_assertions, feature = "log"))]
                 trace!("[HandleRecord] {:?}", record);
                 return Err(RlsError::Alert(self.handle_by_alert()?));
             }
             RecordType::HandShake => match *param.encrypted_channel {
                 true => {
-                    #[cfg(feature = "log")]
+                    #[cfg(all(debug_assertions, feature = "log"))]
                     trace!("[HandleRecord] {:?}", record);
                     let out = param.write_buffer.unfilled();
                     let len = param.conn.read_message(&read_buffer.filled()[..record_len], out)?;
@@ -302,7 +307,7 @@ pub trait StreamHandle {
                 }
             }
             RecordType::ApplicationData => {
-                #[cfg(feature = "log")]
+                #[cfg(all(debug_assertions, feature = "log"))]
                 trace!("[HandleRecord] {:?}", record);
                 return self.handle_by_application(record_len, config, app_buf);
             }

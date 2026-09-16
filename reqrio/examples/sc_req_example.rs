@@ -52,13 +52,13 @@ fn build_finger() -> Fingerprint {
                 NamedCurve::SecP256r1.into(),
             ])),
             Extension::ApplicationSetting(ALPS::new(vec![
-                ALPN::Http20,
-                ALPN::Http11
+                ALPN::HTTP20,
+                ALPN::HTTP11
             ])),
-            Extension::ServerName(vec![SNType::HostName("")]),
+            Extension::ServerName(vec![ServerName::new_sni("")]),
             Extension::ApplicationLayerProtocolNegotiation(ALPS::new(vec![
-                ALPN::Http20,
-                ALPN::Http11
+                ALPN::HTTP20,
+                ALPN::HTTP11
             ]))
         ],
     };

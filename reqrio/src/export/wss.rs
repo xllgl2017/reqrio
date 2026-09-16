@@ -24,7 +24,7 @@ pub extern "system" fn ws_open_raw(url: *const c_char, context: *const c_char) -
     || -> HlsResult<*mut WebSocket>{
         let url = unsafe { CStr::from_ptr(url) }.to_str()?;
         let context = unsafe { CStr::from_ptr(context) }.to_bytes();
-        let mut buffer = Buffer::with_capacity(16469);
+        let mut buffer = Writer::with_capacity(16469);
         let mut stream = ScReq::new().connect(url)?.into_stream()?;
         buffer.write_slice(context)?;
         stream.write(&mut buffer).wait()?;

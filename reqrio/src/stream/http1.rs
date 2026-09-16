@@ -4,12 +4,12 @@ use crate::reader::ReadExt;
 use crate::request::RequestBuffer;
 use crate::stream::Stream;
 use crate::{Body, Header, Response};
-use reqtls::Buffer;
+use reqtls::Writer;
 use std::collections::HashMap;
 
 pub struct HTTP1StreamS {
-    write_buffer: Buffer,
-    read_buffer: Buffer,
+    write_buffer: Writer,
+    read_buffer: Writer,
     stream: Stream,
     send_sid: u64,
     recv_sid: u64,
@@ -19,8 +19,8 @@ pub struct HTTP1StreamS {
 impl HTTP1StreamS {
     pub fn new(stream: Stream) -> HTTP1StreamS {
         HTTP1StreamS {
-            write_buffer: Buffer::with_capacity(16384),
-            read_buffer: Buffer::with_capacity(16438),
+            write_buffer: Writer::with_capacity(16384),
+            read_buffer: Writer::with_capacity(16438),
             stream,
             send_sid: 0,
             recv_sid: 0,
@@ -68,8 +68,8 @@ impl HTTP1StreamS {
 
 #[cfg(feature = "aync")]
 pub struct HTTP1StreamA {
-    write_buffer: Buffer,
-    read_buffer: Buffer,
+    write_buffer: Writer,
+    read_buffer: Writer,
     stream: Stream,
     send_sid: u64,
     recv_sid: u64,
@@ -79,8 +79,8 @@ pub struct HTTP1StreamA {
 impl HTTP1StreamA {
     pub fn new(stream: Stream) -> HTTP1StreamA {
         HTTP1StreamA {
-            write_buffer: Buffer::with_capacity(16384),
-            read_buffer: Buffer::with_capacity(16438),
+            write_buffer: Writer::with_capacity(16384),
+            read_buffer: Writer::with_capacity(16438),
             stream,
             send_sid: 0,
             recv_sid: 0,

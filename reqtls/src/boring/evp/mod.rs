@@ -1,25 +1,12 @@
-use crate::boring::{CryptDecodeParam, HashType};
-mod curve;
 pub mod cipher;
 mod aead;
 mod error;
-mod pkey;
-mod pkey_ctx;
+mod iv;
 
-use crate::boring::bindings::*;
-use crate::error::RlsResult;
-pub use aead::AeadCtx;
+pub use aead::{AeadCtx, AeadDir};
 pub use cipher::Cipher;
-pub use curve::EvpCurve;
-
-use crate::boring::CryptEncodeParam;
-use crate::cipher::CipherError;
-use crate::hash::Hmac;
 pub use error::EvpError;
-pub use pkey::PKey;
-use pkey::PKEY;
-pub use pkey_ctx::PKeyCtx;
-pub use pkey_ctx::PKeyError;
+pub use iv::Iv;
 
 #[repr(C)]
 #[allow(non_camel_case_types)]
@@ -55,82 +42,11 @@ pub enum CipherType {
     CHACHA20_POLY1305 = 26,
 }
 
-
-pub struct CipherCrypto {
-    mac_key: Vec<u8>,
-    cipher: Cipher,
-    hash: HashType,
-}
-
-impl CipherCrypto {
-    pub fn new(cipher: CipherType, key: Vec<u8>, mac: Vec<u8>, hash: HashType) -> RlsResult<CipherCrypto> {
-        let cipher = Cipher::new(cipher).with_secret_key(key, None);
-        Ok(CipherCrypto {
-            mac_key: mac,
-            cipher,
-            hash,
-        })
-    }
-
-    /// cbc加密块:
-    /// ```text
-    /// mac = HMAC_SHA1(mac_key, seq_num + record_type + version + len(明文) + plaintext) //20位
-    /// ciphertext = AES_CBC(key, iv, plaintext || mac || padding) //pcsk7
-    ///```
-    pub fn encrypt(&self, param: CryptEncodeParam) -> RlsResult<()> {
-        self.cipher.init_cipher(param.iv, 1)?;
-        let mut hmac = Hmac::new(&self.mac_key, self.hash)?;
-        hmac.update(param.seq.to_be_bytes())?;
-        hmac.update(&param.buffer.head()[..3])?;
-        let payload = param.buffer.payload();
-        hmac.update((payload.origin_payload().len() as u16).to_be_bytes())?;
-        hmac.update(payload.origin_payload())?;
-        let mac = hmac.finalize()?;
-        let context = payload.origin_payload().as_ptr();
-        let out = payload.encoded_payload().as_mut_ptr();
-        let plain_len = self.cipher.update(context, payload.origin_payload().len(), out)?;
-        let out = unsafe { out.add(plain_len) };
-        let mac_len = self.cipher.update(mac.as_ptr(), mac.len(), out)?;
-        let padding_len = 16 - (payload.origin_payload().len() + mac.len() + 1) % 16;
-        let padding = vec![padding_len as u8; padding_len + 1];
-        let out = unsafe { out.add(mac_len) };
-        let padding_len = self.cipher.update(padding.as_ptr(), padding.len(), out)?;
-        let out = unsafe { out.add(padding_len) };
-        let final_len = self.cipher.finalize(out)?;
-        let len = plain_len + mac_len + padding_len + final_len;
-        param.buffer.set_encrypted_len(len);
-        Ok(())
-    }
-
-    pub fn decrypt(&self, param: CryptDecodeParam) -> RlsResult<usize> {
-        self.cipher.init_cipher(param.iv, 0)?;
-        let context = param.buffer.encrypted_payload().as_ptr();
-        let out = param.buffer.decrypted_buffer().as_mut_ptr();
-        let out_len = self.cipher.update(context, param.buffer.encrypted_payload().len(), out)?;
-        let out = unsafe { out.add(out_len) };
-        let final_len = self.cipher.finalize(out)?;
-        let len = out_len + final_len;
-        let padding_len = param.buffer.decrypted_buffer()[len - 1] as usize;
-        let len = len - padding_len - 1;
-        let mut hmac = Hmac::new(&self.mac_key, self.hash)?;
-        hmac.update(param.seq.to_be_bytes())?;
-        hmac.update(&param.buffer.head()[..3])?;
-        hmac.update((len as u16 - self.hash.hash_size() as u16).to_be_bytes())?;
-        hmac.update(&param.buffer.decrypted_buffer()[..len - self.hash.hash_size()])?;
-        let cmac = hmac.finalize()?;
-        let mac = &param.buffer.decrypted_buffer()[len - self.hash.hash_size()..len];
-        let res = unsafe { CRYPTO_memcmp(cmac.as_ptr() as *const _, mac.as_ptr() as *const _, mac.len()) };
-        if res != 0 { return Err(CipherError::InvalidMac.into()); }
-        Ok(len - self.hash.hash_size())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::boring::evp::CipherCrypto;
-    use crate::boring::{CryptDecodeParam, CryptEncodeParam};
-    use crate::buffer::{CipherDecodeBuffer, CipherEncodeBuffer};
-    use crate::{CipherSuite, RecordType};
+    use crate::boring::AeadDir;
+    use crate::buffer::{CipherEncodeBuffer, TlsDecodeBuffer};
+    use crate::{AeadCtx, CipherSuite, RecordType};
 
     fn test_cipher_tls(suite: &'static CipherSuite, key: &[u8], en: &[u8]) {
         let iv = [1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8];
@@ -140,40 +56,52 @@ mod tests {
         let mut record_buffer = CipherEncodeBuffer::new_tls(RecordType::HandShake, &mut buffer, &payload, suite);
         record_buffer.add_explicit_iv(&iv);
 
-
-        let crypto = CipherCrypto::new(suite.cipher(), key.to_vec(), mac_key.to_vec(), suite.mac_hash()).unwrap();
-        crypto.encrypt(CryptEncodeParam {
-            nonce: &[0; 12],
-            iv: &iv,
-            aad: &[0; 13],
-            seq: &0,
-            buffer: &mut record_buffer,
-        }).unwrap();
+        let mut real_key = Vec::with_capacity(mac_key.len() + key.len());
+        real_key.extend_from_slice(mac_key.as_slice());
+        real_key.extend_from_slice(key);
+        let aead = AeadCtx::new_with_key(*suite.aead(), AeadDir::Seal, &real_key).unwrap();
+        aead.seal(&iv, &record_buffer.aad(0), &mut record_buffer).unwrap();
         let len = record_buffer.record_len();
         assert_eq!(&buffer[..len], en);
 
 
         let mut decoded_buffer = vec![0; 1024];
-        let mut record_buffer = CipherDecodeBuffer::from_buffer(&buffer[..len], &mut decoded_buffer, suite).unwrap();
-        let len = crypto.decrypt(CryptDecodeParam {
-            nonce: &[0; 12],
-            iv: &iv,
-            aad: &[0; 13],
-            seq: &0,
-            buffer: &mut record_buffer,
-        }).unwrap();
+        let mut record_buffer = TlsDecodeBuffer::from_buffer(&buffer[..len], &mut decoded_buffer, suite).unwrap();
+        let aead = AeadCtx::new_with_key(*suite.aead(), AeadDir::Open, &real_key).unwrap();
+        let len = aead.open(&iv, &record_buffer.aad(0).unwrap(), &mut record_buffer).unwrap();
         assert_eq!(decoded_buffer[..len], payload);
     }
 
     #[test]
     fn test_cipher_cryptor() {
         let key = [1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8].to_vec();
-        test_cipher_tls(&CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, &key, &[22, 3, 3, 0, 64, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 225, 181, 85, 149, 189, 100, 192, 39, 33, 30, 205, 22, 123, 49, 172, 97, 106, 123, 166, 131, 129, 167, 149, 187, 174, 174, 240, 122, 9, 87, 56, 140, 117, 152, 228, 72, 33, 112, 254, 70, 101, 122, 70, 56, 86, 138, 18, 134]);
-        test_cipher_tls(&CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256, &key, &[22, 3, 3, 0, 80, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 225, 181, 85, 149, 189, 100, 192, 39, 33, 30, 205, 22, 123, 49, 172, 97, 150, 39, 188, 217, 227, 123, 176, 202, 171, 118, 173, 133, 177, 212, 23, 239, 79, 83, 238, 222, 83, 155, 116, 15, 213, 225, 52, 26, 134, 201, 207, 232, 194, 72, 163, 90, 108, 33, 90, 207, 135, 156, 79, 245, 245, 89, 69, 218]);
+        test_cipher_tls(
+            &CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+            &key,
+            &[22, 3, 3, 0, 64, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 225, 181, 85, 149, 189, 100, 192, 39, 33, 30, 205, 22, 123, 49, 172, 97, 106, 123, 166, 131, 129, 167, 149, 187, 174, 174, 240, 122, 9, 87, 56, 140, 117, 152, 228, 72, 33, 112, 254, 70, 101, 122, 70, 56, 86, 138, 18, 134],
+        );
+        test_cipher_tls(
+            &CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+            &key,
+            &[22, 3, 3, 0, 80, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 225, 181, 85, 149, 189, 100, 192, 39, 33, 30, 205, 22, 123, 49, 172, 97, 150, 39, 188, 217, 227, 123, 176, 202, 171, 118, 173, 133, 177, 212, 23, 239, 79, 83, 238, 222, 83, 155, 116, 15, 213, 225, 52, 26, 134, 201, 207, 232, 194, 72, 163, 90, 108, 33, 90, 207, 135, 156, 79, 245, 245, 89, 69, 218],
+        );
 
 
         let key = [1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8].to_vec();
-        test_cipher_tls(&CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, &key, &[22, 3, 3, 0, 64, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 14, 154, 194, 131, 254, 83, 135, 224, 182, 116, 28, 102, 151, 64, 116, 65, 233, 40, 102, 87, 64, 5, 139, 184, 61, 216, 62, 94, 54, 212, 193, 146, 8, 193, 18, 124, 254, 208, 135, 126, 57, 190, 219, 84, 217, 103, 135, 96]);
-        test_cipher_tls(&CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384, &key, &[22, 3, 3, 0, 96, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 14, 154, 194, 131, 254, 83, 135, 224, 182, 116, 28, 102, 151, 64, 116, 65, 69, 90, 210, 242, 249, 68, 56, 215, 228, 165, 35, 39, 182, 148, 179, 128, 14, 191, 51, 49, 128, 170, 146, 205, 56, 8, 34, 192, 78, 178, 233, 122, 153, 25, 193, 53, 84, 243, 227, 111, 212, 236, 62, 214, 206, 240, 42, 232, 245, 246, 24, 145, 92, 181, 124, 12, 172, 150, 19, 195, 58, 123, 93, 40]);
+        test_cipher_tls(
+            &CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+            &key,
+            &[22, 3, 3, 0, 64, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 14, 154, 194, 131, 254, 83, 135, 224, 182, 116, 28, 102, 151, 64, 116, 65, 233, 40, 102, 87, 64, 5, 139, 184, 61, 216, 62, 94, 54, 212, 193, 146, 8, 193, 18, 124, 254, 208, 135, 126, 57, 190, 219, 84, 217, 103, 135, 96],
+        );
+        test_cipher_tls(
+            &CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256,
+            &key,
+            &[22, 3, 3, 0, 80, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 14, 154, 194, 131, 254, 83, 135, 224, 182, 116, 28, 102, 151, 64, 116, 65, 177, 4, 110, 167, 103, 133, 161, 68, 66, 82, 136, 32, 242, 209, 242, 141, 15, 246, 195, 188, 2, 244, 70, 74, 142, 211, 190, 241, 141, 138, 35, 83, 209, 223, 105, 29, 219, 11, 66, 143, 26, 215, 62, 69, 192, 39, 68, 227],
+        );
+        test_cipher_tls(
+            &CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+            &key,
+            &[22, 3, 3, 0, 96, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 14, 154, 194, 131, 254, 83, 135, 224, 182, 116, 28, 102, 151, 64, 116, 65, 69, 90, 210, 242, 249, 68, 56, 215, 228, 165, 35, 39, 182, 148, 179, 128, 14, 191, 51, 49, 128, 170, 146, 205, 56, 8, 34, 192, 78, 178, 233, 122, 153, 25, 193, 53, 84, 243, 227, 111, 212, 236, 62, 214, 206, 240, 42, 232, 245, 246, 24, 145, 92, 181, 124, 12, 172, 150, 19, 195, 58, 123, 93, 40],
+        );
     }
 }

@@ -1,6 +1,7 @@
+#[cfg(debug_assertions)]
 use std::fmt::{Debug, Formatter};
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 
 #[allow(non_camel_case_types)]
 #[derive(Clone, PartialEq, Copy)]
@@ -29,6 +30,7 @@ impl EcPointFormat {
     }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for EcPointFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}(0x{:02x})", self.spec(), self.0)
@@ -41,7 +43,8 @@ impl From<u8> for EcPointFormat {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct EcPointFormats {
     formats: Vec<EcPointFormat>,
 }
@@ -68,7 +71,7 @@ impl EcPointFormats {
 
     pub fn len(&self) -> usize { self.formats.len() + 1 }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.len() as u8 - 1)?;
         for format in self.formats {
             writer.write_u8(format.into_inner())?;

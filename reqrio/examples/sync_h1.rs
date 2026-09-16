@@ -45,7 +45,7 @@ pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
         ],
         extensions: vec![
             Extension::Reserved { typ: REVERSED[rand::random::<usize>() % REVERSED.len()], value: Buf::Ref(&[]) },
-            Extension::ServerName(vec![SNType::HostName("")]),
+            Extension::ServerName(vec![ServerName::new_sni("")]),
             Extension::ExtendMasterSecret,
             Extension::RenegotiationInfo,
             Extension::SupportedGroups(SupportedGroups::new(vec![
@@ -59,8 +59,8 @@ pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
             ])),
             Extension::SessionTicket(Buf::Ref(&[])),
             Extension::ApplicationLayerProtocolNegotiation(ALPS::new(vec![
-                ALPN::Http20,
-                ALPN::Http11
+                ALPN::HTTP20,
+                ALPN::HTTP11
             ])),
             Extension::StatusRequest(StatusRequest::new()),
             Extension::SignatureAlgorithms(SignatureAlgorithms::new(vec![
@@ -88,7 +88,7 @@ pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
                 CompressionMethod::BROTLI
             ])),
             Extension::ApplicationSettingOld(ALPS::new(vec![
-                ALPN::Http20
+                ALPN::HTTP20
             ])),
             Extension::Reserved { typ: REVERSED[rand::random::<usize>() % REVERSED.len()], value: Buf::Ref(&[0]) },
             Extension::Padding(padding as usize)
@@ -104,17 +104,17 @@ fn main() {
 
 
     let t = Time::now();
-    Buffer::check_subscription(fs::read_to_string("TOKEN").unwrap()).unwrap();
+    Writer::check_subscription(fs::read_to_string("TOKEN").unwrap()).unwrap();
     let fingerprint = random_fingerprint("www.baidu.com").unwrap();
     let mut req = ScReq::new()
-        .with_alpn(ALPN::Http20)
+        .with_alpn(ALPN::HTTP20)
         .with_verify(true)
         .with_timeout(Timeout::new_same(3000, 1))
         .with_key_log("2.log")
         .with_fingerprint(fingerprint)
         // .with_proxy(Proxy::try_from("http://36.150.202.148:10951").unwrap())
         // .with_mtls(certs, key)
-        .with_proxy(Proxy::try_from("http://127.0.0.1:10280").unwrap())
+        // .with_proxy(Proxy::try_from("http://127.0.0.1:10280").unwrap())
         // .with_proxy(Proxy::try_from("socks5://127.0.0.1:10279").unwrap())
         ;
 
@@ -180,14 +180,17 @@ fn main() {
     // let res1 = req.recv(sid1).unwrap();
     // println!("{}", res1.raw_string());
 
+    let res = req.get("https://m.bingzhizhu.shop/", None).unwrap();
+    println!("{}", res.raw_string());
+
     // let sid2 = req.send(Method::GET, "https://cn.bing.com/search?q=3516541635&rdr=1&rdrig=4B500EC883E54B3881736EA98E8C2AF4", None).unwrap();
     // let res2 = req.recv(sid2).unwrap();
-    let res2 = req.post("https://www.dola.com/passport/web/send_code", None).unwrap();
-    println!("{}", res2.raw_string());
+    // let res2 = req.post("https://www.dola.com/passport/web/send_code", None).unwrap();
+    // println!("{}", res2.raw_string());
     // let res2=req.get("https://docs.rs/fluidattacks-blends/0.7.0/fluidattacks_blends/",None).unwrap();
     // println!("{}", res2.raw_string());
     // println!("{}", res2.raw_string());
-    println!("{}", Time::now().as_mills() - t.as_mills())
+    // println!("{}", Time::now().as_mills() - t.as_mills())
     // fs::write("data/coder/chunk_gzip.bin", res.raw_body()).unwrap();
     // println!("{} {:?}", res.raw_body().len(), res.raw_body());
     // let res = req.get("https://117.89.181.21".sni("m.sogou.com"), None).unwrap();

@@ -1,11 +1,12 @@
 mod frame;
 
 use std::cmp::Ordering;
-use crate::{u24, Buf, Buffer, BufferError, ReadExt, Reader, WriteExt};
+use crate::{u24, Buf, Writer, BufferError, Reader};
 pub use frame::{QUICFrame, QUICFrameFlag, AckRange, TrpErrKind};
 
 
-#[derive(Default, Copy, Clone, Debug, PartialEq)]
+#[derive(Default, Copy, Clone, PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum PacketType {
     #[default]
     Initial = 0,
@@ -59,7 +60,8 @@ mod tests {
 }
 
 
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(Default, Copy, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct QUICFlag {
     long_header: bool,
     fixed_bit: bool,
@@ -171,7 +173,7 @@ impl QUICFlag {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct QUICPacket<'a> {
     pub(crate) flag: QUICFlag,
     pub(crate) ver: u32,
@@ -183,7 +185,7 @@ pub struct QUICPacket<'a> {
     pub(crate) num: u64,
     pub(crate) payload: Buf<'a>,
 
-    pub(crate) hdr_raw: Buffer,
+    pub(crate) hdr_raw: Writer,
     pub(crate) padding: usize,
     pub(crate) tag: Buf<'a>,
 }
@@ -200,7 +202,7 @@ impl<'a> Default for QUICPacket<'a> {
             pn_offset: 0,
             num: 0,
             payload: Buf::Ref(&[]),
-            hdr_raw: Buffer::with_capacity(256),
+            hdr_raw: Writer::with_capacity(256),
             padding: 0,
             tag: Buf::Ref(&[]),
         }
@@ -209,7 +211,7 @@ impl<'a> Default for QUICPacket<'a> {
 
 impl<'a> QUICPacket<'a> {
     pub fn new_long(pty: PacketType, num: u64, pd_len: usize, dcid: &'a [u8], token: &'a Buf<'a>) -> Self {
-        std::debug_assert_matches!(pty,  PacketType::Initial| PacketType::Handshake);
+        debug_assert!(matches!(pty, PacketType::Initial|PacketType::Handshake));
         let num_len = crate::quic::variant_len(num as usize);
         let (len, padding) = if pd_len + num_len + 16 >= 1232 {
             (pd_len + num_len + 16, 0)
@@ -235,7 +237,7 @@ impl<'a> QUICPacket<'a> {
     }
 
     pub fn new_short(pty: PacketType, num: u64, pd_len: usize, dcid: &'a [u8]) -> Self {
-        std::debug_assert_matches!(pty, PacketType::ShortHeader);
+        debug_assert!(matches!(pty, PacketType::ShortHeader));
         let num_len = crate::quic::variant_len(num as usize);
         QUICPacket {
             flag: QUICFlag {
@@ -374,7 +376,7 @@ impl<'a> QUICPacket<'a> {
             packet.hdr_raw.write_slice(&reader.inner()[pos..reader.position()])?;
             Ok(packet)
         } else {
-            let mut hdr_raw = Buffer::with_capacity(30);
+            let mut hdr_raw = Writer::with_capacity(30);
             hdr_raw.write_u8(reader.inner()[pos])?;
             Ok(QUICPacket {
                 flag,
@@ -387,7 +389,7 @@ impl<'a> QUICPacket<'a> {
     }
 
     pub fn decode(&mut self, mask: &[u8], reader: &mut Reader<'a>) -> Result<(), BufferError> {
-        let mut mask_reader = Reader::from(mask);
+        let mut mask_reader = Reader::from_slice(mask);
         let mut flag = self.hdr_raw.filled()[0];
         if self.flag.long_header {
             flag ^= mask_reader.read_u8()? & 0x0f;

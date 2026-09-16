@@ -8,18 +8,19 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 
+#[repr(C)]
 pub(crate) struct DerivedKey {
+    pub(crate) client_random: [u8; 32],
+    pub(crate) server_random: [u8; 32],
+    pub(crate) traffic_secret: TrafficSecret,
+    pub(crate) hash: HashType,
+    pub(crate) use_ems: bool,
+    pub(crate) quic: bool,
+    pub(crate) session: TlsSession,
     prf: Prf,
-    hash: HashType,
-    client_random: [u8; 32],
-    server_random: [u8; 32],
-    use_ems: bool,
-    traffic_secret: TrafficSecret,
     key_block: KeyBlock,
     prk: Vec<u8>,
-    session: TlsSession,
     key_log: Option<PathBuf>,
-    pub(crate) quic: bool,
 }
 
 impl DerivedKey {
@@ -200,23 +201,7 @@ impl DerivedKey {
     pub fn set_server_random(&mut self, server_random: [u8; 32]) {
         self.server_random = server_random;
     }
-
-    pub fn client_random(&self) -> &[u8] {
-        &self.client_random
-    }
-
-    pub fn server_random(&self) -> &[u8] {
-        &self.server_random
-    }
-
-    pub fn set_ems(&mut self, ems: bool) {
-        self.use_ems = ems
-    }
-
-    pub fn session(&self) -> &TlsSession { &self.session }
-
-    pub fn session_mut(&mut self) -> &mut TlsSession { &mut self.session }
-
+    
     #[cfg(feature = "quic")]
     pub fn key_block(&self) -> &KeyBlock {
         &self.key_block

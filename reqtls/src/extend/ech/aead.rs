@@ -8,10 +8,12 @@ pub enum Aead {
     AES_128_CCM = 0x4,
     AES_128_CCM_8 = 0x5,
     AES_128_CBC_SHA = 0xFF,
-    AES_256_CBC_SHA = 0xFE,
-    AES_128_CBC_SHA256 = 0xFC,
+    AES_128_CBC_SHA256 = 0xFE,
+    AES_256_CBC_SHA = 0xFD,
+    AES_256_CBC_SHA256 = 0xFC,
     AES_256_CBC_SHA384 = 0xFB,
-    SM4_GCM = 0xFD,
+    SM4_GCM = 0xFA,
+    SM4_CBC_SM3 = 0xF9,
 }
 
 impl Aead {
@@ -26,27 +28,20 @@ impl Aead {
         }
     }
 
-    pub fn from_cipher_kind(suite_spec: &str) -> Option<Aead> {
-        let text = suite_spec.to_lowercase();
-        if text.contains("aes_128_gcm") {
-            Some(Aead::AES_128_GCM)
-        } else if text.contains("aes_256_gcm") {
-            Some(Aead::AES_256_GCM)
-        } else if text.contains("chacha20_poly1305") {
-            Some(Aead::ChaCha20_POLY1305)
-        } else if text.contains("aes_128_cbc_sha256") {
-            Some(Aead::AES_128_CBC_SHA256)
-        } else if text.contains("aes_256_cbc_sha384") {
-            Some(Aead::AES_256_CBC_SHA384)
-        } else if text.contains("aes_128_cbc") {
-            Some(Aead::AES_128_CBC_SHA)
-        } else if text.contains("aes_256_cbc") {
-            Some(Aead::AES_256_CBC_SHA)
-        } else if text.contains("sm4_gcm") {
-            Some(Aead::SM4_GCM)
-        } else {
-            println!("{}", text);
-            None
-        }
-    }
+    // pub(crate) fn is_cbc(&self) -> bool {
+    //     match self {
+    //         Aead::AES_128_GCM |
+    //         Aead::AES_256_GCM |
+    //         Aead::ChaCha20_POLY1305 |
+    //         Aead::AES_128_CCM |
+    //         Aead::AES_128_CCM_8 |
+    //         Aead::SM4_GCM => false,
+    //         Aead::AES_128_CBC_SHA |
+    //         Aead::AES_128_CBC_SHA256 |
+    //         Aead::AES_256_CBC_SHA |
+    //         Aead::AES_256_CBC_SHA256 |
+    //         Aead::AES_256_CBC_SHA384 |
+    //         Aead::SM4_CBC_SM3 => true,
+    //     }
+    // }
 }

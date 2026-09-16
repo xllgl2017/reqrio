@@ -1,10 +1,10 @@
 use super::super::message::HandshakeType;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
-use crate::{u24, BufferError, ReadExt, Reader, Version, WriteExt};
+use crate::{u24, BufferError, Reader, Version, Writer};
 use crate::extend::Extension;
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[allow(unused)]
 pub struct TlsSessionTicket<'a> {
     lifetime: u32,
@@ -60,7 +60,7 @@ impl<'a> TlsSessionTicket<'a> {
         6 + self.ticket.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u32(self.lifetime)?;
         writer.write_u16(self.ticket.len() as u16)?;
         writer.write_slice(self.ticket.as_ref())
@@ -75,7 +75,7 @@ impl<'a> TlsSessionTicket<'a> {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct SessionTicket<'a> {
     handshake_type: HandshakeType,
     tls_ticket: TlsSessionTicket<'a>,
@@ -105,7 +105,7 @@ impl<'a> SessionTicket<'a> {
         4 + self.tls_ticket.len()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.tls_ticket.len() as u24)?;
         self.tls_ticket.write_to(writer)

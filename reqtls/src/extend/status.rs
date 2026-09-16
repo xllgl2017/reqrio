@@ -1,7 +1,8 @@
 use crate::error::RlsResult;
-use crate::{BufferError, ReadExt, Reader, WriteExt};
+use crate::{BufferError, Reader, Writer};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum StatusType {
     OCSP = 0x1
 }
@@ -15,7 +16,8 @@ impl StatusType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct StatusRequest {
     status_type: StatusType,
     responder_id_len: u16,
@@ -44,7 +46,7 @@ impl StatusRequest {
         5
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.status_type as u8)?;
         writer.write_u16(self.responder_id_len)?;
         writer.write_u16(self.request_extend_len)

@@ -5,9 +5,9 @@ use super::super::version::Version;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::extend::alps::ALPS;
-use crate::{rand, u24, BufferError, ClientHello, HandShakeError, ReadExt, Reader, WriteExt, ALPN};
+use crate::{rand, u24, BufferError, ClientHello, HandShakeError, Reader, Writer, ALPN};
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ServerHello<'a> {
     handshake_type: HandshakeType,
     len: u24,
@@ -122,7 +122,7 @@ impl<'a> ServerHello<'a> {
             self.extensions.iter().map(|x| x.len(true)).sum::<usize>()
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u16(self.version.into_inner())?;
@@ -158,7 +158,7 @@ impl<'a> ServerHello<'a> {
         } else { None }
     }
 
-    pub fn key_share_extend(&self) -> Option<&KeyShare<'_>> {
+    pub fn key_share_extend(&self) -> Option<&KeyShare> {
         let extend = self.extensions.iter().find(|x| matches!(x, Extension::KeyShare(_)))?;
         if let Extension::KeyShare(key) = extend {
             Some(key)
@@ -166,7 +166,7 @@ impl<'a> ServerHello<'a> {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ServerHelloDone {
     handshake_type: HandshakeType,
     len: u24,
@@ -191,7 +191,7 @@ impl ServerHelloDone {
         4
     }
 
-    pub fn write_to<W: WriteExt>(self, writer: &mut W) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type as u8)?;
         writer.write_u24(self.len)
     }

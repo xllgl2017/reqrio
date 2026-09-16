@@ -147,7 +147,7 @@
 //! };
 //!
 //! let mut session = ScReq::new()
-//!     .with_alpn(ALPN::Http20)                    // Use HTTP/2.0 for modern sites
+//!     .with_alpn(ALPN::HTTP20)                    // Use HTTP/2.0 for modern sites
 //!     .with_header_json(headers)?                 // Set browser-compatible headers
 //!     .with_timeout(Timeout::new_same(5000, 3)); // 5s timeout with 3 retries
 //!

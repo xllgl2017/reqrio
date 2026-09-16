@@ -2,7 +2,7 @@ mod handshake;
 #[cfg(feature = "quic")]
 mod quic;
 
-use crate::boring::{EcError, EvpError, MLKEMError, PKeyError};
+use crate::boring::EvpError;
 use crate::cipher::CipherError;
 use crate::coder::CodingError;
 use crate::dns::DNSError;
@@ -11,6 +11,8 @@ use crate::url::UrlError;
 use crate::{Alert, BufferError, SmError};
 pub use handshake::HandShakeError;
 use hex::FromHexError;
+#[cfg(feature = "quic")]
+pub use quic::QUICError;
 use std::array::TryFromSliceError;
 use std::convert::Infallible;
 use std::error::Error;
@@ -23,8 +25,6 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::PoisonError;
 use std::time::SystemTimeError;
-#[cfg(feature = "quic")]
-pub use quic::QUICError;
 
 #[derive(Debug)]
 pub enum RlsError {
@@ -91,10 +91,7 @@ pub enum RlsError {
     HasherError(HashError),
     DNSError(DNSError),
     EvpError(EvpError),
-    EcError(EcError),
-    MlKemError(MLKEMError),
     Cipher(CipherError),
-    Pkey(PKeyError),
     Coding(CodingError),
     Sm(SmError),
 }
@@ -165,10 +162,7 @@ impl Display for RlsError {
             RlsError::HasherError(e) => write!(f, "Hasher({})", e),
             RlsError::DNSError(e) => write!(f, "DNSError({:?})", e),
             RlsError::EvpError(e) => write!(f, "EvpError({:?})", e),
-            RlsError::EcError(e) => write!(f, "EcError({:?})", e),
-            RlsError::MlKemError(e) => write!(f, "MlKemError({:?})", e),
             RlsError::Cipher(e) => write!(f, "Cipher({:?})", e),
-            RlsError::Pkey(e) => write!(f, "Pkey({:?})", e),
             RlsError::Coding(e) => write!(f, "Coding({:?})", e),
             RlsError::Sm(sm) => write!(f, "Sm({:?})", sm),
         }
@@ -304,27 +298,9 @@ impl From<EvpError> for RlsError {
     }
 }
 
-impl From<EcError> for RlsError {
-    fn from(value: EcError) -> Self {
-        RlsError::EcError(value)
-    }
-}
-
-impl From<MLKEMError> for RlsError {
-    fn from(value: MLKEMError) -> Self {
-        RlsError::MlKemError(value)
-    }
-}
-
 impl From<CipherError> for RlsError {
     fn from(value: CipherError) -> Self {
         RlsError::Cipher(value)
-    }
-}
-
-impl From<PKeyError> for RlsError {
-    fn from(value: PKeyError) -> Self {
-        RlsError::Pkey(value)
     }
 }
 
