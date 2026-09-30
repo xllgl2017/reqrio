@@ -240,7 +240,7 @@ impl UrlExt for String {
     }
 
     fn sni(&self, sni: impl Into<String>) -> Result<Url, UrlError> {
-        Ok(Url::try_from(self)?.with_domain(sni))
+        self.as_str().sni(sni)
     }
 }
 

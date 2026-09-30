@@ -13,7 +13,7 @@
 - 新增 `H3Finger`，用于配置 HTTP/3 指纹。
 - 新增对无序流、`HelloRetry`、`Retry` 数据包和 HTTP/3 响应头的处理。
 
-> ⚠️启用 HTTP/3/QUIC 相关能力时，请开启 `quic` feature：
+> ⚠️ HTTP/3/QUIC 板块尚未问题，如需是用，请开启 `quic` feature：
 
 ```toml
 reqrio = { version = "0.4.0", features = ["quic"] }

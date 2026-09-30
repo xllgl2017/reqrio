@@ -3,7 +3,7 @@ use crate::buffer::{CipherEncodeBuffer, TlsDecodeBuffer};
 use crate::error::RlsResult;
 use crate::key::KeyType;
 use crate::message::{QUICFrame, QUICPacket};
-use crate::quic::QUICRange;
+use crate::quic::{QUICNum, QUICRange};
 use crate::{Aead, Buf, BufferError, Cipher, CipherSuite, CipherType, Connection, PacketType, Reader, TlsSession, Version, Writer};
 #[cfg(feature = "log")]
 use log::trace;
@@ -79,8 +79,6 @@ impl QUICConnection {
         let rk = self.conn.derived.key_block().recv_key(typ, self.conn.server);
         let ri = self.conn.derived.key_block().recv_iv(typ, self.conn.server);
         self.conn.decryptor.init_aead(*suite.aead(), AeadDir::Open, rk, ri)?;
-        // self.conn.decryptor.set_key(rk, ri, suite, AeadDir::Open)?;
-        // self.conn.recv_cipher.set_iv(Iv::new().with_init(ri));
         self.current = typ;
         Ok(())
     }
@@ -100,7 +98,8 @@ impl QUICConnection {
         let mut mask = self.recv_sample.encrypt(sample)?;
         mask.truncate(5);
         packet.decode(&mask, reader).unwrap();
-        // println!("{:#?}", packet);
+        #[cfg(feature = "log")]
+        trace!("[QUIC Connection] num={}; typ={:?}", packet.num, packet.flag.packet_type());
         if buffer.len() < packet.payload.len() {
             return Err(BufferError::CapacityTooSmall {
                 needed: packet.payload.len(),
@@ -114,7 +113,7 @@ impl QUICConnection {
         let nonce = buffer.nonce(&self.conn.decryptor.iv, packet.num);
 
         let len = self.conn.decryptor.open(&nonce, &aad, &mut buffer).unwrap();
-        self.recv_nums.insert(packet.num);
+        self.recv_nums.insert(QUICNum::new(packet.num, packet.flag.packet_type()));
         Ok(len)
     }
 

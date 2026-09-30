@@ -70,7 +70,7 @@ impl HTTP3StreamS {
             max_stream: &mut self.max_stream,
             responses,
         })?;
-        self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader)).wait()?;
+        self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader), !res.is_empty()).wait()?;
         Ok(res)
     }
     fn send_inner<'a>(&'a mut self, header: &Header, body: &Body<'_>, mut param: HeaderParam<'a>) -> HlsResult<u64> {
@@ -241,6 +241,9 @@ trait H3Handle {
                 handle_enc = true;
             }
         }
+        for re in recv.res {
+            recv.stream_ids.remove(re);
+        }
         Ok(())
     }
 }
@@ -301,7 +304,7 @@ impl HTTP3StreamA {
             max_stream: &mut self.max_stream,
             responses,
         })?;
-        self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader)).await?;
+        self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader), !res.is_empty()).await?;
         Ok(res)
     }
     async fn send_inner<'a>(&'a mut self, header: &Header, body: &Body<'_>, mut param: HeaderParam<'a>) -> HlsResult<u64> {
@@ -311,7 +314,7 @@ impl HTTP3StreamA {
         let priority = header.get_str("priority");
         let mut offset = 0;
         self.write_buffer.reset();
-        self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader)).await?;
+        // self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader), false).await?;
         loop {
             let (chunk_size, frames) = HTTP3StreamA::build_send_frame(SendParam {
                 buffer: &mut self.write_buffer,

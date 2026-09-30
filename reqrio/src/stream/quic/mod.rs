@@ -98,7 +98,7 @@ impl<S> QUICStream<S> {
         }
     }
 
-    pub fn send_ack(&mut self, flag: QUICFlag) -> QUICPacketWrite<'_, S> {
+    pub fn send_ack(&mut self, flag: QUICFlag, must: bool) -> QUICPacketWrite<'_, S> {
         let mut writer = QUICPacketWrite {
             packet: QUICPacket::default(),
             frames: vec![],
@@ -114,20 +114,19 @@ impl<S> QUICStream<S> {
             #[cfg(feature = "aync")]
             timeout_reset: false,
         };
-        if writer.conn.recv_nums().is_empty() || !writer.conn.recv_nums().need_ack() { return writer; }
-        writer.conn.recv_nums_mut().sort();
-        println!("{:?}", writer.conn.recv_nums());
-        let Some(max_range) = writer.conn.recv_nums().max_range() else { return writer };
-        let mut ack_range = Vec::with_capacity(writer.conn.recv_nums().count() - 1);
-        let remain = writer.conn.recv_nums().count() - 1;
+        if !writer.conn.recv_nums().need_ack() && !must { return writer; }
+        let mut ranges = writer.conn.recv_nums_mut().ranges(*writer.seq);
+        println!("{:?} {}", ranges, writer.conn.recv_nums().need_ack());
+        let Some(max_range) = ranges.pop() else { return writer };
+        ranges.reverse();
+        let mut ack_range = Vec::with_capacity(ranges.len());
         let mut pre_start = max_range.start;
-        for i in 0..remain {
-            let r = writer.conn.recv_nums().get(remain - i - 1);
+        for range in ranges {
             ack_range.push(AckRange {
-                gap: pre_start - r.end - 2,
-                range: r.end - r.start,
+                gap: pre_start - range.end - 2,
+                range: range.end - range.start,
             });
-            pre_start = r.start;
+            pre_start = range.start;
         }
         let frame = QUICFrame::Ack {
             largest_acknowledged: max_range.end,
@@ -138,7 +137,6 @@ impl<S> QUICStream<S> {
         };
         writer.packet = QUICPacket::new_ack(flag, self.dcid.as_ref(), *writer.seq, frame.len());
         writer.frames.push(frame);
-        writer.conn.recv_nums_mut().reset_sent_largest();
         writer
     }
 
@@ -241,11 +239,13 @@ impl<S> QUICStream<S> {
         let mut buf_ref = 0;
         while reader.unread_len() > 0 {
             let frame = QUICFrame::from_reader(&mut reader).unwrap();
-            if frame.need_ack() { self.conn.recv_nums_mut().set_ack(true) }
             match frame {
-                QUICFrame::Ack { largest_acknowledged, first_ack_range, .. } => {
+                QUICFrame::Ack { largest_acknowledged, first_ack_range, ack_range, .. } => {
+                    #[cfg(feature = "log")]
+                    trace!("[QUIC ACK] largest={}; first={}; range={:?}",largest_acknowledged, first_ack_range, ack_range);
                     let start = largest_acknowledged - first_ack_range;
                     for large in start..=largest_acknowledged {
+                        self.conn.recv_nums_mut().remove(large);
                         self.sent_num.remove(&large);
                     }
                 }

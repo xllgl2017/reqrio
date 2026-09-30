@@ -105,7 +105,7 @@ fn main() {
     Writer::check_subscription(fs::read_to_string("TOKEN").unwrap()).unwrap();
     let fingerprint = random_fingerprint("www.baidu.com").unwrap();
     let mut req = ScReq::new()
-        .with_alpn(ALPN::HTTP20)
+        .with_alpn(ALPN::HTTP30)
         .with_verify(false)
         .with_timeout(Timeout::new_same(3000, 1))
         .with_key_log("2.log")
@@ -178,17 +178,17 @@ fn main() {
     // let res1 = req.recv(sid1).unwrap();
     // println!("{}", res1.raw_string());
 
-    // let res = req.get("https://www.baidu.com/", None).unwrap();
-    // let res=req.get("https://h5.moutai519.com.cn",None).unwrap();
-    let res = req.get("https://m.sogou.com", None).unwrap();
-    // let res = req.get("https://127.0.0.1:7878", None).unwrap();
-    // let res = req.get("https://www.bing.com", None).unwrap();
+    // let res1 = req.get("https://www.baidu.com/", None).unwrap();
+    // let res1=req.get("https://h5.moutai519.com.cn",None).unwrap();
+    // let res1 = req.get("https://m.sogou.com", None).unwrap();
+    // let res1 = req.get("https://127.0.0.1:7878", None).unwrap();
+    let res1 = req.get("https://www.bing.com", None).unwrap();
     // let session = req.tls_session().cloned();
     // println!("{:#?}", session);
     // req.set_tls_session(session);
     // req.re_conn(None).unwrap();
 
-    println!("{}", res);
+    println!("{}", res1);
 
     // let sid2 = req.send(Method::GET, "https://cn.bing.com/search?q=3516541635&rdr=1&rdrig=4B500EC883E54B3881736EA98E8C2AF4", None).unwrap();
     // let res2 = req.recv(sid2).unwrap();

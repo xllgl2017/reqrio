@@ -20,6 +20,9 @@ fn test_log() {
 
 #[tokio::main]
 async fn main() {
+    #[cfg(feature = "log")]
+    test_log();
+
     Buffer::check_subscription(fs::read_to_string("TOKEN").unwrap()).unwrap();
 
     let t = Time::now();
