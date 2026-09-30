@@ -112,7 +112,7 @@ fn main() {
     let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
     let env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
-    let version = env::var("CARGO_PKG_VERSION").unwrap().split("-").next().unwrap_or("").to_string();
+    let version = env::var("CARGO_PKG_VERSION").unwrap();
     let token = env::var("REQRIO_TOKEN").unwrap_or("".to_string());
     let typ = if cfg!(feature = "static_link") { LibType::Static } else { LibType::Dynamic };
     let target_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
