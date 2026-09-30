@@ -15,6 +15,7 @@ use std::os::raw::{c_int, c_void};
 use std::path::PathBuf;
 use std::ptr::null_mut;
 use std::{mem, slice};
+use crate::ffi::c_struct_free;
 
 unsafe extern "C" {
     #[allow(improper_ctypes)]
@@ -38,6 +39,7 @@ unsafe extern "C" {
     ) -> c_int;
 }
 
+c_struct_free!(Connection, Connection_free);
 #[repr(C)]
 pub struct Connection {
     pub(crate) decryptor: AeadCtx,
@@ -65,15 +67,6 @@ pub struct Connection {
 impl Default for Connection {
     fn default() -> Self {
         Connection::new(TlsSession::default(), None, false)
-    }
-}
-
-unsafe impl Sync for Connection {}
-unsafe impl Send for Connection {}
-
-impl Drop for Connection {
-    fn drop(&mut self) {
-        unsafe { Connection_free(self); }
     }
 }
 

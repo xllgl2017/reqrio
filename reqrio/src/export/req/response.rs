@@ -77,8 +77,6 @@ pub extern "C" fn Response_cookies(resp: *const Response, err: *mut *mut c_char)
 #[allow(non_snake_case)]
 pub extern "C" fn Response_drop(resp: *mut Response) {
     if resp.is_null() { return; }
-    println!("1111");
     let resp = unsafe { Box::from_raw(resp) };
-    println!("2222");
     drop(resp);
 }

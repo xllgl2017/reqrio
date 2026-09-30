@@ -1,9 +1,8 @@
+use crate::boring::BoringResExt;
+use crate::{BufferError, u24};
 use std::marker::PhantomData;
 use std::os::raw::c_int;
 use std::slice;
-use crate::boring::BoringResExt;
-use crate::{u24, BufferError};
-
 
 unsafe extern "C" {
     fn Reader_read_u8(reader: *mut Reader, out: *mut u8) -> c_int;
@@ -117,11 +116,11 @@ impl<'a> Reader<'a> {
         Ok(std::str::from_utf8(slice)?)
     }
 
-    pub fn size(&self) -> usize {
+    pub const fn size(&self) -> usize {
         self.size
     }
 
-    pub fn unread_len(&self) -> usize {
+    pub const fn unread_len(&self) -> usize {
         self.size - self.pos
     }
 
@@ -145,7 +144,7 @@ impl<'a> Reader<'a> {
         self.pos += size;
     }
 
-    pub fn position(&self) -> usize {
+    pub const fn position(&self) -> usize {
         self.pos
     }
 

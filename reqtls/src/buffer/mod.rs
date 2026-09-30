@@ -4,8 +4,7 @@ mod error;
 mod reader;
 
 use crate::error::RlsResult;
-use crate::ffi;
-use crate::ffi::CPointer;
+use crate::ffi::{c_struct_free, CPointer};
 pub use decode::TlsDecodeBuffer;
 pub use encode::CipherEncodeBuffer;
 pub use error::BufferError;
@@ -21,14 +20,10 @@ use std::slice;
 #[allow(non_camel_case_types)]
 pub type u24 = u32;
 
-ffi::c_pointer_free!(Writer, Writer_free);
-
 unsafe extern "C" {
     fn Writer_new(buffer: *mut Writer) -> c_int;
     fn Writer_resize(buffer: *mut Writer, capacity: usize) -> c_int;
-    fn Writer_reset_offset(buffer: *mut Writer, start: usize, end: usize);
     fn Writer_free(buffer: *mut Writer);
-    fn Writer_reset(buffer: *mut Writer);
     fn Writer_used_empty(buffer: *mut Writer, size: usize) -> bool;
     fn Writer_write_u8(buffer: *mut Writer, val: u8) -> i32;
     fn Writer_write_u8_unchecked(buffer: *mut Writer, val: u8);
@@ -48,7 +43,7 @@ unsafe extern "C" {
     pub fn is_subscription(token: *const c_char) -> bool;
 }
 
-
+c_struct_free!(Writer, Writer_free);
 #[repr(C)]
 pub struct Writer {
     capacity: usize,
@@ -103,7 +98,11 @@ impl Writer {
     }
 
     pub fn reset_offset(&mut self, offset: Range<usize>) {
-        unsafe { Writer_reset_offset(self, offset.start, offset.end) };
+        self.end = match offset.end > self.capacity {
+            true => self.capacity,
+            false => offset.end
+        };
+        self.start = offset.start;
     }
 
     pub const fn from_ptr(buf: *mut u8, len: usize) -> Self {
@@ -117,7 +116,7 @@ impl Writer {
 
     pub fn filled(&self) -> &[u8] {
         let len = self.end - self.start;
-        unsafe { slice::from_raw_parts(self.ptr.add(self.start), len) }
+        unsafe { slice::from_raw_parts(self.filled_ptr(), len) }
     }
 
     pub fn filled_mut(&mut self) -> &mut [u8] {
@@ -134,7 +133,8 @@ impl Writer {
     }
 
     pub fn reset(&mut self) {
-        unsafe { Writer_reset(self) }
+        self.start = 0;
+        self.end = 0;
     }
 
     pub fn slice_at(&self, place: usize) -> &[u8] {
@@ -301,17 +301,17 @@ impl Writer {
     }
 
     #[inline]
-    pub fn unfilled_len(&self) -> usize {
+    pub const fn unfilled_len(&self) -> usize {
         self.capacity - self.end
     }
 
     #[inline]
-    pub fn start(&self) -> usize {
+    pub const fn start(&self) -> usize {
         self.start
     }
 
     #[inline]
-    pub fn end(&self) -> usize {
+    pub const fn end(&self) -> usize {
         self.end
     }
 
@@ -324,17 +324,17 @@ impl Writer {
         let ptr = self.unfilled_ptr();
         unsafe { slice::from_raw_parts_mut(ptr, self.unfilled_len()) }
     }
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.start == self.end
     }
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.end - self.start
     }
-    pub fn add_len(&mut self, len: usize) {
+    pub const fn add_len(&mut self, len: usize) {
         self.end += len;
     }
     pub fn offset(&self) -> Range<usize> {
-        self.start()..self.end()
+        self.start..self.end
     }
 }
 
@@ -343,10 +343,6 @@ impl Debug for Writer {
         f.write_str(&hex::encode(self.filled()))
     }
 }
-
-unsafe impl Send for Writer {}
-
-unsafe impl Sync for Writer {}
 
 
 ///对应c的结构{
@@ -439,6 +435,7 @@ impl<'a> AsRef<[u8]> for Buf<'a> {
     }
 }
 
+#[cfg(debug_assertions)]
 impl<'a> Debug for Buf<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", hex::encode(self.as_slice()))

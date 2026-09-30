@@ -65,7 +65,21 @@ macro_rules! c_pointer_free {
     };
 }
 
+macro_rules! c_struct_free {
+    ($ty:ty, $free_fn:path) => {
+        impl Drop for $ty {
+            fn drop(&mut self) {
+                unsafe { $free_fn(self) }
+            }
+        }
+
+        unsafe impl Send for $ty {}
+        unsafe impl Sync for $ty {}
+    };
+}
+
 pub(crate) use c_pointer_free;
+pub(crate) use c_struct_free;
 
 c_pointer_free!(u8, OPENSSL_free);
 c_pointer_free!(EVP_PKEY, EVP_PKEY_free);

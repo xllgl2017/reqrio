@@ -113,6 +113,7 @@ impl TkStream {
                 let filesize = filesize as usize;
                 let path = tdr.join("reqrio").join(filename);
                 let dep_path = tdr.join("deps").join(filename);
+                let exa_path = tdr.join("examples").join(target);
                 let t_path = tdr.join(filename);
                 let filename = filename.to_string();
                 let mut f = File::create(&path)?;
@@ -137,8 +138,11 @@ impl TkStream {
                 f.flush()?;
                 drop(f);
                 if !self.file_cmp(path.as_path(), target, &filename)? { return Err("File Hash not correct".into()); }
-                fs::copy(&path, dep_path)?;
-                fs::copy(&path, t_path)?;
+                if !cfg!(feature = "static_link") {
+                    fs::copy(&path, dep_path)?;
+                    fs::copy(&path, t_path)?;
+                    fs::copy(&path, exa_path)?;
+                }
             }
             _ => unreachable!()
         };
@@ -173,8 +177,8 @@ impl TkStream {
         };
         println!("{:?} {:?} {:?}", hash.dy_bcrypto, hash.bcrypto, file_hash);
         match filename.split('.').next().unwrap_or("") {
-            "bcrypto"|"libbcrypto" => Ok(if dylib { hash.dy_bcrypto } else { hash.bcrypto } == file_hash.trim()),
-            "zap"|"libzap" => Ok(if dylib { hash.dy_zap } else { hash.zap } == file_hash.trim()),
+            "bcrypto" | "libbcrypto" => Ok(if dylib { hash.dy_bcrypto } else { hash.bcrypto } == file_hash.trim()),
+            "zap" | "libzap" => Ok(if dylib { hash.dy_zap } else { hash.zap } == file_hash.trim()),
             _ => Ok(false)
         }
     }
