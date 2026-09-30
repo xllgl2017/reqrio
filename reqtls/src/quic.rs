@@ -41,7 +41,7 @@ pub fn write_variant(val: usize, writer: &mut Writer) -> Result<(), BufferError>
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct QUICNum {
     value: u64,
     ///类型
@@ -77,7 +77,7 @@ impl PartialEq for QUICNum {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct QUICRange {
     mapping: usize,
     pub ranges: Vec<QUICNum>,
