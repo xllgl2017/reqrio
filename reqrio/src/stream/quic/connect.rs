@@ -127,7 +127,6 @@ impl<'a> QUICConnect<'a, std::net::UdpSocket> {
             let off = self.state.read_next_packet().wait()?;
             if self.state.conn.recv_nums().need_ack() {
                 self.state.send_ack(QUICFlag::new_long(PacketType::Handshake), true).wait()?;
-                // self.state.conn.recv_nums_mut().set_ack(false);
             };
             match self.state.handle_queues(off, &mut Default::default(), |_, _, _, _| Ok(None)) {
                 Err(HlsError::QUIC(QUICError::InitialRetry)) => self.initial_retry()?,
@@ -191,9 +190,7 @@ impl<'a> Future for QUICConnect<'a, tokio::net::UdpSocket> {
             };
             let pending = if connector.state.conn.recv_nums().need_ack() {
                 let mut writer = connector.state.send_ack(QUICFlag::new_long(PacketType::Handshake), true);
-                let pending = Pin::new(&mut writer).poll(cx).is_pending();
-                // connector.state.conn.recv_nums_mut().set_ack(false);
-                pending
+                Pin::new(&mut writer).poll(cx).is_pending()
             } else { false };
             match connector.state.handle_queues(off, &mut Default::default(), |_, _, _, _| Ok(None)) {
                 Err(HlsError::QUIC(QUICError::InitialRetry)) => connector.initial_retry()?,

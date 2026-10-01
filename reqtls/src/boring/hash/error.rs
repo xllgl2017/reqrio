@@ -12,18 +12,13 @@ pub enum HashError {
     HmacInitError,
     HmacUpdateError,
     HmacFinalizeError,
-    HasherNone,
     HmacHashError,
     HasherNoSecret,
-    UnsupportedHasher(String),
 }
 
 impl Display for HashError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HashError::UnsupportedHasher(v) => write!(f, "unsupported hasher-{}", v),
-            _ => write!(f, "{:?}", self)
-        }
+        write!(f, "{:?}", self)
     }
 }
 

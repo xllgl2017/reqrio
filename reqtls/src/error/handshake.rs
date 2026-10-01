@@ -1,25 +1,20 @@
+use crate::message::HandshakeType;
+use crate::Version;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io;
-use crate::message::HandshakeType;
-use crate::{NamedCurve, Version};
 
 #[derive(Debug)]
 pub enum HandShakeError {
     UnsupportedVersion(Version),
     VerifyFinishedFail,
-    PollWhileFinish,
-    RetryNoKeyShare,
-    RetryGroupNotSupported(NamedCurve),
     UnknownRecord(u8),
     UnknownHandShake(u8),
     UnsupportedMessage(HandshakeType),
     UnknownCipherSuite(u16),
     QUICMissingKeyShare,
     MissingSupportedVersions,
-    MissingQUICParameters,
     MissingPubkey,
-    GenSecretKeyFailed,
     DiffieHellmanFailed,
     MissingClientConfig,
     MissingServerConfig,

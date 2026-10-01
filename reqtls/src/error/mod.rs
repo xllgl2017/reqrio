@@ -2,7 +2,6 @@ mod handshake;
 #[cfg(feature = "quic")]
 mod quic;
 
-use crate::boring::EvpError;
 use crate::cipher::CipherError;
 use crate::coder::CodingError;
 use crate::dns::DNSError;
@@ -90,7 +89,6 @@ pub enum RlsError {
     Alert(Alert),
     HasherError(HashError),
     DNSError(DNSError),
-    EvpError(EvpError),
     Cipher(CipherError),
     Coding(CodingError),
     Sm(SmError),
@@ -161,7 +159,6 @@ impl Display for RlsError {
             RlsError::Currently(e) => f.write_str(e),
             RlsError::HasherError(e) => write!(f, "Hasher({})", e),
             RlsError::DNSError(e) => write!(f, "DNSError({:?})", e),
-            RlsError::EvpError(e) => write!(f, "EvpError({:?})", e),
             RlsError::Cipher(e) => write!(f, "Cipher({:?})", e),
             RlsError::Coding(e) => write!(f, "Coding({:?})", e),
             RlsError::Sm(sm) => write!(f, "Sm({:?})", sm),
@@ -289,12 +286,6 @@ impl From<HashError> for RlsError {
 impl From<DNSError> for RlsError {
     fn from(value: DNSError) -> Self {
         RlsError::DNSError(value)
-    }
-}
-
-impl From<EvpError> for RlsError {
-    fn from(value: EvpError) -> Self {
-        RlsError::EvpError(value)
     }
 }
 

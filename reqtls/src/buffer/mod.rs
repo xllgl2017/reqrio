@@ -410,14 +410,7 @@ impl<'a> Buf<'a> {
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
-        match self {
-            Buf::Ref { inner, .. } => inner.to_vec(),
-            Buf::Vec(v) => v.clone(),
-            Buf::Raw { len, ptr, .. } => {
-                if ptr.is_null() { return vec![]; }
-                unsafe { slice::from_raw_parts(*ptr, *len) }.to_vec()
-            }
-        }
+        self.as_slice().to_vec()
     }
 
     pub fn into_vec(self) -> Vec<u8> {

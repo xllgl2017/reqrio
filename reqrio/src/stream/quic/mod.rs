@@ -116,7 +116,6 @@ impl<S> QUICStream<S> {
         };
         if !writer.conn.recv_nums().need_ack() && !must { return writer; }
         let mut ranges = writer.conn.recv_nums_mut().ranges(*writer.seq);
-        println!("{:?} {}", ranges, writer.conn.recv_nums().need_ack());
         let Some(max_range) = ranges.pop() else { return writer };
         ranges.reverse();
         let mut ack_range = Vec::with_capacity(ranges.len());

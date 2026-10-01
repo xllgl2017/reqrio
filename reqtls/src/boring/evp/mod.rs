@@ -1,11 +1,9 @@
 pub mod cipher;
 mod aead;
-mod error;
 mod iv;
 
 pub use aead::{AeadCtx, AeadDir};
 pub use cipher::Cipher;
-pub use error::EvpError;
 pub use iv::Iv;
 
 #[repr(C)]
