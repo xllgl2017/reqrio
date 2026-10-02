@@ -20,6 +20,7 @@ pub enum KeyExchangeAlg {
     DH_RSA = 7,
     RSA = 8,
     ECC = 9,
+    PSK = 10,
 }
 
 #[repr(C)]
@@ -457,6 +458,38 @@ impl CipherSuite {
         version: &Version::TLS_1_2,
     };
 
+    pub const TLS_PSK_AES_128_GCM_SHA256: CipherSuite = CipherSuite {
+        value: 0x00a8,
+        aead: Aead::AES_128_GCM,
+        exchange: KeyExchangeAlg::PSK,
+        mac: HashType::Sha256,
+        hash: HashType::Sha256,
+        key_size: 16,
+        fix_iv_size: 4,
+        explict_iv_size: 8,
+        trans_iv_len: 8,
+        mac_key_size: 0,
+        block_size: 16,
+        version: &Version::TLS_1_2,
+        spec: "TLS_PSK_AES_128_GCM_SHA256",
+    };
+
+    pub const TLS_PSK_AES_256_GCM_SHA384: CipherSuite = CipherSuite {
+        value: 0x00a9,
+        aead: Aead::AES_256_GCM,
+        exchange: KeyExchangeAlg::PSK,
+        mac: HashType::Sha384,
+        hash: HashType::Sha384,
+        key_size: 32,
+        fix_iv_size: 4,
+        explict_iv_size: 8,
+        trans_iv_len: 8,
+        mac_key_size: 0,
+        block_size: 16,
+        version: &Version::TLS_1_2,
+        spec: "TLS_PSK_AES_256_GCM_SHA384",
+    };
+
     //tls1.3
     pub const TLS_AES_128_GCM_SHA256: CipherSuite = CipherSuite {
         value: 0x1301,
@@ -568,7 +601,7 @@ impl CipherSuite {
         version: &Version::TLS_1_0,
     };
 
-    pub const ALL: [CipherSuite; 32] = [
+    pub const ALL: [CipherSuite; 34] = [
         CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
         CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
         CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
@@ -609,7 +642,11 @@ impl CipherSuite {
         CipherSuite::TLS_AES_256_GCM_SHA384,
         CipherSuite::TLS_CHACHA20_POLY1305_SHA256,
         CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-        CipherSuite::ECC_SM4_CBC_SM3
+        CipherSuite::ECC_SM4_CBC_SM3,
+
+        //
+        CipherSuite::TLS_PSK_AES_128_GCM_SHA256,
+        CipherSuite::TLS_PSK_AES_256_GCM_SHA384,
     ];
 
     pub fn spec(&self) -> &str {

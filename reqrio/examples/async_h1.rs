@@ -18,6 +18,7 @@ fn test_log() {
     set_max_level(LevelFilter::Trace);
 }
 
+
 #[tokio::main]
 async fn main() {
     #[cfg(feature = "log")]

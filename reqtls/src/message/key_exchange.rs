@@ -234,7 +234,7 @@ impl<'a> ServerKeyExchange<'a> {
     }
 
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
-        writer.write_u8(self.handshake_type as u8)?;
+        writer.write_u8(self.handshake_type.into_inner())?;
         writer.write_u24(self.hellman_param.len() as u24)?;
         self.hellman_param.write_to(writer)
     }
@@ -318,7 +318,7 @@ impl<'a> ClientKeyExchange<'a> {
     }
 
     pub fn write_to(self, writer: &mut Writer, kea: KeyExchangeAlg) -> Result<(), BufferError> {
-        writer.write_u8(self.handshake_type as u8)?;
+        writer.write_u8(self.handshake_type.into_inner())?;
         writer.write_u24(self.hellman_param.len(kea) as u24)?;
         self.hellman_param.write_to(writer, kea)
     }

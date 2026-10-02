@@ -105,7 +105,7 @@ impl<'a> MessageParsed<'a> {
     }
 
     fn from_reader_handshake(reader: &mut Reader<'a>, alg: KeyExchangeAlg, version: &Version) -> RlsResult<MessageParsed<'a>> {
-        let handshake_type = HandshakeType::from_byte(reader.read_u8()?)?;
+        let handshake_type = HandshakeType::new(reader.read_u8()?);
         match handshake_type {
             HandshakeType::ClientHello => Ok(MessageParsed::ClientHello(ClientHello::from_reader(reader)?)),
             HandshakeType::ServerHello => Ok(MessageParsed::ServerHello(ServerHello::from_reader(reader)?)),
@@ -124,6 +124,7 @@ impl<'a> MessageParsed<'a> {
             }
             HandshakeType::EncryptedExtensions => Ok(MessageParsed::EncryptedExtension(EncryptedExtension::from_reader(reader)?)),
             HandshakeType::MessageHash => Err(HandShakeError::UnsupportedMessage(handshake_type).into()),
+            _ => Err(HandShakeError::UnsupportedMessage(handshake_type).into())
         }
     }
 
@@ -230,47 +231,60 @@ impl<'a> Debug for MessageParsed<'a> {
     }
 }
 
-#[rustfmt::skip]
-#[derive(Debug, Copy, Clone)]
-#[repr(u8)]
-pub enum HandshakeType {
-    ClientHello           = 1,
-    ServerHello           = 2,
-    NewSessionTicket      = 4,
-    EncryptedExtensions   = 8,
-    Certificate           = 11,
-    ServerKeyExchange     = 12,
-    CertificateRequest    = 13,
-    ServerHelloDone       = 14,
-    CertificateVerify     = 15,
-    ClientKeyExchange     = 16,
-    Finish                = 20,
-    CertificateStatus     = 22,
-    CompressedCertificate = 25,
-    MessageHash           = 254,
-}
 
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq)]
+pub struct HandshakeType(u8);
+
+#[allow(non_upper_case_globals)]
 impl HandshakeType {
-    pub fn from_byte(byte: u8) -> Result<HandshakeType, HandShakeError> {
-        match byte {
-            1 => Ok(HandshakeType::ClientHello),
-            2 => Ok(HandshakeType::ServerHello),
-            4 => Ok(HandshakeType::NewSessionTicket),
-            8 => Ok(HandshakeType::EncryptedExtensions),
-            11 => Ok(HandshakeType::Certificate),
-            12 => Ok(HandshakeType::ServerKeyExchange),
-            13 => Ok(HandshakeType::CertificateRequest),
-            14 => Ok(HandshakeType::ServerHelloDone),
-            15 => Ok(HandshakeType::CertificateVerify),
-            16 => Ok(HandshakeType::ClientKeyExchange),
-            20 => Ok(HandshakeType::Finish),
-            22 => Ok(HandshakeType::CertificateStatus),
-            25 => Ok(HandshakeType::CompressedCertificate),
-            _ => Err(HandShakeError::UnknownHandShake(byte))
+    pub const ClientHello: HandshakeType = HandshakeType::new(1);
+    pub const ServerHello: HandshakeType = HandshakeType::new(2);
+    pub const NewSessionTicket: HandshakeType = HandshakeType::new(4);
+    pub const EncryptedExtensions: HandshakeType = HandshakeType::new(8);
+    pub const Certificate: HandshakeType = HandshakeType::new(11);
+    pub const ServerKeyExchange: HandshakeType = HandshakeType::new(12);
+    pub const CertificateRequest: HandshakeType = HandshakeType::new(13);
+    pub const ServerHelloDone: HandshakeType = HandshakeType::new(14);
+    pub const CertificateVerify: HandshakeType = HandshakeType::new(15);
+    pub const ClientKeyExchange: HandshakeType = HandshakeType::new(16);
+    pub const Finish: HandshakeType = HandshakeType::new(20);
+    pub const CertificateStatus: HandshakeType = HandshakeType::new(22);
+    pub const CompressedCertificate: HandshakeType = HandshakeType::new(25);
+    pub const MessageHash: HandshakeType = HandshakeType::new(254);
+    pub const fn new(val: u8) -> HandshakeType {
+        HandshakeType(val)
+    }
+    pub const fn spec(&self) -> &str {
+        match *self {
+            HandshakeType::ClientHello => "ClientHello",
+            HandshakeType::ServerHello => "ServerHello",
+            HandshakeType::NewSessionTicket => "NewSessionTicket",
+            HandshakeType::EncryptedExtensions => "EncryptedExtensions",
+            HandshakeType::Certificate => "Certificate",
+            HandshakeType::ServerKeyExchange => "ServerKeyExchange",
+            HandshakeType::CertificateRequest => "CertificateRequest",
+            HandshakeType::ServerHelloDone => "ServerHelloDone",
+            HandshakeType::CertificateVerify => "CertificateVerify",
+            HandshakeType::ClientKeyExchange => "ClientKeyExchange",
+            HandshakeType::Finish => "Finish",
+            HandshakeType::CertificateStatus => "CertificateStatus",
+            HandshakeType::CompressedCertificate => "CompressedCertificate",
+            _ => "Unknown",
         }
     }
 
-    pub fn as_u8(&self) -> u8 {
-        *self as u8
+    pub const fn inner(&self) -> u8 {
+        self.0
+    }
+
+    pub const fn into_inner(self) -> u8 {
+        self.0
+    }
+}
+
+impl Debug for HandshakeType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}(0x{:02x})", self.spec(), self.0)
     }
 }

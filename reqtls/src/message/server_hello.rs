@@ -78,7 +78,7 @@ impl ServerHelloDone {
     }
 
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
-        writer.write_u8(self.handshake_type as u8)?;
+        writer.write_u8(self.handshake_type.into_inner())?;
         writer.write_u24(self.len)
     }
 }

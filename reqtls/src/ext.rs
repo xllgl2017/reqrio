@@ -149,7 +149,7 @@ pub trait StreamHandle {
             let ticket = SessionTicket::new(3600, tbs.as_ref());
             param.write_buffer.write_slice(&[22, 3, 3])?;
             param.write_buffer.write_u16((ticket.len() + 1) as u16)?;
-            param.write_buffer.write_u8(HandshakeType::NewSessionTicket.as_u8())?;
+            param.write_buffer.write_u8(HandshakeType::NewSessionTicket.into_inner())?;
             ticket.write_to(param.write_buffer)?;
             param.conn.update_session(param.write_buffer.slice_at(offset + 5))?;
         }

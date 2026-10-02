@@ -51,7 +51,7 @@ impl<'a> Certificates<'a> {
     }
 
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
-        writer.write_u8(self.handshake_type as u8)?;
+        writer.write_u8(self.handshake_type.into_inner())?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u24(self.len() as u24 - 7)?;
         for certificate in self.certificates {
@@ -92,7 +92,7 @@ impl<'a> CertificateStatus<'a> {
     pub fn len(&self) -> usize { self.bytes.len() }
 
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
-        writer.write_u8(self.handshake_type as u8)?;
+        writer.write_u8(self.handshake_type.into_inner())?;
         writer.write_u24(self.bytes.len() as u24)?;
         writer.write_slice(self.bytes.as_ref())
     }
@@ -164,7 +164,7 @@ impl<'a> CertificateRequest<'a> {
     }
 
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
-        writer.write_u8(self.handshake_type as u8)?;
+        writer.write_u8(self.handshake_type.into_inner())?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u8(self.cert_type.len() as u8)?;
         writer.write_u16(self.hashes.len() as u16 * 2)?;
@@ -222,7 +222,7 @@ impl<'a> CertificateVerify<'a> {
     }
 
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
-        writer.write_u8(self.handshake_type as u8)?;
+        writer.write_u8(self.handshake_type.into_inner())?;
         writer.write_u24(self.len() as u24 - 4)?;
         writer.write_u16(self.sign_hash.into_inner())?;
         writer.write_u16(self.sign.len() as u16)?;
@@ -274,7 +274,7 @@ impl<'a> CompressedCertificate<'a> {
     }
 
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
-        writer.write_u8(self.handshake_type as u8)?;
+        writer.write_u8(self.handshake_type.into_inner())?;
         writer.write_u16(self.algorithm.into_inner())?;
         writer.write_u24(self.uncompressed_len)?;
         writer.write_u24(self.data.len() as u24)?;

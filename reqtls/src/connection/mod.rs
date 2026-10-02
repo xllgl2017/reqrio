@@ -125,7 +125,7 @@ impl Connection {
         let cl = u32::from_be_bytes([0, self.session_bytes[1], self.session_bytes[2], self.session_bytes[3]]) as usize + 4;
         self.hasher.update(&self.session_bytes[..cl])?;
         let session_hash = self.hasher.current_hash()?;
-        self.session_bytes[0] = HandshakeType::MessageHash as u8;
+        self.session_bytes[0] = HandshakeType::MessageHash.into_inner();
         self.session_bytes[1] = 0;
         self.session_bytes[2] = 0;
         self.session_bytes[3] = session_hash.len() as u8;
