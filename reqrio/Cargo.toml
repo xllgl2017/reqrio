@@ -1,6 +1,6 @@
 [package]
 name = "reqrio"
-version = "0.4.0-alpha2"
+version = "0.4.0-alpha3"
 edition = "2024"
 readme = "README.md"
 description = "A lightweight, high-performance, fingerprint-based HTTP request library."

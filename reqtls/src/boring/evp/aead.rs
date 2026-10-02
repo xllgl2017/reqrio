@@ -26,7 +26,6 @@ pub struct AeadCtx {
     enc: AeadDir,
     ctx: *mut c_void,
     rsv: [u32; 32],
-
 }
 
 unsafe extern "C" {

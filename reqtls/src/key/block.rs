@@ -9,7 +9,8 @@ pub enum KeyType {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TlsSession {
     ticket: Buf<'static>,
     session_id: Buf<'static>,

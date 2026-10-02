@@ -21,9 +21,9 @@ struct FileHash {
 const FILE_HASHES: [FileHash; 4] = [
     FileHash {
         target: "x86_64-windows-msvc",
-        dy_bcrypto: "9aa0940e8c5e72ea900e217bfff25806f33b741ab234b7739c0c1d411d2b1dc3",
+        dy_bcrypto: "1a34cf4c051e9a556fbcbf68e5bc5cac8c804434cd030541045b3946eae69710",
         dy_zap: "c74dc8e695d760d48b122fbd5fccaac3e6ef89aef09988f74ae57d2761f02c00",
-        bcrypto: "5deaf5e2cbe068de75a3c36da36530a299aa67af12aa39719dc7f3da8d3477ac",
+        bcrypto: "63ee9d7a634c1dbff9a0046bf580858c86207e2d81a6dc533a9ff24c00cdcbfa",
         zap: "103a0632ba85850655071e761ef109b2294c958b1237b03d91112b9fcba4db93",
     },
     // FileHash {
@@ -33,16 +33,16 @@ const FILE_HASHES: [FileHash; 4] = [
     // },
     FileHash {
         target: "x86_64-windows-gnu",
-        dy_bcrypto: "0f85a17dd07b2fceb9eb61df24777eacfefa51546155168f687b19a47c4f844e",
+        dy_bcrypto: "b1f08b484659cba590583ec827b5e652409cbde115ebb46916d78f5b7144ef70",
         dy_zap: "dcf84ccbde20ee33f0152838b1252c1576876986821c5df20673485def791dbe",
-        bcrypto: "0f85a17dd07b2fceb9eb61df24777eacfefa51546155168f687b19a47c4f844e",
+        bcrypto: "0bf6edaa0654999d6c0ee28afe495363d766839c2d252090deecfd191979fb39",
         zap: "bd5642fbac1f1594b07b6e55f87999ee3e580891339222e9d30192411b083f39",
     },
     FileHash {
         target: "x86_64-linux-gnu",
-        dy_bcrypto: "155b693eadcbd228a0bb198e64966d3a76c3b9e48b583d171fe582764bb462de",
+        dy_bcrypto: "a8cd851efb3db70230999dd090150a8def68164f047cd462091cd3962408ec64",
         dy_zap: "2307308ebef386c9fbf1751d16856d089768224c86a8904b77746b44f21811dc",
-        bcrypto: "366f551c3c0b64256b1b99d58c162da7400cc61736c5e8852d83397f5df62d2c",
+        bcrypto: "af5b0a8fb52b9b29cfad4eb9cf7110ff89bcad645bd5d43a0ef0ec4487db07b1",
         zap: "3f333918a4eed17454b78192f182968e2ac30b8720b90878242865ddfa451e72",
     },
     // FileHash {
@@ -52,9 +52,9 @@ const FILE_HASHES: [FileHash; 4] = [
     // },
     FileHash {
         target: "aarch64-macos-",
-        dy_bcrypto: "170e7aa5db34325efb69ba96f2e56497d137090958d83d3b02e120f392ae74fe",
+        dy_bcrypto: "b0fc28b96ea6861e366d432b24bc8e0ff4f967cb32195a646e68202eaaf6493b",
         dy_zap: "b56abde2717a43b4958c16bb588d3ff4e4d6827b8c161fdbcb35f691d365a8bd",
-        bcrypto: "041ac6b3b6809db2f8d73f7bda3540030a760f397d3eb7ff429effe4e056b4d5",
+        bcrypto: "7fdaa7dfc987fa94a72005817e48933264bb4b7f069a5b684d00e39216e57d3f",
         zap: "7f314d6ed706d432d872b50389eb126276c387e547a5937a31927470176b998a",
     }
 ];

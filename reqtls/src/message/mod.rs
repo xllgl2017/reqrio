@@ -24,7 +24,6 @@ pub use quic::*;
 pub use server_hello::{ServerHello, ServerHelloDone};
 pub use session_ticket::SessionTicket;
 use std::fmt::Debug;
-#[cfg(debug_assertions)]
 use std::fmt::Formatter;
 
 pub struct Message<'a> {
@@ -35,14 +34,10 @@ pub struct Message<'a> {
 #[cfg(debug_assertions)]
 impl<'a> Debug for Message<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Message {{")?;
-        writeln!(f, "\tencoded: {:?}", self.encoded)?;
-        if f.alternate() {
-            write!(f, "\tparsed: {:#?}", self.parsed)?;
-        } else {
-            write!(f, "\tparsed: {:?}", self.parsed)?;
-        }
-        writeln!(f, "}}")
+        let mut message = f.debug_struct("Message");
+        message.field("encoded", &self.encoded);
+        message.field("parsed", &self.parsed);
+        message.finish()
     }
 }
 

@@ -104,7 +104,7 @@ dependencies = [
 
 [[package]]
 name = "reqrio"
-version = "0.4.0-alpha2"
+version = "0.4.0-alpha3"
 dependencies = [
  "reqrio-json",
  "reqtls",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "reqtls"
-version = "0.4.0-alpha2"
+version = "0.4.0-alpha3"
 dependencies = [
  "bytemuck",
  "hex",
