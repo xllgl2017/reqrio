@@ -10,7 +10,8 @@ pub use hmac::Hmac;
 use std::ptr::null_mut;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum HashType {
     MD5 = 0,
     Sha1 = 1,

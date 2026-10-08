@@ -205,8 +205,8 @@ impl<'a> TlsFinger<'a> {
         ];
         while algorithms.len() < 16 {
             let alg = SignatureAlgorithm::ALL[rand::random::<usize>() % 23];
-            if algorithms.iter().any(|x| x == alg) { continue; }
-            algorithms.push(alg.into());
+            if algorithms.contains(&alg) { continue; }
+            algorithms.push(alg);
         }
         algorithms
     }

@@ -131,8 +131,8 @@ impl<'a> CertificateRequest<'a> {
         };
         for hash in SignatureAlgorithm::ALL {
             if res.hashes.len() >= 10 { break; }
-            if res.hashes.iter().any(|x| x.as_u16() == hash) { continue; }
-            res.hashes.push(SignatureAlgorithm::new(hash));
+            if res.hashes.contains(&hash) { continue; }
+            res.hashes.push(hash);
         }
         res
     }

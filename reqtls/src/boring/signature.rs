@@ -38,12 +38,13 @@ impl SignatureAlgorithm {
 
     const fn padding(&self) -> i32 {
         match *self {
-            SignatureAlgorithm::RSA_PSS_RSAE_SHA256 => RSA_PKCS1_PSS_PADDING,
-            SignatureAlgorithm::RSA_PSS_RSAE_SHA384 => RSA_PKCS1_PSS_PADDING,
+            SignatureAlgorithm::RSA_PSS_RSAE_SHA256 |
+            SignatureAlgorithm::RSA_PSS_RSAE_SHA384 |
             SignatureAlgorithm::RSA_PSS_RSAE_SHA512 => RSA_PKCS1_PSS_PADDING,
-            SignatureAlgorithm::RSA_PKCS1_SHA256 => RSA_PKCS1_PADDING,
-            SignatureAlgorithm::RSA_PKCS1_SHA384 => RSA_PKCS1_PADDING,
-            SignatureAlgorithm::RSA_PKCS1_SHA512 => RSA_PKCS1_PADDING,
+            SignatureAlgorithm::RSA_PKCS1_SHA256 |
+            SignatureAlgorithm::RSA_PKCS1_SHA384 |
+            SignatureAlgorithm::RSA_PKCS1_SHA512 |
+            SignatureAlgorithm::RSA_PKCS1_SHA1 => RSA_PKCS1_PADDING,
             _ => panic!("unsupported signature algorithm"),
         }
     }
@@ -88,30 +89,30 @@ impl SignatureAlgorithm {
     pub const SHA384_DSA: SignatureAlgorithm = SignatureAlgorithm::new(0x0502);
     pub const SHA512_DSA: SignatureAlgorithm = SignatureAlgorithm::new(0x0602);
 
-    pub const ALL: [u16; 23] = [
-        0x0201,
-        0x0401,
-        0x0501,
-        0x0601,
-        0x0804,
-        0x0805,
-        0x0806,
-        0x0807,
-        0x0808,
-        0x0809,
-        0x080A,
-        0x080B,
-        0x0203,
-        0x0403,
-        0x0503,
-        0x0603,
-        0x0202,
-        0x0301,
-        0x0302,
-        0x0303,
-        0x0402,
-        0x0502,
-        0x0602
+    pub const ALL: [SignatureAlgorithm; 23] = [
+        SignatureAlgorithm::RSA_PKCS1_SHA1,
+        SignatureAlgorithm::RSA_PKCS1_SHA256,
+        SignatureAlgorithm::RSA_PKCS1_SHA384,
+        SignatureAlgorithm::RSA_PKCS1_SHA512,
+        SignatureAlgorithm::RSA_PSS_RSAE_SHA256,
+        SignatureAlgorithm::RSA_PSS_RSAE_SHA384,
+        SignatureAlgorithm::RSA_PSS_RSAE_SHA512,
+        SignatureAlgorithm::ED25519,
+        SignatureAlgorithm::ED448,
+        SignatureAlgorithm::RSA_PSS_PSS_SHA256,
+        SignatureAlgorithm::RSA_PSS_PSS_SHA384,
+        SignatureAlgorithm::RSA_PSS_PSS_SHA512,
+        SignatureAlgorithm::ECDSA_SHA1,
+        SignatureAlgorithm::ECDSA_SECP256R1_SHA256,
+        SignatureAlgorithm::ECDSA_SECP384R1_SHA384,
+        SignatureAlgorithm::ECDSA_SECP521R1_SHA512,
+        SignatureAlgorithm::SHA1_DSA,
+        SignatureAlgorithm::SHA224_RSA,
+        SignatureAlgorithm::SHA224_DSA,
+        SignatureAlgorithm::SHA224_ECDSA,
+        SignatureAlgorithm::SHA256_DSA,
+        SignatureAlgorithm::SHA384_DSA,
+        SignatureAlgorithm::SHA512_DSA
     ];
     pub const fn spec(&self) -> &'static str {
         match *self {
@@ -164,62 +165,64 @@ pub struct AlgorithmSigner {
 }
 
 impl AlgorithmSigner {
-    fn new_rsa(md_ctx: CPointer<EVP_MD_CTX>, pkey_ctx: Option<CPointer<EVP_PKEY_CTX>>, signature: &SignatureAlgorithm) -> RlsResult<AlgorithmSigner> {
-        if let Some(mut pkey_ctx) = pkey_ctx {
-            unsafe { EVP_PKEY_CTX_set_rsa_padding(pkey_ctx.as_mut_ptr(), signature.padding()) }.ok(RlsError::RsaSetPaddingError)?;
-            if matches!(*signature, SignatureAlgorithm::RSA_PSS_RSAE_SHA256|SignatureAlgorithm::RSA_PSS_RSAE_SHA384|SignatureAlgorithm::RSA_PSS_RSAE_SHA512) {
-                unsafe { EVP_PKEY_CTX_set_rsa_mgf1_md(pkey_ctx.as_mut_ptr(), signature.evp_md()) }.ok(RlsError::SetRsaMgf1MdError)?;
-                // saltLen = hashLen (32) —— TLS & RFC 推荐
-                unsafe { EVP_PKEY_CTX_set_rsa_pss_saltlen(pkey_ctx.as_mut_ptr(), signature.salt_len()) }.ok(RlsError::SetRsaPassSaltLenError)?;
-            }
-            pkey_ctx.disable_auto_free();
-        }
-        Ok(AlgorithmSigner { md_ctx })
-    }
-
-    fn new_ec(md_ctx: CPointer<EVP_MD_CTX>, pkey_ctx: Option<CPointer<EVP_PKEY_CTX>>) -> RlsResult<AlgorithmSigner> {
-        if let Some(mut pkey_ctx) = pkey_ctx {
-            pkey_ctx.disable_auto_free();
-        }
-        Ok(AlgorithmSigner { md_ctx })
-    }
-
-    pub(crate) fn new_verify(pkey: &CPointer<EVP_PKEY>, signature: impl Into<SignatureAlgorithm>) -> RlsResult<AlgorithmSigner> {
-        let md_ctx = CPointer::new_checked(unsafe { EVP_MD_CTX_new() }, RlsError::InitEvpCtxError)?;
-        let signature = signature.into();
+    fn new_rsa(md_ctx: CPointer<EVP_MD_CTX>, pkey_ctx: CPointer<EVP_PKEY_CTX>, signature: SignatureAlgorithm) -> RlsResult<AlgorithmSigner> {
+        unsafe { EVP_PKEY_CTX_set_rsa_padding(pkey_ctx.as_mut_ptr(), signature.padding()) }.ok(RlsError::RsaSetPaddingError)?;
         match signature {
-            SignatureAlgorithm::RSA_PKCS1_SHA1 => {
-                unsafe { EVP_DigestVerifyInit(md_ctx.as_mut_ptr(), null_mut(), signature.evp_md(), null_mut(), pkey.as_mut_ptr()) }.ok(RlsError::DigestVerifyError)?;
-                AlgorithmSigner::new(md_ctx, None, &signature)
+            SignatureAlgorithm::RSA_PSS_RSAE_SHA256 |
+            SignatureAlgorithm::RSA_PSS_RSAE_SHA384 |
+            SignatureAlgorithm::RSA_PSS_RSAE_SHA512 => {
+                unsafe {
+                    EVP_PKEY_CTX_set_rsa_mgf1_md(pkey_ctx.as_mut_ptr(), signature.evp_md()).ok(RlsError::SetRsaMgf1MdError)?;
+                    // saltLen = hashLen (32) —— TLS & RFC 推荐
+                    EVP_PKEY_CTX_set_rsa_pss_saltlen(pkey_ctx.as_mut_ptr(), signature.salt_len()).ok(RlsError::SetRsaPassSaltLenError)?
+                };
             }
-            _ => {
-                let mut pkey_ctx = CPointer::nullptr();
-                unsafe { EVP_DigestVerifyInit(md_ctx.as_mut_ptr(), pkey_ctx.as_mut(), signature.evp_md(), null_mut(), pkey.as_mut_ptr()) }.ok(RlsError::DigestVerifyError)?;
-                AlgorithmSigner::new(md_ctx, Some(pkey_ctx), &signature)
-            }
+            _ => {}
         }
+        Ok(AlgorithmSigner { md_ctx })
     }
 
-    fn new(md_ctx: CPointer<EVP_MD_CTX>, pkey_ctx: Option<CPointer<EVP_PKEY_CTX>>, signature: &SignatureAlgorithm) -> RlsResult<AlgorithmSigner> {
+    fn new_ec(md_ctx: CPointer<EVP_MD_CTX>) -> RlsResult<AlgorithmSigner> {
+        Ok(AlgorithmSigner { md_ctx })
+    }
+
+    pub(crate) fn new_verify(pkey: &CPointer<EVP_PKEY>, signature: SignatureAlgorithm) -> RlsResult<AlgorithmSigner> {
+        let md_ctx = CPointer::new_checked(unsafe { EVP_MD_CTX_new() }, RlsError::InitEvpCtxError)?;
+        let mut pkey_ctx = CPointer::nullptr();
+        unsafe {
+            EVP_DigestVerifyInit(
+                md_ctx.as_mut_ptr(),
+                pkey_ctx.as_mut(),
+                signature.evp_md(),
+                null_mut(),
+                pkey.as_mut_ptr(),
+            )
+        }.ok(RlsError::DigestVerifyError)?;
+        pkey_ctx.disable_auto_free();
+        AlgorithmSigner::new(md_ctx, pkey_ctx, signature)
+    }
+
+    fn new(md_ctx: CPointer<EVP_MD_CTX>, pkey_ctx: CPointer<EVP_PKEY_CTX>, signature: SignatureAlgorithm) -> RlsResult<AlgorithmSigner> {
         match signature.is_rsa() {
             true => AlgorithmSigner::new_rsa(md_ctx, pkey_ctx, signature),
-            false => AlgorithmSigner::new_ec(md_ctx, pkey_ctx)
+            false => AlgorithmSigner::new_ec(md_ctx)
         }
     }
 
-    pub(crate) fn new_sign(pkey: &CPointer<EVP_PKEY>, signature: &SignatureAlgorithm) -> RlsResult<AlgorithmSigner> {
+    pub(crate) fn new_sign(pkey: &CPointer<EVP_PKEY>, signature: SignatureAlgorithm) -> RlsResult<AlgorithmSigner> {
         let md_ctx = CPointer::new_checked(unsafe { EVP_MD_CTX_new() }, RlsError::InitEvpCtxError)?;
-        match *signature {
-            SignatureAlgorithm::RSA_PKCS1_SHA1 => {
-                unsafe { EVP_DigestSignInit(md_ctx.as_mut_ptr(), null_mut(), signature.evp_md(), null_mut(), pkey.as_mut_ptr()) }.ok(RlsError::DigestSignError)?;
-                AlgorithmSigner::new(md_ctx, None, signature)
-            }
-            _ => {
-                let mut pkey_ctx = CPointer::nullptr();
-                unsafe { EVP_DigestSignInit(md_ctx.as_mut_ptr(), pkey_ctx.as_mut(), signature.evp_md(), null_mut(), pkey.as_mut_ptr()) }.ok(RlsError::DigestSignError)?;
-                AlgorithmSigner::new(md_ctx, Some(pkey_ctx), signature)
-            }
-        }
+        let mut pkey_ctx = CPointer::nullptr();
+        unsafe {
+            EVP_DigestSignInit(
+                md_ctx.as_mut_ptr(),
+                pkey_ctx.as_mut(),
+                signature.evp_md(),
+                null_mut(),
+                pkey.as_mut_ptr(),
+            )
+        }.ok(RlsError::DigestSignError)?;
+        pkey_ctx.disable_auto_free();
+        AlgorithmSigner::new(md_ctx, pkey_ctx, signature)
     }
 
     pub fn verify(&self, data: impl AsRef<[u8]>, signature: &[u8]) -> RlsResult<()> {

@@ -190,8 +190,8 @@ impl<'a> ServerHellmanParam<'a> {
         &self.signature
     }
 
-    pub fn signature_algorithm(&self) -> &SignatureAlgorithm {
-        &self.signature_algorithm
+    pub const fn signature_algorithm(&self) -> SignatureAlgorithm {
+        self.signature_algorithm
     }
 
     pub fn set_pub_key(&mut self, pub_key: Buf<'a>) {

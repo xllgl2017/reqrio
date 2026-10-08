@@ -289,7 +289,7 @@ impl Connection {
     }
 
     pub fn set_by_server_exchange_key(&mut self, server_key: ServerKeyExchange) -> RlsResult<()> {
-        self.sig_alg = *server_key.hellman_param().signature_algorithm();
+        self.sig_alg = server_key.hellman_param().signature_algorithm();
         self.named_curve = *server_key.hellman_param().named_curve();
         #[cfg(feature = "log")]
         info!("[ExchangeKey] algorithm={}; curve={:?}; verify={}", self.sig_alg.spec(), self.named_curve, self.verify);
@@ -369,11 +369,13 @@ impl Connection {
     }
 
     pub fn gen_server_hello(&mut self, writer: &mut Writer, pri_key: &RsaKey) -> RlsResult<()> {
-        // self.version = client_hello.version;
-        self.suite = &CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+        self.suite = match self.version {
+            Version::TLS_1_2 => &CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+            Version::TLS_1_3 => &CipherSuite::TLS_AES_128_GCM_SHA256,
+            _ => return Err(HandShakeError::UnsupportedVersion(self.version).into()),
+        };
         self.hasher.init(self.suite.hash())?;
         self.derived.init(KeyType::Handshake, self.suite);
-        // self.derived.set_client_random(client_hello.random());
         self.hasher.update(self.session_bytes.as_slice())?;
         match self.version {
             Version::TLS_1_2 | Version::TLCP => {
@@ -391,7 +393,27 @@ impl Connection {
                 server_key_exchange.write_to(writer)?;
                 ServerHelloDone::new().write_to(writer)?;
             }
-            Version::TLS_1_3 => {}
+            Version::TLS_1_3 => {
+                let mut sign_data = Vec::with_capacity(256);
+                sign_data.extend([0x20; 64]);
+                sign_data.extend_from_slice(b"TLS 1.3, server CertificateVerify");
+                sign_data.push(0);
+                let start = writer.end();
+                self.update_session(writer.filled())?;
+                sign_data.extend_from_slice(self.hasher.current_hash()?);
+                let mut verify = CertificateVerify::default();
+                let signer = AlgorithmSigner::new_sign(pri_key.pkey(), verify.hash())?;
+                let sign = signer.sign(sign_data)?;
+                verify.set_sign(sign.as_ref());
+                verify.write_to(writer)?;
+                self.update_session(writer.slice_at(start))?;
+                let start = writer.end();
+                let finish = self.derived.make_finish(Version::TLS_1_3, true, self.hasher.current_hash()?)?;
+                writer.write_u8(HandshakeType::Finish.into_inner())?;
+                writer.write_u24(finish.len() as u24)?;
+                writer.write_slice(finish.as_slice())?;
+                self.update_session(writer.slice_at(start))?;
+            }
             _ => return Err(HandShakeError::UnsupportedVersion(self.version).into())
         }
 
@@ -474,7 +496,7 @@ impl Connection {
     pub fn handle_mtls_client(&mut self, writer: &mut Writer, key: &RsaKey) -> RlsResult<()> {
         let mut cert_verify = CertificateVerify::default();
         cert_verify.set_hash(self.mtls_hash.as_u16().into());
-        let signer = AlgorithmSigner::new_sign(key.pkey(), &self.mtls_hash)?;
+        let signer = AlgorithmSigner::new_sign(key.pkey(), self.mtls_hash)?;
         let sign = signer.sign(mem::take(&mut self.session_bytes))?;
         cert_verify.set_sign(&sign);
         let mut record = RecordLayer::handshake(self.version);

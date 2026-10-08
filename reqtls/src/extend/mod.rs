@@ -198,8 +198,8 @@ impl Extension {
         let all_sign = SignatureAlgorithm::ALL;
         while res.len() < 10 {
             let index = rand::random::<usize>() % all_sign.len();
-            if res.iter().any(|x| x.as_u16() == all_sign[index]) { continue; }
-            res.push(SignatureAlgorithm::new(all_sign[index]));
+            if res.contains(&all_sign[index]) { continue; }
+            res.push(all_sign[index]);
         }
         res
     }
