@@ -25,6 +25,7 @@ impl<'a, S: Write> BufWriting<'a, S> {
             let len = self.stream.write(self.buf.filled())?;
             self.buf.used_empty(len);
         }
+        self.buf.reset();
         Ok(())
     }
 }

@@ -121,7 +121,7 @@ impl Writer {
 
     pub fn filled_mut(&mut self) -> &mut [u8] {
         let len = self.end - self.start;
-        unsafe { slice::from_raw_parts_mut(self.ptr, len) }
+        unsafe { slice::from_raw_parts_mut(self.filled_ptr().cast_mut(), len) }
     }
 
     pub fn raw_ptr(&self) -> *const u8 {
