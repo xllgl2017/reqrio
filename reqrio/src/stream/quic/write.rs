@@ -66,7 +66,7 @@ impl<'a> Future for QUICPacketWrite<'a, tokio::net::UdpSocket> {
                     writer.timeout.reset_write();
                 }
                 Poll::Pending => {
-                    if writer.timeout.write_timeout(cx)?.is_pending() { return Poll::Pending; }
+                    writer.timeout.write_timeout(cx)?;
                     return Poll::Pending;
                 }
             };

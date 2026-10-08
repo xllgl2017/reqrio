@@ -62,7 +62,7 @@ impl<'a> Future for QUICPacketRead<'a, tokio::net::UdpSocket> {
                 let mut buf = ReadBuf::new(reader.buffer.unfilled());
                 match Pin::new(&mut reader.socket).poll_recv(cx, &mut buf)? {
                     Poll::Pending => {
-                        if reader.timeout.read_timeout(cx)?.is_pending() { return Poll::Pending; };
+                        reader.timeout.read_timeout(cx)?;
                         return Poll::Pending;
                     }
                     Poll::Ready(_) => {

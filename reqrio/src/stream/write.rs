@@ -45,7 +45,8 @@ impl<'a, S: AsyncWrite + Unpin> Future for BufWriting<'a, S> {
                     if wrote == 0 { return Poll::Ready(Err(HlsError::PeerClosedConnection)); }
                     if writer.buf.used_empty(wrote) { break; }
                 }
-                Poll::Pending => if writer.timeout.write_timeout(cx)?.is_pending() {
+                Poll::Pending => {
+                    writer.timeout.write_timeout(cx)?;
                     return Poll::Pending;
                 }
             }

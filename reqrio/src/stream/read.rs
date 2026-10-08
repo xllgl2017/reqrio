@@ -53,7 +53,8 @@ impl<'a, S: AsyncRead + Unpin> Future for BufReading<'a, S> {
             let stream = Pin::new(&mut reading.stream);
             let mut buf = ReadBuf::new(reading.buf.unfilled());
             match stream.poll_read(cx, &mut buf)? {
-                Poll::Pending => if reading.timeout.read_timeout(cx)?.is_pending() {
+                Poll::Pending => {
+                    reading.timeout.read_timeout(cx)?;
                     return Poll::Pending;
                 }
                 Poll::Ready(_) => {

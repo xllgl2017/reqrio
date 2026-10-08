@@ -96,7 +96,7 @@ impl<'a, S> QUICConnect<'a, S> {
                 hello_retrying: &mut state.hello_retrying,
                 write_buffer: &mut state.tw_buffer,
                 conn: state.conn.tls_conn(),
-            }, Some(&mut self.config), message, Version::TLS_1_3).unwrap();
+            }, Some(&mut self.config), message, Version::TLS_1_3)?;
             if is_server_hello && !state.hello_retrying {
                 self.state.conn.make_sample_cipher(KeyType::Handshake)?;
                 self.state.current = PacketType::Handshake;
@@ -160,7 +160,7 @@ impl<'a> Future for QUICConnect<'a, tokio::net::UdpSocket> {
                 match writer.poll_send_to(cx, state.uw_buffer.filled(), state.addr)? {
                     Poll::Ready(len) => connector.state.uw_buffer.used_empty(len),
                     Poll::Pending => {
-                        if connector.state.timeout.connect_timeout(cx)?.is_pending() { return Poll::Pending; }
+                        connector.state.timeout.connect_timeout(cx)?;
                         return Poll::Pending;
                     }
                 };
@@ -174,7 +174,7 @@ impl<'a> Future for QUICConnect<'a, tokio::net::UdpSocket> {
                 let chunk_size = writer.chunk_size;
                 state.tw_buffer.used_empty(chunk_size);
                 if pending {
-                    if connector.state.timeout.connect_timeout(cx)?.is_pending() { return Poll::Pending; }
+                    connector.state.timeout.connect_timeout(cx)?;
                     return Poll::Pending;
                 }
             }
@@ -183,7 +183,7 @@ impl<'a> Future for QUICConnect<'a, tokio::net::UdpSocket> {
             let mut reader = connector.state.read_next_packet();
             let off = match Pin::new(&mut reader).poll(cx)? {
                 Poll::Pending => {
-                    if connector.state.timeout.connect_timeout(cx)?.is_pending() { return Poll::Pending; };
+                    connector.state.timeout.connect_timeout(cx)?;
                     return Poll::Pending;
                 }
                 Poll::Ready(off) => off,
@@ -199,7 +199,7 @@ impl<'a> Future for QUICConnect<'a, tokio::net::UdpSocket> {
             }
             connector.handle_message()?;
             if pending {
-                if connector.state.timeout.connect_timeout(cx)?.is_pending() { return Poll::Pending; }
+                connector.state.timeout.connect_timeout(cx)?;
                 return Poll::Pending;
             }
         }

@@ -126,7 +126,8 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Future for TlsConnecting<'a, S> {
             connector.gen_server()?;
             if !connector.state.write_buffer.is_empty() {
                 let mut writer = connector.state.write_buffer();
-                if Pin::new(&mut writer).poll(cx)?.is_pending() && connector.state.timeout.connect_timeout(cx)?.is_pending() {
+                if Pin::new(&mut writer).poll(cx)?.is_pending() {
+                    connector.state.timeout.connect_timeout(cx)?;
                     return Poll::Pending;
                 }
             }
@@ -137,9 +138,7 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Future for TlsConnecting<'a, S> {
             let record_len = match Pin::new(&mut reader).poll(cx)? {
                 Poll::Ready(len) => len,
                 Poll::Pending => {
-                    if connector.state.timeout.connect_timeout(cx)?.is_pending() {
-                        return Poll::Pending;
-                    }
+                    connector.state.timeout.connect_timeout(cx)?;
                     return Poll::Pending;
                 }
             };
@@ -229,7 +228,10 @@ impl<'a, S: AsyncWrite + Unpin> Future for ProxyConnecting<'a, S> {
             };
             match Pin::new(&mut writing).poll(cx)? {
                 Poll::Ready(_) => if finish { break; },
-                Poll::Pending => if timeout.connect_timeout(cx)?.is_pending() { return Poll::Pending; },
+                Poll::Pending => {
+                    timeout.connect_timeout(cx)?;
+                    return Poll::Pending;
+                }
             }
         }
         let (stream, buffer, timeout) = match mem::replace(&mut connector.state, ProxyState::Finish) {

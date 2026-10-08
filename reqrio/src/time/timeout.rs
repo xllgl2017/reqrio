@@ -115,29 +115,29 @@ impl Timeout {
     }
 
     #[cfg(feature = "aync")]
-    pub fn read_timeout(&mut self, cx: &mut Context) -> Poll<Result<(), TimeError>> {
-        let Some(read_time) = self.read_time.as_mut() else { return Poll::Pending };
+    pub fn read_timeout(&mut self, cx: &mut Context) -> Result<(), TimeError> {
+        let Some(read_time) = self.read_time.as_mut() else { return Ok(()) };
         match read_time.as_mut().poll(cx) {
-            Poll::Ready(_) => Poll::Ready(Err(TimeError::ReadTimeout)),
-            Poll::Pending => Poll::Pending
+            Poll::Ready(_) => Err(TimeError::ReadTimeout),
+            Poll::Pending => Ok(())
         }
     }
 
     #[cfg(feature = "aync")]
-    pub fn write_timeout(&mut self, cx: &mut Context) -> Poll<Result<(), TimeError>> {
-        let Some(write_time) = self.write_time.as_mut() else { return Poll::Pending };
+    pub fn write_timeout(&mut self, cx: &mut Context) -> Result<(), TimeError> {
+        let Some(write_time) = self.write_time.as_mut() else { return Ok(()) };
         match write_time.as_mut().poll(cx) {
-            Poll::Ready(_) => Poll::Ready(Err(TimeError::WriteTimeout)),
-            Poll::Pending => Poll::Pending
+            Poll::Ready(_) => Err(TimeError::WriteTimeout),
+            Poll::Pending => Ok(())
         }
     }
 
     #[cfg(feature = "aync")]
-    pub fn connect_timeout(&mut self, cx: &mut Context) -> Poll<Result<(), TimeError>> {
-        let Some(connect_time) = self.connect_time.as_mut() else { return Poll::Pending };
+    pub fn connect_timeout(&mut self, cx: &mut Context) -> Result<(), TimeError> {
+        let Some(connect_time) = self.connect_time.as_mut() else { return Ok(()) };
         match connect_time.as_mut().poll(cx) {
-            Poll::Ready(_) => Poll::Ready(Err(TimeError::ConnectTimeout)),
-            Poll::Pending => Poll::Pending
+            Poll::Ready(_) => Err(TimeError::ConnectTimeout),
+            Poll::Pending => Ok(())
         }
     }
 
