@@ -107,7 +107,10 @@ pub trait StreamHandle {
     }
 
     fn handle_client_hello(param: &mut StreamParam<'_>, config: &mut ServerConfig, client_hello: &ClientHello) -> Result<(), RlsError> {
-        let start = param.write_buffer.offset().end;
+        param.conn.derived.set_client_random(client_hello.random());
+
+
+        // let start = param.write_buffer.offset().end;
         param.write_buffer.write_u8(RecordType::HandShake.as_u8())?;
         param.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
         param.write_buffer.write_u16(0)?;
@@ -116,18 +119,19 @@ pub trait StreamHandle {
                 alpn: config.alpn,
                 writer: param.write_buffer,
                 conn: param.conn,
+                version: config.version,
                 ..Default::default()
             }, client_hello)
         }.ok(BufferError::InvalidCEncode)?;
-        let mut certificates = Certificates::default();
-        for certificate in config.server_cert.iter_mut() {
-            certificates.add_certificate(certificate.as_der()?.as_slice());
-        }
-        certificates.write_to(param.write_buffer)?;
-
-        param.conn.gen_server_hello(param.write_buffer, client_hello, config.cert_key)?;
-        param.write_buffer.write_u16_in(start + 3, (param.write_buffer.end() - start - 5) as u16)?;
-        param.conn.update_session(param.write_buffer.slice_at(start + 5))?;
+        // let mut certificates = Certificates::default();
+        // for certificate in config.server_cert.iter_mut() {
+        //     certificates.add_certificate(certificate.as_der()?.as_slice());
+        // }
+        // certificates.write_to(param.write_buffer)?;
+        //
+        // param.conn.gen_server_hello(param.write_buffer, config.cert_key)?;
+        // param.write_buffer.write_u16_in(start + 3, (param.write_buffer.end() - start - 5) as u16)?;
+        // param.conn.update_session(param.write_buffer.slice_at(start + 5))?;
         Ok(())
     }
 

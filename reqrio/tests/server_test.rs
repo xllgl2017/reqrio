@@ -61,6 +61,7 @@ fn aync_server(ca: &[u8], cert: &[u8], key: &[u8]) {
             verify: false,
             ca_certs: &vec![],
             key_log: None,
+            version: Version::TLS_1_2,
         }).await.unwrap();
         let mut buffer = [0; 1024];
         let _ = tls_stream.read(&mut buffer).await.unwrap();
@@ -93,6 +94,7 @@ fn sync_server(ca: &[u8], cert: &[u8], key: &[u8]) {
             verify: false,
             ca_certs: &vec![],
             key_log: None,
+            version: Version::TLS_1_2,
         }).wait().unwrap();
         let mut buffer = [0; 1024];
         let _ = tls_stream.read(&mut buffer).unwrap();

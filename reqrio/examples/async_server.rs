@@ -39,6 +39,7 @@ async fn main() {
             verify: false,
             ca_certs: &vec![],
             key_log: None,
+            version: Version::TLS_1_2,
         }).wait();
         tokio::spawn(async move {
             let mut tls_stream = match tls_stream {

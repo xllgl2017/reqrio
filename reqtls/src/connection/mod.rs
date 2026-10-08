@@ -368,26 +368,33 @@ impl Connection {
         Ok(())
     }
 
-    pub fn gen_server_hello(&mut self, writer: &mut Writer, client_hello: &ClientHello, pri_key: &RsaKey) -> RlsResult<()> {
-        self.version = client_hello.version;
+    pub fn gen_server_hello(&mut self, writer: &mut Writer, pri_key: &RsaKey) -> RlsResult<()> {
+        // self.version = client_hello.version;
         self.suite = &CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
         self.hasher.init(self.suite.hash())?;
         self.derived.init(KeyType::Handshake, self.suite);
-        self.derived.set_client_random(client_hello.random());
+        // self.derived.set_client_random(client_hello.random());
         self.hasher.update(self.session_bytes.as_slice())?;
-        //server_key_exchange
-        let mut server_key_exchange = ServerKeyExchange::default();
-        self.named_curve = *server_key_exchange.hellman_param().named_curve();
-        let mut pubkey_len = 0;
-        let pubkey = unsafe { Connection_get_pubkey(self, &mut pubkey_len) };
-        if pubkey.is_null() { return Err(HandShakeError::SecretPubKeyNull.into()); }
-        server_key_exchange.hellman_param_mut().set_pub_key(Buf::new_ref(unsafe { slice::from_raw_parts(pubkey, pubkey_len) }));
-        let sign_data = self.gen_key_sign_data(&server_key_exchange, &mut Sm2Key::none())?;
-        let signer = AlgorithmSigner::new_sign(pri_key.pkey(), server_key_exchange.hellman_param().signature_algorithm())?;
-        server_key_exchange.hellman_param_mut().set_signature(Buf::Vec(signer.sign(&sign_data)?));
-        self.exchange_pub_key = Buf::Vec(server_key_exchange.hellman_param().pub_key().to_vec());
-        server_key_exchange.write_to(writer)?;
-        ServerHelloDone::new().write_to(writer)?;
+        match self.version {
+            Version::TLS_1_2 | Version::TLCP => {
+                //server_key_exchange
+                let mut server_key_exchange = ServerKeyExchange::default();
+                self.named_curve = *server_key_exchange.hellman_param().named_curve();
+                let mut pubkey_len = 0;
+                let pubkey = unsafe { Connection_get_pubkey(self, &mut pubkey_len) };
+                if pubkey.is_null() { return Err(HandShakeError::SecretPubKeyNull.into()); }
+                server_key_exchange.hellman_param_mut().set_pub_key(Buf::new_ref(unsafe { slice::from_raw_parts(pubkey, pubkey_len) }));
+                let sign_data = self.gen_key_sign_data(&server_key_exchange, &mut Sm2Key::none())?;
+                let signer = AlgorithmSigner::new_sign(pri_key.pkey(), server_key_exchange.hellman_param().signature_algorithm())?;
+                server_key_exchange.hellman_param_mut().set_signature(Buf::Vec(signer.sign(&sign_data)?));
+                self.exchange_pub_key = Buf::Vec(server_key_exchange.hellman_param().pub_key().to_vec());
+                server_key_exchange.write_to(writer)?;
+                ServerHelloDone::new().write_to(writer)?;
+            }
+            Version::TLS_1_3 => {}
+            _ => return Err(HandShakeError::UnsupportedVersion(self.version).into())
+        }
+
         self.server = true;
         Ok(())
     }

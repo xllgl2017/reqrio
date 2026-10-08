@@ -1,6 +1,6 @@
 use crate::json::JsonError;
 use crate::pack::PackError;
-use reqtls::{hex, Alert, BufferError, RlsError, UrlError, ALPN};
+use reqtls::{hex, Alert, BufferError, RlsError, UrlError, ALPN, HandShakeError};
 use std::array::TryFromSliceError;
 use std::convert::Infallible;
 use std::error::Error;
@@ -238,6 +238,12 @@ impl From<QUICError> for HlsError {
 impl From<H2FrameType> for HlsError {
     fn from(value: H2FrameType) -> Self {
         HlsError::H2(value)
+    }
+}
+
+impl From<HandShakeError> for HlsError {
+    fn from(value: HandShakeError) -> Self {
+        HlsError::Rls(RlsError::HandShake(value))
     }
 }
 

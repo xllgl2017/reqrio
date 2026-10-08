@@ -54,4 +54,6 @@ pub struct ServerConfig<'a> {
     pub verify: bool,
     pub ca_certs: &'a Vec<Certificate>,
     pub key_log: Option<PathBuf>,
+    ///tls握手版本，优先选择config的，没有的情况下自动选择第一个
+    pub version: Version,
 }

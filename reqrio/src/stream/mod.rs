@@ -309,6 +309,7 @@ impl Stream {
             proxy_connecting: ProxyStream::connect(stream, param.url.addr(), param.proxy, param.timeout.clone()),
             tls_connecting: TlsConnecting {
                 sent_client_hello: false,
+                sent_server_hello: false,
                 config: Config::Client(ClientConfig {
                     sni: param.url.sni(),
                     alpn: param.alpn,

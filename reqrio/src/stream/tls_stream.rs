@@ -60,6 +60,7 @@ impl<S> TlsStream<S> {
             app_buf: Writer::with_capacity(16384),
             #[cfg(feature = "aync")]
             timeout_reset: false,
+            sent_server_hello: false,
         }
     }
 
@@ -71,6 +72,7 @@ impl<S> TlsStream<S> {
             app_buf: Writer::with_capacity(16384),
             #[cfg(feature = "aync")]
             timeout_reset: false,
+            sent_server_hello: false,
         }
     }
 
