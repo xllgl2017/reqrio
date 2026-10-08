@@ -85,7 +85,7 @@ impl Connection {
             session_bytes: Vec::with_capacity(4096),
             derived: DerivedKey::new(session, key_log, quic),
             certificates: vec![],
-            verify: false,
+            verify: true,
             root_stores: &certificate::ROOT_STORES,
             mtls_hash: SignatureAlgorithm::new(0),
             secrets_count: 0,
