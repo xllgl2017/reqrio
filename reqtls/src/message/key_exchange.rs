@@ -145,9 +145,9 @@ impl<'a> ServerHellmanParam<'a> {
             signature: Buf::default(),
         }
     }
-    pub fn from_reader(reader: &mut Reader<'a>, version: &Version) -> RlsResult<ServerHellmanParam<'a>> {
+    pub fn from_reader(reader: &mut Reader<'a>, version: Version) -> RlsResult<ServerHellmanParam<'a>> {
         let mut res = ServerHellmanParam::new();
-        if !matches!(version, &Version::TLCP) {
+        if !matches!(version, Version::TLCP) {
             res.curve_type = CurveType::from_u8(reader.read_u8()?).ok_or("CurveType Unknown")?;
             res.named_curve = NamedCurve::new(reader.read_u16()?);
             res.pub_key_len = reader.read_u8()?;
@@ -219,7 +219,7 @@ impl<'a> Default for ServerKeyExchange<'a> {
 }
 
 impl<'a> ServerKeyExchange<'a> {
-    pub fn from_reader(ht: HandshakeType, reader: &mut Reader<'a>, version: &Version) -> RlsResult<ServerKeyExchange<'a>> {
+    pub fn from_reader(ht: HandshakeType, reader: &mut Reader<'a>, version: Version) -> RlsResult<ServerKeyExchange<'a>> {
         reader.read_u24()?;
         Ok(ServerKeyExchange {
             handshake_type: ht,

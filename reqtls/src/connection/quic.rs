@@ -222,7 +222,7 @@ mod tests {
         let mut reader = Reader::from_slice(buffer.filled());
 
 
-        let message = Message::from_reader(&mut reader, &RecordType::HandShake, KeyExchangeAlg::NULL, &Version::TLS_1_3);
+        let message = Message::from_reader(&mut reader, &RecordType::HandShake, KeyExchangeAlg::NULL, Version::TLS_1_3);
         assert!(message.is_ok());
         buffer.used_empty(reader.position());
         assert!(buffer.is_empty());
@@ -244,7 +244,7 @@ mod tests {
 
         let mut buffer = merge_buffer(queues, bufs);
         let mut reader = Reader::from_slice(buffer.filled());
-        let message = Message::from_reader(&mut reader, &RecordType::HandShake, KeyExchangeAlg::NULL, &Version::TLS_1_3);
+        let message = Message::from_reader(&mut reader, &RecordType::HandShake, KeyExchangeAlg::NULL, Version::TLS_1_3);
         assert!(message.is_ok());
         buffer.used_empty(reader.position());
         assert!(buffer.is_empty())

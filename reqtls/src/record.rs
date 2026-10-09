@@ -2,7 +2,7 @@ use super::version::Version;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{HandShakeError, Message, MessageParsed, Reader, Writer};
+use crate::{HandShakeError, Message, MessageParsed, Reader};
 
 #[derive(Debug, Copy, Clone)]
 pub enum RecordType {
@@ -65,7 +65,7 @@ impl<'a> RecordLayer<'a> {
                     encoded: Buf::new_ref(msg_readers.read_slice(msg_readers.unread_len())?),
                     parsed: MessageParsed::Payload(Buf::default()),
                 },
-                false => Message::from_reader(&mut msg_readers, &content_type, alg, &version)?
+                false => Message::from_reader(&mut msg_readers, &content_type, alg, version)?
             };
             messages.push(message);
         }
@@ -75,17 +75,6 @@ impl<'a> RecordLayer<'a> {
             len,
             messages,
         })
-    }
-
-    pub fn write_to(self, writer: &mut Writer, kea: KeyExchangeAlg) -> RlsResult<()> {
-        writer.write_u8(self.content_type as u8)?;
-        writer.write_u16(self.version.into_inner())?;
-        let len = self.messages.iter().map(|x| x.parsed.len(kea)).sum::<usize>();
-        writer.write_u16(len as u16)?;
-        for message in self.messages {
-            message.parsed.write_to(writer, kea)?;
-        }
-        Ok(())
     }
 }
 

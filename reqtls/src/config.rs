@@ -1,4 +1,4 @@
-use crate::{Certificate, RsaKey, TlsFinger, TlsSession, Version, ALPN};
+use crate::{Certificate, RsaKey, TlsFinger, TlsSession, Version, ALPN, NamedCurve};
 use std::path::PathBuf;
 
 pub enum Config<'a> {
@@ -56,4 +56,6 @@ pub struct ServerConfig<'a> {
     pub key_log: Option<PathBuf>,
     ///tls握手版本，优先选择config的，没有的情况下自动选择第一个
     pub version: Version,
+    ///密钥交换算法，优先选择config的，没有的情况下自动选择最后一个
+    pub named_curve: NamedCurve
 }

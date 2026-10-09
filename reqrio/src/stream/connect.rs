@@ -67,34 +67,35 @@ impl<'a, S> TlsConnecting<'a, S> {
         let Config::Server(ref mut config) = self.config else { return Ok(false) };
         self.sent_server_hello = true;
         let tls_stream = self.state.deref_mut();
-        tls_stream.write_buffer.write_u8(RecordType::ApplicationData.as_u8())?;
-        tls_stream.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
-        let start = tls_stream.write_buffer.end();
-        tls_stream.write_buffer.write_u16(0)?;
         let mut certificates = Certificates::default();
         for certificate in config.server_cert.iter_mut() {
             certificates.add_certificate(certificate.as_der()?.as_slice());
         }
-        match *tls_stream.conn.version() {
+        match tls_stream.conn.version() {
             Version::TLS_1_2 | Version::TLCP => {
+                tls_stream.write_buffer.write_u8(RecordType::ApplicationData.as_u8())?;
+                tls_stream.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
+                let start = tls_stream.write_buffer.end();
+                tls_stream.write_buffer.write_u16(0)?;
                 tls_stream.write_buffer.filled_mut()[0] = RecordType::HandShake.as_u8();
-                certificates.write_to(&mut tls_stream.write_buffer)?;
+                certificates.write_to(&mut tls_stream.write_buffer, tls_stream.conn.version())?;
                 tls_stream.conn.gen_server_hello(&mut tls_stream.write_buffer, config.cert_key)?;
                 tls_stream.write_buffer.write_u16_in(3, (tls_stream.write_buffer.len() - 5) as u16)?;
                 tls_stream.conn.update_session(&tls_stream.write_buffer.filled()[5..])?;
+                tls_stream.write_buffer.write_u16_in(start, (tls_stream.write_buffer.end() - start - 2) as u16)?;
             }
             _ => {
                 let writer = &mut self.app_buf;
                 writer.write_u8(HandshakeType::EncryptedExtensions.into_inner())?;
                 writer.write_u24(2)?;
                 writer.write_u16(0)?;
-                certificates.write_to(writer)?;
+                certificates.write_to(writer, tls_stream.conn.version())?;
                 tls_stream.conn.gen_server_hello(writer, config.cert_key)?;
                 let len = tls_stream.conn.make_message(RecordType::HandShake, writer.filled(), tls_stream.write_buffer.unfilled())?;
                 tls_stream.write_buffer.add_len(len);
             }
         };
-        tls_stream.write_buffer.write_u16_in(start, (tls_stream.write_buffer.end() - start - 2) as u16)?;
+
         Ok(true)
     }
 }
@@ -118,7 +119,7 @@ impl<'a, S: Read + Write> TlsConnecting<'a, S> {
             tls_stream.handle_record(record_len, Some(&mut self.config), self.app_buf.unfilled())?;
             tls_stream.read_buffer.used_empty(record_len);
         };
-        if stream.conn.version() == &Version::TLS_1_3 { stream.conn.make_cipher(false)?; }
+        if stream.conn.version() == Version::TLS_1_3 { stream.conn.make_cipher(false)?; }
         Ok(stream)
     }
 }
@@ -162,7 +163,7 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Future for TlsConnecting<'a, S> {
             connector.state.handle_record(record_len, Some(&mut connector.config), connector.app_buf.unfilled())?;
             connector.state.read_buffer.used_empty(record_len);
         };
-        if stream.conn.version() == &Version::TLS_1_3 { stream.conn.make_cipher(false)?; }
+        if stream.conn.version() == Version::TLS_1_3 { stream.conn.make_cipher(false)?; }
         Poll::Ready(Ok(stream))
     }
 }

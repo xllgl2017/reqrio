@@ -33,10 +33,10 @@ impl SessionTicket {
         }
     }
 
-    pub fn from_reader(reader: &mut Reader, version: &Version) -> RlsResult<SessionTicket> {
+    pub fn from_reader(reader: &mut Reader, version: Version) -> RlsResult<SessionTicket> {
         let len = reader.read_u24()?;
         let lifetime = reader.read_u32()?;
-        let (age_add, nonce_len, nonce) = match *version {
+        let (age_add, nonce_len, nonce) = match version {
             Version::TLS_1_3 => {
                 let age_add = reader.read_u32()?;
                 let nonce_len = reader.read_u8()?;
@@ -47,7 +47,7 @@ impl SessionTicket {
         };
         let ticket_len = reader.read_u16()?;
         let ticket = reader.read_ptr(ticket_len as usize)?;
-        let (ext_len, extensions) = if version == &Version::TLS_1_3 {
+        let (ext_len, extensions) = if version == Version::TLS_1_3 {
             let ext_len = reader.read_u16()?;
             let ptr = reader.read_ptr(ext_len as usize)?;
             (ext_len, ptr)

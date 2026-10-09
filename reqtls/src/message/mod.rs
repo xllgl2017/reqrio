@@ -11,7 +11,7 @@ mod quic;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{BufferError, HandShakeError, Reader, RecordType, Version, Writer};
+use crate::{HandShakeError, Reader, RecordType, Version};
 pub use alert::Alert;
 use certificate::CertificateStatus;
 pub use certificate::Certificates;
@@ -49,7 +49,7 @@ impl<'a> Message<'a> {
         }
     }
 
-    pub fn from_reader(reader: &mut Reader<'a>, record_type: &RecordType, alg: KeyExchangeAlg, version: &Version) -> RlsResult<Message<'a>> {
+    pub fn from_reader(reader: &mut Reader<'a>, record_type: &RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<Message<'a>> {
         let pos = reader.position();
         let parsed = MessageParsed::from_reader(reader, record_type, alg, version)?;
         let encoded_size = reader.position() - pos;
@@ -94,12 +94,12 @@ pub enum MessageParsed<'a> {
 }
 
 impl<'a> MessageParsed<'a> {
-    pub fn from_bytes(bytes: &'a [u8], record_type: &RecordType, alg: KeyExchangeAlg, version: &Version) -> RlsResult<MessageParsed<'a>> {
+    pub fn from_bytes(bytes: &'a [u8], record_type: &RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<MessageParsed<'a>> {
         let mut reader = Reader::from_slice(bytes);
         MessageParsed::from_reader(&mut reader, record_type, alg, version)
     }
 
-    fn from_reader_handshake(reader: &mut Reader<'a>, alg: KeyExchangeAlg, version: &Version) -> RlsResult<MessageParsed<'a>> {
+    fn from_reader_handshake(reader: &mut Reader<'a>, alg: KeyExchangeAlg, version: Version) -> RlsResult<MessageParsed<'a>> {
         let handshake_type = HandshakeType::new(reader.read_u8()?);
         match handshake_type {
             HandshakeType::ClientHello => Ok(MessageParsed::ClientHello(ClientHello::from_reader(reader)?)),
@@ -123,7 +123,7 @@ impl<'a> MessageParsed<'a> {
         }
     }
 
-    pub fn from_reader(reader: &mut Reader<'a>, record_type: &RecordType, alg: KeyExchangeAlg, version: &Version) -> RlsResult<MessageParsed<'a>> {
+    pub fn from_reader(reader: &mut Reader<'a>, record_type: &RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<MessageParsed<'a>> {
         match record_type {
             RecordType::CipherSpec => {
                 reader.read_u8()?;
@@ -153,28 +153,6 @@ impl<'a> MessageParsed<'a> {
             MessageParsed::Alert(_) => 0,
             MessageParsed::CipherSpec => 1,
             MessageParsed::Finished(v) => 3 + v.len(),
-            _ => unreachable!()
-        }
-    }
-
-    pub fn write_to(self, writer: &mut Writer, kea: KeyExchangeAlg) -> Result<(), BufferError> {
-        match self {
-            MessageParsed::UnParsed => Ok(()),
-            MessageParsed::Certificate(v) => v.write_to(writer),
-            MessageParsed::CompressedCertificate(v) => v.write_to(writer),
-            MessageParsed::ServerKeyExchange(v) => v.write_to(writer),
-            MessageParsed::ServerHelloDone(v) => v.write_to(writer),
-            MessageParsed::ClientKeyExchange(v) => v.write_to(writer, kea),
-            MessageParsed::Payload(v) => writer.write_slice(v.as_ref()),
-            MessageParsed::CertificateStatus(v) => v.write_to(writer),
-            MessageParsed::CertificateRequest(v) => v.write_to(writer),
-            MessageParsed::CertificateVerify(v) => v.write_to(writer),
-            MessageParsed::Alert(_) => Ok(()),
-            MessageParsed::CipherSpec => writer.write_u8(1),
-            MessageParsed::Finished(v) => {
-                writer.write_u16(v.len() as u16)?;
-                writer.write_slice(v.as_ref())
-            }
             _ => unreachable!()
         }
     }

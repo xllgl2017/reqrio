@@ -1,19 +1,18 @@
-use crate::error::HlsResult;
-use crate::Timeout;
 use super::connect::{ConnState, TlsConnecting};
+use crate::Timeout;
+use crate::error::HlsResult;
+use crate::stream::read::RecordReading;
+use crate::stream::write::BufWriting;
 use reqtls::*;
 #[cfg(feature = "aync")]
 use std::cmp::min;
 use std::io::{Read, Write};
-use std::mem;
 #[cfg(feature = "aync")]
 use std::pin::Pin;
 #[cfg(feature = "aync")]
 use std::task::{Context, Poll};
 #[cfg(feature = "aync")]
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use crate::stream::read::RecordReading;
-use crate::stream::write::BufWriting;
 
 pub struct TlsStream<S> {
     pub(super) conn: Connection,
@@ -51,7 +50,7 @@ impl<S> TlsStream<S> {
 
     pub fn connect(mut config: ClientConfig<'_>, stream: S, timeout: Timeout) -> TlsConnecting<'_, S> {
         let session = config.session.as_ref().cloned().unwrap_or_default();
-        let conn = Connection::new_client(session, mem::take(&mut config.key_log), false)
+        let conn = Connection::new_client(session, config.key_log.take(), false)
             .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
         TlsConnecting {
             sent_client_hello: false,
@@ -64,10 +63,13 @@ impl<S> TlsStream<S> {
         }
     }
 
-    pub fn accept(stream: S, config: ServerConfig<'_>) -> TlsConnecting<'_, S> {
+    pub fn accept(stream: S, mut config: ServerConfig<'_>) -> TlsConnecting<'_, S> {
+        let conn = Connection::new(TlsSession::default(), config.key_log.take(), false)
+            .with_verify(config.verify)
+            .with_named_curve(config.named_curve);
         TlsConnecting {
             sent_client_hello: true,
-            state: ConnState::Connecting(Box::new(TlsStream::new(Connection::default().with_verify(config.verify), stream, Timeout::longer()))),
+            state: ConnState::Connecting(Box::new(TlsStream::new(conn, stream, Timeout::longer()))),
             config: Config::Server(config),
             app_buf: Writer::with_capacity(16384),
             #[cfg(feature = "aync")]

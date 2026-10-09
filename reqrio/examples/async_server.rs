@@ -2,6 +2,7 @@ use reqrio::*;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::PathBuf;
 
 #[cfg(feature = "log")]
 const LOGER: Logger = Logger {
@@ -38,8 +39,9 @@ async fn main() {
             cert_key: &pri_key,
             verify: false,
             ca_certs: &vec![],
-            key_log: None,
-            version: Version::TLS_1_2,
+            key_log: Some(PathBuf::from("2.log")),
+            version: Version::TLS_1_3,
+            named_curve: NamedCurve::X25519,
         }).wait();
         tokio::spawn(async move {
             let mut tls_stream = match tls_stream {

@@ -1,9 +1,9 @@
 #[cfg(feature = "quic")]
 mod quic;
-use super::record::{RecordLayer, RecordType};
+use super::record::RecordType;
 use super::suite::CipherSuite;
 use super::version::Version;
-use crate::boring::{certificate, AeadDir, AlgoSigner, BoringResExt};
+use crate::boring::{AeadDir, AlgoSigner, BoringResExt, certificate};
 use crate::buffer::{Buf, CipherEncodeBuffer, TlsDecodeBuffer};
 use crate::error::{HandShakeError, RlsResult};
 use crate::key::{DerivedKey, KeyType, TlsSession};
@@ -11,11 +11,11 @@ use crate::message::{CompressedCertificate, HandshakeType};
 use crate::*;
 #[cfg(feature = "quic")]
 pub use quic::QUICConnection;
+use crate::ffi::c_struct_free;
 use std::os::raw::{c_int, c_void};
 use std::path::PathBuf;
 use std::ptr::null_mut;
 use std::{mem, slice};
-use crate::ffi::c_struct_free;
 
 unsafe extern "C" {
     #[allow(improper_ctypes)]
@@ -34,6 +34,13 @@ unsafe extern "C" {
     fn Connection_handle_extension(
         conn: *mut Connection,
         reader: *mut Reader,
+        share_secret: *mut u8,
+        share_secret_len: *mut usize,
+    ) -> c_int;
+    #[allow(improper_ctypes)]
+    fn ServerHello_from_client_hello(
+        config: *const RecordParam,
+        client_hello: *const ClientHello,
         share_secret: *mut u8,
         share_secret_len: *mut usize,
     ) -> c_int;
@@ -108,6 +115,11 @@ impl Connection {
 
     pub fn with_verify(mut self, verify: bool) -> Connection {
         self.verify = verify;
+        self
+    }
+
+    pub fn with_named_curve(mut self, named_curve: NamedCurve) -> Connection {
+        self.named_curve = named_curve;
         self
     }
 
@@ -208,7 +220,7 @@ impl Connection {
             CompressionMethod::BROTLI => {
                 let data = coder::br_decompress(cc.compressed_data())?;
                 let mut reader = Reader::from_slice(&data);
-                let certs = Certificates::from_reader(&self.version, &mut reader, true)?;
+                let certs = Certificates::from_reader(self.version, &mut reader, true)?;
                 self.set_by_certificate(certs, ext_cas, sni)?;
                 Ok(())
             }
@@ -368,7 +380,25 @@ impl Connection {
         Ok(())
     }
 
-    pub fn gen_server_hello(&mut self, writer: &mut Writer, pri_key: &RsaKey) -> RlsResult<()> {
+    pub fn handle_client_hello(&mut self, writer: &mut Writer, config: &mut ServerConfig, client_hello: ClientHello) -> RlsResult<()> {
+        writer.write_u8(RecordType::HandShake.as_u8())?;
+        writer.write_u16(Version::TLS_1_2.into_inner())?;
+        let start = writer.offset().end;
+        writer.write_u16(0)?;
+        let mut shared_secret = vec![0; 66];
+        let mut shared_secret_len = 0;
+        unsafe {
+            ServerHello_from_client_hello(&RecordParam {
+                alpn: config.alpn,
+                writer,
+                conn: self,
+                version: config.version,
+                ..Default::default()
+            }, &client_hello, shared_secret.as_mut_ptr(), &mut shared_secret_len)
+        }.ok(BufferError::InvalidCEncode)?;
+        writer.write_u16_in(start, (writer.end() - start - 2) as u16)?;
+        self.update_session(&writer.filled()[5..])?;
+        //init conn
         self.suite = match self.version {
             Version::TLS_1_2 => &CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
             Version::TLS_1_3 => &CipherSuite::TLS_AES_128_GCM_SHA256,
@@ -377,6 +407,23 @@ impl Connection {
         self.hasher.init(self.suite.hash())?;
         self.derived.init(KeyType::Handshake, self.suite);
         self.hasher.update(self.session_bytes.as_slice())?;
+        self.derived.set_client_random(client_hello.random());
+        self.server = true;
+        if self.version() == Version::TLS_1_3 {
+            writer.write_u8(RecordType::CipherSpec.as_u8())?;
+            writer.write_u16(Version::TLS_1_2.into_inner())?;
+            writer.write_slice(&[0, 1, 1])?;
+            shared_secret.truncate(shared_secret_len);
+            if shared_secret.is_empty() { return Err("shared mut not be empty".into()); }
+            #[cfg(feature = "log")]
+            info!("[ParsedServerHello] KeyShare={:?} {:?}",self.named_curve,shared_secret);
+            self.derived.make_handshake_traffic_secret(shared_secret, self.hasher.current_hash()?)?;
+            self.derived_key_cipher(KeyType::Handshake)?;
+        }
+        Ok(())
+    }
+
+    pub fn gen_server_hello(&mut self, writer: &mut Writer, pri_key: &RsaKey) -> RlsResult<()> {
         match self.version {
             Version::TLS_1_2 | Version::TLCP => {
                 //server_key_exchange
@@ -395,31 +442,28 @@ impl Connection {
                 ServerHelloDone::new().write_to(writer)?;
             }
             Version::TLS_1_3 => {
-                let mut verify = CertificateVerify::default();
+                self.update_session(writer.filled())?;
+                let start = writer.end();
 
+                let mut verify = CertificateVerify::default();
                 let mut signer = AlgoSigner::new(pri_key.pkey(), verify.hash(), 1)?;
                 signer.update([0x20; 64])?;
                 signer.update(b"TLS 1.3, server CertificateVerify")?;
                 signer.update([0])?;
-                let start = writer.end();
-                self.update_session(writer.filled())?;
                 signer.update(self.hasher.current_hash()?)?;
-                let sign = signer.sign_final()?;
 
-                verify.set_sign(sign.as_ref());
+
+                verify.set_sign(Buf::Vec(signer.sign_final()?));
                 verify.write_to(writer)?;
+
                 self.update_session(writer.slice_at(start))?;
                 let start = writer.end();
                 let finish = self.derived.make_finish(Version::TLS_1_3, true, self.hasher.current_hash()?)?;
-                writer.write_u8(HandshakeType::Finish.into_inner())?;
-                writer.write_u24(finish.len() as u24)?;
                 writer.write_slice(finish.as_slice())?;
                 self.update_session(writer.slice_at(start))?;
             }
             _ => return Err(HandShakeError::UnsupportedVersion(self.version).into())
         }
-
-        self.server = true;
         Ok(())
     }
 
@@ -440,11 +484,12 @@ impl Connection {
     }
 
     pub fn verify_finish(&mut self, data: &[u8], server: bool) -> RlsResult<()> {
+        let session_hash = self.hasher.current_hash()?;
         if self.verify {
-            let session_hash = self.hasher.current_hash()?;
             let out = self.derived.make_finish(self.version, server, session_hash)?;
             if data != out { return Err(HandShakeError::VerifyFinishedFail.into()); }
         }
+        if self.server && self.version == Version::TLS_1_3 { self.derived.make_application_traffic_secret(session_hash)?; }
         self.update_session(data)?;
         Ok(())
     }
@@ -498,21 +543,20 @@ impl Connection {
     pub fn handle_mtls_client(&mut self, writer: &mut Writer, key: &RsaKey) -> RlsResult<()> {
         let mut cert_verify = CertificateVerify::default();
         cert_verify.set_hash(self.mtls_hash);
-        // let mut signer = AlgoSigner::new(key.pkey(), self.mtls_hash, 1)?;
-        // signer.update(mem::take(&mut self.session_bytes))?;
-        // let sign = signer.sign_final()?;
         let sign = AlgoSigner::sign(key.pkey(), self.mtls_hash, &mem::take(&mut self.session_bytes))?;
-        cert_verify.set_sign(&sign);
-        let mut record = RecordLayer::handshake(self.version);
-        record.messages.push(Message::new_parsed(MessageParsed::CertificateVerify(cert_verify)));
-        record.write_to(writer, KeyExchangeAlg::NULL)
+        cert_verify.set_sign(Buf::Vec(sign));
+        writer.write_u8(RecordType::HandShake.as_u8())?;
+        writer.write_u16(self.version.inner())?;
+        writer.write_u16(cert_verify.len() as u16)?;
+        cert_verify.write_to(writer)?;
+        Ok(())
     }
 
-    pub fn named_curve(&self) -> &NamedCurve { &self.named_curve }
+    pub fn named_curve(&self) -> NamedCurve { self.named_curve }
 
-    pub fn version(&self) -> &Version { &self.version }
+    pub fn version(&self) -> Version { self.version }
 
-    pub fn sig_alg(&self) -> &SignatureAlgorithm { &self.sig_alg }
+    pub fn sig_alg(&self) -> SignatureAlgorithm { self.sig_alg }
 
     pub fn certs(&self) -> &[Certificate] {
         &self.certificates

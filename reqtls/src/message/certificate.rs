@@ -21,9 +21,9 @@ impl<'a> Default for Certificates<'a> {
 }
 
 impl<'a> Certificates<'a> {
-    pub fn from_reader(version: &Version, reader: &mut Reader<'a>, compressed: bool) -> RlsResult<Certificates<'a>> {
+    pub fn from_reader(version: Version, reader: &mut Reader<'a>, compressed: bool) -> RlsResult<Certificates<'a>> {
         if !compressed { reader.read_u24()?; }
-        if let &Version::TLS_1_3 = version {
+        if let Version::TLS_1_3 = version {
             reader.read_u8()?; //req ctx len
         }
         let len = reader.read_u24()?;
@@ -32,7 +32,7 @@ impl<'a> Certificates<'a> {
         while reader.unread_len() > 0 {
             let len = reader.read_u24()? as usize;
             certificates.push(Buf::new_ref(reader.read_slice(len)?));
-            if let &Version::TLS_1_3 = version {
+            if let Version::TLS_1_3 = version {
                 let ext_len = reader.read_u16()?; //ext len
                 if ext_len > 0 {
                     let _exts = reader.read_slice(ext_len as usize)?;
@@ -50,14 +50,20 @@ impl<'a> Certificates<'a> {
         7 + self.certificates.iter().map(|x| 3 + x.len()).sum::<usize>()
     }
 
-    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
+    pub fn write_to(self, writer: &mut Writer, version: Version) -> Result<(), BufferError> {
         writer.write_u8(self.handshake_type.into_inner())?;
-        writer.write_u24(self.len() as u24 - 4)?;
-        writer.write_u24(self.len() as u24 - 7)?;
+        let start = writer.end();
+        writer.write_u24(0)?;
+        if version == Version::TLS_1_3 { writer.write_u8(0)?; }
+        let cert_start = writer.end();
+        writer.write_u24(0)?;
         for certificate in self.certificates {
             writer.write_u24(certificate.len() as u24)?;
             writer.write_slice(certificate.as_ref())?;
+            if version == Version::TLS_1_3 { writer.write_u16(0)?; }
         }
+        writer.write_u24_in(cert_start, (writer.end() - cert_start - 3) as u24)?;
+        writer.write_u24_in(start, (writer.end() - start - 3) as u24)?;
         Ok(())
     }
 
@@ -233,8 +239,8 @@ impl<'a> CertificateVerify<'a> {
         self.sign_hash = hash;
     }
 
-    pub fn set_sign(&mut self, sign: &'a [u8]) {
-        self.sign = Buf::new_ref(sign);
+    pub fn set_sign(&mut self, sign: Buf<'a>) {
+        self.sign = sign;
     }
 
     pub fn hash(&self) -> SignatureAlgorithm {

@@ -1,4 +1,3 @@
-use std::os::raw::c_int;
 use crate::config::{ClientConfig, Config};
 use crate::error::RlsResult;
 use crate::*;
@@ -6,13 +5,7 @@ use crate::*;
 use log::debug;
 #[cfg(all(debug_assertions, feature = "log"))]
 use log::{trace, warn};
-use crate::boring::BoringResExt;
 use crate::finger::RecordParam;
-
-unsafe extern "C" {
-    #[allow(improper_ctypes)]
-    fn ServerHello_from_client_hello(config: *const RecordParam, client_hello: *const ClientHello) -> c_int;
-}
 
 pub struct StreamParam<'a> {
     pub handshake_finish: &'a mut bool,
@@ -46,7 +39,7 @@ pub trait StreamHandle {
         if hello_retry {
             #[cfg(feature = "log")]
             debug!("[ParsingServerHello] hello_retry=true; retry_share={:?}", param.conn.named_curve());
-            let server_entries = [KeyEntry::new(*param.conn.named_curve())];
+            let server_entries = [KeyEntry::new(param.conn.named_curve())];
             let mut record_param = RecordParam::from(config);
             record_param.writer = param.write_buffer;
             record_param.conn = param.conn;
@@ -71,19 +64,20 @@ pub trait StreamHandle {
             if let Some(cert) = config.client_cert.get_mut(0) {
                 certificate.add_certificate(cert.as_der()?.as_slice());
             }
-            let mut record = RecordLayer::handshake(*param.conn.version());
-            record.messages.push(certificate.into());
-            record.write_to(param.write_buffer, kea)?;
+            param.write_buffer.write_u8(RecordType::HandShake.as_u8())?;
+            param.write_buffer.write_u16(param.conn.version().into_inner())?;
+            param.write_buffer.write_u16(certificate.len() as u16)?;
             param.conn.update_session(param.write_buffer.slice_at(offset + 5))?;
         }
         let offset = param.write_buffer.offset().end;
         //client key exchange
-        let mut record = RecordLayer::handshake(*param.conn.version());
+        param.write_buffer.write_u8(RecordType::HandShake.as_u8())?;
+        param.write_buffer.write_u16(param.conn.version().into_inner())?;
         let mut client_key_exchange = ClientKeyExchange::default();
         let pub_key = param.conn.pub_share_key()?;
         client_key_exchange.set_pub_key(pub_key.as_ref());
-        record.messages.push(client_key_exchange.into());
-        record.write_to(param.write_buffer, kea)?;
+        param.write_buffer.write_u16(client_key_exchange.len(kea) as u16)?;
+        client_key_exchange.write_to(param.write_buffer, kea)?;
 
         param.conn.update_session(param.write_buffer.slice_at(offset + 5))?;
         param.conn.make_cipher(false)?;
@@ -105,32 +99,6 @@ pub trait StreamHandle {
         Ok(())
     }
 
-    fn handle_client_hello(param: &mut StreamParam<'_>, config: &mut ServerConfig, client_hello: &ClientHello) -> Result<(), RlsError> {
-        param.conn.derived.set_client_random(client_hello.random());
-
-        param.write_buffer.write_u8(RecordType::HandShake.as_u8())?;
-        param.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
-        let start = param.write_buffer.offset().end;
-        param.write_buffer.write_u16(0)?;
-        unsafe {
-            ServerHello_from_client_hello(&RecordParam {
-                alpn: config.alpn,
-                writer: param.write_buffer,
-                conn: param.conn,
-                version: config.version,
-                ..Default::default()
-            }, client_hello)
-        }.ok(BufferError::InvalidCEncode)?;
-        param.write_buffer.write_u16_in(start, (param.write_buffer.end() - start - 2) as u16)?;
-        param.conn.update_session(&param.write_buffer.filled()[5..])?;
-        if param.conn.version() == &Version::TLS_1_3 {
-            param.write_buffer.write_u8(RecordType::CipherSpec.as_u8())?;
-            param.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
-            param.write_buffer.write_slice(&[0, 1, 1])?;
-        }
-        Ok(())
-    }
-
     fn handle_by_alert(&mut self) -> Result<Alert, RlsError> {
         let (read_buffer, param) = self.stream_param();
         match param.encrypted_channel {
@@ -143,7 +111,7 @@ pub trait StreamHandle {
     }
 
     fn handle_finish(param: &mut StreamParam<'_>) -> Result<(), RlsError> {
-        if param.conn.server() {
+        if param.conn.server() && param.conn.version() == Version::TLS_1_2 {
             let offset = param.write_buffer.offset().end;
             let tbs = rand::random::<[u8; 276]>();
             let ticket = SessionTicket::new(3600, tbs.as_ref());
@@ -153,7 +121,7 @@ pub trait StreamHandle {
             ticket.write_to(param.write_buffer)?;
             param.conn.update_session(param.write_buffer.slice_at(offset + 5))?;
         }
-        if (param.conn.certs().is_empty() && param.conn.version() == &Version::TLS_1_2) || param.conn.server() {
+        if (param.conn.certs().is_empty()) || param.conn.server() {
             #[cfg(feature = "log")]
             debug!("[HandleRecord] Recover TLS_1.2");
             param.write_buffer.write_slice(&Self::CHANGE_CIPHER_SPEC)?;
@@ -200,7 +168,8 @@ pub trait StreamHandle {
                     .ok_or(HandShakeError::MissingClientConfig)?;
                 let reader = Reader::from_ptr(v.extensions as *const u8, v.extend_len as usize);
                 param.conn.handle_extension(reader)?;
-                Self::handle_client_hello(param, config, &v)?;
+                param.conn.handle_client_hello(param.write_buffer, config, v)?;
+                // Self::handle_client_hello(param, config, &v)?;
                 return Ok(());
             }
             MessageParsed::ClientKeyExchange(v) => {
@@ -220,10 +189,12 @@ pub trait StreamHandle {
             }
             MessageParsed::Finished(_) => {
                 param.conn.verify_finish(message.encoded.as_ref(), true)?;
-                if !param.conn.derived.quic { param.write_buffer.write_slice(&Self::CHANGE_CIPHER_SPEC)?; }
-                let len = param.conn.make_finish_message(param.write_buffer.unfilled(), false)?;
-                param.write_buffer.add_len(len);
                 *param.handshake_finish = true;
+                if !(param.conn.version() == Version::TLS_1_3 && param.conn.server()) {
+                    if !param.conn.derived.quic { param.write_buffer.write_slice(&Self::CHANGE_CIPHER_SPEC)?; }
+                    let len = param.conn.make_finish_message(param.write_buffer.unfilled(), false)?;
+                    param.write_buffer.add_len(len);
+                }
             }
             MessageParsed::EncryptedExtension(ee) => {
                 param.conn.handle_extension(Reader::from_ptr(ee.extension as *const u8, ee.ext_len as usize))?;
@@ -256,7 +227,7 @@ pub trait StreamHandle {
                 #[cfg(all(debug_assertions, feature = "log"))]
                 trace!("[HandleRecord] {:?}", record);
                 *param.encrypted_channel = !*param.hello_retrying;
-                if param.conn.certs().is_empty() && param.conn.version() == &Version::TLS_1_2 {
+                if param.conn.certs().is_empty() && param.conn.version() == Version::TLS_1_2 {
                     param.conn.make_cipher(true)?;
                 }
             }
@@ -290,7 +261,7 @@ pub trait StreamHandle {
 
     fn handle_by_application(&mut self, record_len: usize, mut config: Option<&mut Config>, app_buf: &mut [u8]) -> Result<usize, RlsError> {
         let (read_buffer, mut param) = self.stream_param();
-        let len = match *param.conn.version() {
+        let len = match param.conn.version() {
             Version::TLS_1_3 => {
                 let len = param.conn.read_message(&read_buffer.filled()[..record_len], app_buf)?;
                 let record_type = RecordType::from_byte(app_buf[len - 1])?;

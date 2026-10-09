@@ -62,6 +62,7 @@ fn aync_server(ca: &[u8], cert: &[u8], key: &[u8]) {
             ca_certs: &vec![],
             key_log: None,
             version: Version::TLS_1_2,
+            named_curve: NamedCurve::X25519,
         }).await.unwrap();
         let mut buffer = [0; 1024];
         let _ = tls_stream.read(&mut buffer).await.unwrap();
@@ -95,6 +96,7 @@ fn sync_server(ca: &[u8], cert: &[u8], key: &[u8]) {
             ca_certs: &vec![],
             key_log: None,
             version: Version::TLS_1_2,
+            named_curve: NamedCurve::X25519,
         }).wait().unwrap();
         let mut buffer = [0; 1024];
         let _ = tls_stream.read(&mut buffer).unwrap();
