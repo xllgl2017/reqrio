@@ -8,7 +8,6 @@ use std::fmt::{Debug, Formatter};
 #[derive(Copy, Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[allow(non_camel_case_types)]
-// #[allow(clippy::upper_case_acronyms)]
 pub enum KeyExchangeAlg {
     NULL = 0,
     ECDHE_ECDSA = 1,

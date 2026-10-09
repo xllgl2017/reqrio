@@ -396,7 +396,7 @@ impl Connection {
             }
             Version::TLS_1_3 => {
                 let mut verify = CertificateVerify::default();
-                
+
                 let mut signer = AlgoSigner::new(pri_key.pkey(), verify.hash(), 1)?;
                 signer.update([0x20; 64])?;
                 signer.update(b"TLS 1.3, server CertificateVerify")?;
@@ -405,7 +405,7 @@ impl Connection {
                 self.update_session(writer.filled())?;
                 signer.update(self.hasher.current_hash()?)?;
                 let sign = signer.sign_final()?;
-                
+
                 verify.set_sign(sign.as_ref());
                 verify.write_to(writer)?;
                 self.update_session(writer.slice_at(start))?;

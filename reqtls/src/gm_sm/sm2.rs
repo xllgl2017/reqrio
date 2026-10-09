@@ -84,7 +84,7 @@ unsafe extern "C" {
 pub struct Sm2Key(CPointer<SM2_KEY>);
 
 impl Sm2Key {
-    const DEFAULT_ID: &[u8; 16] = b"1234567812345678";
+    pub const DEFAULT_ID: &[u8; 16] = b"1234567812345678";
     pub fn none() -> Sm2Key {
         Sm2Key(CPointer::nullptr())
     }

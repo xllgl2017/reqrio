@@ -62,26 +62,40 @@ pub struct TlsConnecting<'a, S> {
 }
 
 impl<'a, S> TlsConnecting<'a, S> {
-    fn gen_server(&mut self) -> HlsResult<()> {
-        if self.sent_server_hello || self.state.conn.alpn().is_empty() { return Ok(()); }
-        let Config::Server(ref mut config) = self.config else { return Ok(()) };
+    fn gen_server(&mut self) -> HlsResult<bool> {
+        if self.sent_server_hello || self.state.conn.alpn().is_empty() { return Ok(false); }
+        let Config::Server(ref mut config) = self.config else { return Ok(false) };
         self.sent_server_hello = true;
         let tls_stream = self.state.deref_mut();
+        tls_stream.write_buffer.write_u8(RecordType::ApplicationData.as_u8())?;
+        tls_stream.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
+        let start = tls_stream.write_buffer.end();
+        tls_stream.write_buffer.write_u16(0)?;
+        let mut certificates = Certificates::default();
+        for certificate in config.server_cert.iter_mut() {
+            certificates.add_certificate(certificate.as_der()?.as_slice());
+        }
         match *tls_stream.conn.version() {
             Version::TLS_1_2 | Version::TLCP => {
-                let mut certificates = Certificates::default();
-                for certificate in config.server_cert.iter_mut() {
-                    certificates.add_certificate(certificate.as_der()?.as_slice());
-                }
-                let writer = &mut tls_stream.write_buffer;
+                tls_stream.write_buffer.filled_mut()[0] = RecordType::HandShake.as_u8();
+                certificates.write_to(&mut tls_stream.write_buffer)?;
+                tls_stream.conn.gen_server_hello(&mut tls_stream.write_buffer, config.cert_key)?;
+                tls_stream.write_buffer.write_u16_in(3, (tls_stream.write_buffer.len() - 5) as u16)?;
+                tls_stream.conn.update_session(&tls_stream.write_buffer.filled()[5..])?;
+            }
+            _ => {
+                let writer = &mut self.app_buf;
+                writer.write_u8(HandshakeType::EncryptedExtensions.into_inner())?;
+                writer.write_u24(2)?;
+                writer.write_u16(0)?;
                 certificates.write_to(writer)?;
                 tls_stream.conn.gen_server_hello(writer, config.cert_key)?;
-                writer.write_u16_in(3, (writer.len() - 5) as u16)?;
-                tls_stream.conn.update_session(&writer.filled()[5..])?;
+                let len = tls_stream.conn.make_message(RecordType::HandShake, writer.filled(), tls_stream.write_buffer.unfilled())?;
+                tls_stream.write_buffer.add_len(len);
             }
-            _ => {}
         };
-        Ok(())
+        tls_stream.write_buffer.write_u16_in(start, (tls_stream.write_buffer.end() - start - 2) as u16)?;
+        Ok(true)
     }
 }
 
@@ -93,9 +107,12 @@ impl<'a, S: Read + Write> TlsConnecting<'a, S> {
             self.sent_client_hello = true;
         }
         let mut stream = loop {
-            self.gen_server()?;
-            tls_stream = self.state.deref_mut();
             tls_stream.write_buffer().wait()?;
+            if self.gen_server()? {
+                tls_stream = self.state.deref_mut();
+                continue;
+            }
+            tls_stream = self.state.deref_mut();
             if tls_stream.handshake_finished && tls_stream.write_buffer.is_empty() { break self.state.take(); }
             let record_len = tls_stream.read_next_record().wait()?;
             tls_stream.handle_record(record_len, Some(&mut self.config), self.app_buf.unfilled())?;
@@ -118,12 +135,11 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Future for TlsConnecting<'a, S> {
         }
         if !connector.sent_client_hello {
             if connector.state.write_buffer.is_empty() {
-                connector.state.build_client_hello(connector.config.client_mut().ok_or("missing config")?)?;
+                connector.state.build_client_hello(connector.config.client_mut().ok_or(HandShakeError::MissingClientConfig)?)?;
             }
             connector.sent_client_hello = true;
         }
         let mut stream = loop {
-            connector.gen_server()?;
             if !connector.state.write_buffer.is_empty() {
                 let mut writer = connector.state.write_buffer();
                 if Pin::new(&mut writer).poll(cx)?.is_pending() {
@@ -131,6 +147,7 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Future for TlsConnecting<'a, S> {
                     return Poll::Pending;
                 }
             }
+            if connector.gen_server()? { continue; }
             if connector.state.handshake_finished && connector.state.write_buffer.is_empty() {
                 break connector.state.take();
             }

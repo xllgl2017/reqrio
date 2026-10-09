@@ -4,7 +4,7 @@ use crate::error::RlsResult;
 use crate::ffi::{c_struct_free, CPointer};
 use crate::{RlsError, REVERSED};
 use std::fmt::{Debug, Formatter};
-use std::os::raw::c_int;
+use std::os::raw::{c_int, c_void};
 use std::ptr::null_mut;
 
 #[repr(C)]
@@ -30,6 +30,7 @@ impl SignatureAlgorithm {
             SignatureAlgorithm::RSA_PKCS1_SHA256 => unsafe { EVP_sha256() },
             SignatureAlgorithm::RSA_PKCS1_SHA384 => unsafe { EVP_sha384() }
             SignatureAlgorithm::RSA_PKCS1_SHA512 => unsafe { EVP_sha512() }
+            SignatureAlgorithm::SM2_ASN1 => unsafe { EVP_sm3() }
             _ => panic!("unsupported signature algorithm"),
         }
     }
@@ -90,6 +91,8 @@ impl SignatureAlgorithm {
     pub const SHA256_DSA: SignatureAlgorithm = SignatureAlgorithm::new(0x0402);
     pub const SHA384_DSA: SignatureAlgorithm = SignatureAlgorithm::new(0x0502);
     pub const SHA512_DSA: SignatureAlgorithm = SignatureAlgorithm::new(0x0602);
+    pub const SM2SIG_SM3: SignatureAlgorithm = SignatureAlgorithm::new(0x0708);
+    pub const SM2_ASN1: SignatureAlgorithm = SignatureAlgorithm::new(0xFFFF);
 
     pub const ALL: [SignatureAlgorithm; 23] = [
         SignatureAlgorithm::RSA_PKCS1_SHA1,
@@ -171,9 +174,23 @@ pub struct AlgoSigner {
     salt_len: i32,
     rsa: bool,
     algorithm: SignatureAlgorithm,
+    rsv: *mut c_void,
 }
 
 impl AlgoSigner {
+    pub fn uninit() -> Self {
+        AlgoSigner {
+            md_ctx: null_mut(),
+            enc: 0,
+            evp_md: null_mut(),
+            padding: 0,
+            salt_len: 0,
+            rsa: false,
+            algorithm: SignatureAlgorithm(0),
+            rsv: null_mut(),
+        }
+    }
+
     pub(crate) fn new(pkey: &CPointer<EVP_PKEY>, algorithm: SignatureAlgorithm, enc: i32) -> RlsResult<AlgoSigner> {
         let mut signer = AlgoSigner {
             md_ctx: null_mut(),
@@ -183,6 +200,7 @@ impl AlgoSigner {
             salt_len: algorithm.salt_len(),
             rsa: algorithm.is_rsa(),
             algorithm,
+            rsv: null_mut(),
         };
         unsafe { AlgoSigner_init(&mut signer, pkey.as_ptr()) }.ok(RlsError::DigestSignError)?;
         Ok(signer)
@@ -210,6 +228,10 @@ impl AlgoSigner {
         unsafe { AlgoSigner_final(self, out.as_mut_ptr(), &mut len) }.ok(RlsError::DigestSignError)?;
         out.truncate(len);
         Ok(out)
+    }
+
+    pub fn is_inited(&self) -> bool {
+        self.algorithm.0 != 0
     }
 }
 

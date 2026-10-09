@@ -47,7 +47,6 @@ pub trait StreamHandle {
             #[cfg(feature = "log")]
             debug!("[ParsingServerHello] hello_retry=true; retry_share={:?}", param.conn.named_curve());
             let server_entries = [KeyEntry::new(*param.conn.named_curve())];
-            // let server_entries = server_hello.key_share_extend().ok_or(HandShakeError::RetryNoKeyShare)?.key_entries();
             let mut record_param = RecordParam::from(config);
             record_param.writer = param.write_buffer;
             record_param.conn = param.conn;
@@ -109,10 +108,9 @@ pub trait StreamHandle {
     fn handle_client_hello(param: &mut StreamParam<'_>, config: &mut ServerConfig, client_hello: &ClientHello) -> Result<(), RlsError> {
         param.conn.derived.set_client_random(client_hello.random());
 
-
-        // let start = param.write_buffer.offset().end;
         param.write_buffer.write_u8(RecordType::HandShake.as_u8())?;
         param.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
+        let start = param.write_buffer.offset().end;
         param.write_buffer.write_u16(0)?;
         unsafe {
             ServerHello_from_client_hello(&RecordParam {
@@ -123,15 +121,13 @@ pub trait StreamHandle {
                 ..Default::default()
             }, client_hello)
         }.ok(BufferError::InvalidCEncode)?;
-        // let mut certificates = Certificates::default();
-        // for certificate in config.server_cert.iter_mut() {
-        //     certificates.add_certificate(certificate.as_der()?.as_slice());
-        // }
-        // certificates.write_to(param.write_buffer)?;
-        //
-        // param.conn.gen_server_hello(param.write_buffer, config.cert_key)?;
-        // param.write_buffer.write_u16_in(start + 3, (param.write_buffer.end() - start - 5) as u16)?;
-        // param.conn.update_session(param.write_buffer.slice_at(start + 5))?;
+        param.write_buffer.write_u16_in(start, (param.write_buffer.end() - start - 2) as u16)?;
+        param.conn.update_session(&param.write_buffer.filled()[5..])?;
+        if param.conn.version() == &Version::TLS_1_3 {
+            param.write_buffer.write_u8(RecordType::CipherSpec.as_u8())?;
+            param.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
+            param.write_buffer.write_slice(&[0, 1, 1])?;
+        }
         Ok(())
     }
 
