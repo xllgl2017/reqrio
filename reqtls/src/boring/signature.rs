@@ -157,7 +157,7 @@ impl Debug for SignatureAlgorithm {
 }
 
 unsafe extern "C" {
-    fn AlgoSigner_init(signer: *mut AlgoSigner, pkey: *const EVP_PKEY) -> i32;
+    fn AlgoSigner_init(signer: *mut AlgoSigner, pkey: *const c_void) -> i32;
     fn AlgoSigner_free(signer: *mut AlgoSigner);
     fn AlgoSigner_update(signer: *mut AlgoSigner, data: *const u8, len: usize) -> i32;
     fn AlgoSigner_final(signer: *mut AlgoSigner, data: *mut u8, len: &mut usize) -> i32;
@@ -166,7 +166,7 @@ unsafe extern "C" {
 c_struct_free!(AlgoSigner, AlgoSigner_free);
 #[repr(C)]
 pub struct AlgoSigner {
-    md_ctx: *mut EVP_MD_CTX,
+    md_ctx: *mut c_void,
     ///0-sign,1-verify
     enc: c_int,
     evp_md: *const EVP_MD,
@@ -174,7 +174,6 @@ pub struct AlgoSigner {
     salt_len: i32,
     rsa: bool,
     algorithm: SignatureAlgorithm,
-    rsv: *mut c_void,
 }
 
 impl AlgoSigner {
@@ -187,7 +186,6 @@ impl AlgoSigner {
             salt_len: 0,
             rsa: false,
             algorithm: SignatureAlgorithm(0),
-            rsv: null_mut(),
         }
     }
 
@@ -200,9 +198,8 @@ impl AlgoSigner {
             salt_len: algorithm.salt_len(),
             rsa: algorithm.is_rsa(),
             algorithm,
-            rsv: null_mut(),
         };
-        unsafe { AlgoSigner_init(&mut signer, pkey.as_ptr()) }.ok(RlsError::DigestSignError)?;
+        unsafe { AlgoSigner_init(&mut signer, pkey.as_ptr() as _) }.ok(RlsError::DigestSignError)?;
         Ok(signer)
     }
 
