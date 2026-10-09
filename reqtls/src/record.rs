@@ -2,30 +2,40 @@ use super::version::Version;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::suite::KeyExchangeAlg;
-use crate::{HandShakeError, Message, MessageParsed, Reader};
+use crate::{Message, MessageParsed, Reader};
 
-#[derive(Debug, Copy, Clone)]
-pub enum RecordType {
-    CipherSpec = 0x14,
-    Alert = 0x15,
-    HandShake = 0x16,
-    ApplicationData = 0x17,
+#[derive(Copy, Clone, PartialEq)]
+pub struct RecordType(u8);
 
-}
-
+#[allow(non_upper_case_globals)]
 impl RecordType {
-    pub fn from_byte(byte: u8) -> Result<RecordType, HandShakeError> {
-        match byte {
-            0x14 => Ok(RecordType::CipherSpec),
-            0x15 => Ok(RecordType::Alert),
-            0x16 => Ok(RecordType::HandShake),
-            0x17 => Ok(RecordType::ApplicationData),
-            _ => Err(HandShakeError::UnknownRecord(byte))
-        }
+    pub const CipherSpec: RecordType = RecordType::new(0x14);
+    pub const Alert: RecordType = RecordType::new(0x15);
+    pub const HandShake: RecordType = RecordType::new(0x16);
+    pub const ApplicationData: RecordType = RecordType::new(0x17);
+    pub const fn new(val: u8) -> RecordType {
+        RecordType(val)
     }
 
-    pub fn as_u8(&self) -> u8 {
-        *self as u8
+    pub const fn inner(&self) -> u8 { self.0 }
+
+    pub const fn into_inner(self) -> u8 { self.0 }
+
+    pub const fn spec(&self) -> &str {
+        match *self {
+            RecordType::CipherSpec => "ChangeCipherSpec",
+            RecordType::Alert => "Alert",
+            RecordType::HandShake => "HandShake",
+            RecordType::ApplicationData => "ApplicationData",
+            _ => "Unknown"
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+impl std::fmt::Debug for RecordType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}(0x{:2x})", self.spec(), self.inner())
     }
 }
 
@@ -54,7 +64,7 @@ impl<'a> RecordLayer<'a> {
 
     pub fn from_bytes(bytes: &'a [u8], alg: KeyExchangeAlg, encrypted: bool) -> RlsResult<RecordLayer<'a>> {
         let mut reader = Reader::from_slice(bytes);
-        let content_type = RecordType::from_byte(reader.read_u8()?)?;
+        let content_type = RecordType::new(reader.read_u8()?);
         let version = Version::new(reader.read_u16()?);
         let len = reader.read_u16()?;
         let mut msg_readers = reader.read_reader(len as usize)?;
@@ -65,7 +75,7 @@ impl<'a> RecordLayer<'a> {
                     encoded: Buf::new_ref(msg_readers.read_slice(msg_readers.unread_len())?),
                     parsed: MessageParsed::Payload(Buf::default()),
                 },
-                false => Message::from_reader(&mut msg_readers, &content_type, alg, version)?
+                false => Message::from_reader(&mut msg_readers, content_type, alg, version)?
             };
             messages.push(message);
         }

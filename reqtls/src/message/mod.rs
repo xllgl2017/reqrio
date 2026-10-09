@@ -49,7 +49,7 @@ impl<'a> Message<'a> {
         }
     }
 
-    pub fn from_reader(reader: &mut Reader<'a>, record_type: &RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<Message<'a>> {
+    pub fn from_reader(reader: &mut Reader<'a>, record_type: RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<Message<'a>> {
         let pos = reader.position();
         let parsed = MessageParsed::from_reader(reader, record_type, alg, version)?;
         let encoded_size = reader.position() - pos;
@@ -88,13 +88,13 @@ pub enum MessageParsed<'a> {
     CertificateRequest(CertificateRequest<'a>),
     CertificateVerify(CertificateVerify<'a>),
     Alert(Alert),
-    CipherSpec,
+    CipherSpec(u8),
     Finished(Buf<'a>),
     EncryptedExtension(EncryptedExtension),
 }
 
 impl<'a> MessageParsed<'a> {
-    pub fn from_bytes(bytes: &'a [u8], record_type: &RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<MessageParsed<'a>> {
+    pub fn from_bytes(bytes: &'a [u8], record_type: RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<MessageParsed<'a>> {
         let mut reader = Reader::from_slice(bytes);
         MessageParsed::from_reader(&mut reader, record_type, alg, version)
     }
@@ -123,18 +123,16 @@ impl<'a> MessageParsed<'a> {
         }
     }
 
-    pub fn from_reader(reader: &mut Reader<'a>, record_type: &RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<MessageParsed<'a>> {
+    pub fn from_reader(reader: &mut Reader<'a>, record_type: RecordType, alg: KeyExchangeAlg, version: Version) -> RlsResult<MessageParsed<'a>> {
         match record_type {
-            RecordType::CipherSpec => {
-                reader.read_u8()?;
-                Ok(MessageParsed::CipherSpec)
-            }
+            RecordType::CipherSpec => Ok(MessageParsed::CipherSpec(reader.read_u8()?)),
             RecordType::Alert => Ok(MessageParsed::Payload(Buf::new_ref(reader.read_slice(2)?))),
             RecordType::HandShake => MessageParsed::from_reader_handshake(reader, alg, version),
             RecordType::ApplicationData => {
                 let len = reader.unread_len();
                 Ok(MessageParsed::Payload(Buf::new_ref(reader.read_slice(len)?)))
             }
+            _ => Err("unknown record type".into())
         }
     }
 
@@ -151,7 +149,7 @@ impl<'a> MessageParsed<'a> {
             MessageParsed::CertificateRequest(v) => v.len(),
             MessageParsed::CertificateVerify(v) => v.len(),
             MessageParsed::Alert(_) => 0,
-            MessageParsed::CipherSpec => 1,
+            MessageParsed::CipherSpec(_) => 1,
             MessageParsed::Finished(v) => 3 + v.len(),
             _ => unreachable!()
         }
@@ -197,7 +195,7 @@ impl<'a> Debug for MessageParsed<'a> {
             MessageParsed::CertificateRequest(v) => if f.alternate() { write!(f, "{:#?}", v) } else { write!(f, "{:?}", v) }
             MessageParsed::CertificateVerify(v) => if f.alternate() { write!(f, "{:#?}", v) } else { write!(f, "{:?}", v) }
             MessageParsed::Alert(v) => if f.alternate() { write!(f, "{:#?}", v) } else { write!(f, "{:?}", v) }
-            MessageParsed::CipherSpec => write!(f, "CipherSpec"),
+            MessageParsed::CipherSpec(_) => write!(f, "CipherSpec"),
             MessageParsed::Finished(v) => if f.alternate() { writeln!(f, "Finished({:#?})", v) } else { writeln!(f, "Finished({:?})", v) }
             MessageParsed::EncryptedExtension(v) => if f.alternate() { write!(f, "{:#?}", v) } else { write!(f, "{:?}", v) }
         }

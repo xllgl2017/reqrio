@@ -73,11 +73,11 @@ impl<'a, S> TlsConnecting<'a, S> {
         }
         match tls_stream.conn.version() {
             Version::TLS_1_2 | Version::TLCP => {
-                tls_stream.write_buffer.write_u8(RecordType::ApplicationData.as_u8())?;
+                tls_stream.write_buffer.write_u8(RecordType::ApplicationData.into_inner())?;
                 tls_stream.write_buffer.write_u16(Version::TLS_1_2.into_inner())?;
                 let start = tls_stream.write_buffer.end();
                 tls_stream.write_buffer.write_u16(0)?;
-                tls_stream.write_buffer.filled_mut()[0] = RecordType::HandShake.as_u8();
+                tls_stream.write_buffer.filled_mut()[0] = RecordType::HandShake.into_inner();
                 certificates.write_to(&mut tls_stream.write_buffer, tls_stream.conn.version())?;
                 tls_stream.conn.gen_server_hello(&mut tls_stream.write_buffer, config.cert_key)?;
                 tls_stream.write_buffer.write_u16_in(3, (tls_stream.write_buffer.len() - 5) as u16)?;

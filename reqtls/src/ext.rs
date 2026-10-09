@@ -64,14 +64,14 @@ pub trait StreamHandle {
             if let Some(cert) = config.client_cert.get_mut(0) {
                 certificate.add_certificate(cert.as_der()?.as_slice());
             }
-            param.write_buffer.write_u8(RecordType::HandShake.as_u8())?;
+            param.write_buffer.write_u8(RecordType::HandShake.into_inner())?;
             param.write_buffer.write_u16(param.conn.version().into_inner())?;
             param.write_buffer.write_u16(certificate.len() as u16)?;
             param.conn.update_session(param.write_buffer.slice_at(offset + 5))?;
         }
         let offset = param.write_buffer.offset().end;
         //client key exchange
-        param.write_buffer.write_u8(RecordType::HandShake.as_u8())?;
+        param.write_buffer.write_u8(RecordType::HandShake.into_inner())?;
         param.write_buffer.write_u16(param.conn.version().into_inner())?;
         let mut client_key_exchange = ClientKeyExchange::default();
         let pub_key = param.conn.pub_share_key()?;
@@ -254,6 +254,7 @@ pub trait StreamHandle {
                 trace!("[HandleRecord] {:?}", record);
                 return self.handle_by_application(record_len, config, app_buf);
             }
+            _=>Err("unknown record type")?,
         }
         Ok(0)
     }
@@ -264,13 +265,13 @@ pub trait StreamHandle {
         let len = match param.conn.version() {
             Version::TLS_1_3 => {
                 let len = param.conn.read_message(&read_buffer.filled()[..record_len], app_buf)?;
-                let record_type = RecordType::from_byte(app_buf[len - 1])?;
+                let record_type = RecordType::new(app_buf[len - 1]);
                 match record_type {
                     RecordType::Alert => return Err(RlsError::Alert(Alert::from_bytes(&app_buf[..len - 1])?)),
                     RecordType::HandShake => {
                         let mut msg_readers = Reader::from_slice(&app_buf[..len - 1]);
                         while msg_readers.unread_len() > 0 {
-                            let message = Message::from_reader(&mut msg_readers, &record_type, param.conn.cipher_suite().exchange_alg(), param.conn.version())?;
+                            let message = Message::from_reader(&mut msg_readers, record_type, param.conn.cipher_suite().exchange_alg(), param.conn.version())?;
                             Self::handle_handshake(&mut param, config.as_deref_mut(), message, Version::TLS_1_3)?;
                         }
                         0
@@ -279,7 +280,8 @@ pub trait StreamHandle {
                         *param.encrypted_channel = true;
                         0
                     }
-                    RecordType::ApplicationData => len - 1
+                    RecordType::ApplicationData => len - 1,
+                    _=>Err("unknown record type")?,
                 }
             }
             _ => param.conn.read_message(&read_buffer.filled()[..record_len], app_buf)?

@@ -87,7 +87,7 @@ impl<'a, S> QUICConnect<'a, S> {
         let state = self.state.deref_mut();
         let mut reader = Reader::from_slice(state.tr_buffer.filled());
         let mut read_len = 0;
-        while let Ok(message) = Message::from_reader(&mut reader, &RecordType::HandShake, KeyExchangeAlg::NULL, Version::TLS_1_3) {
+        while let Ok(message) = Message::from_reader(&mut reader, RecordType::HandShake, KeyExchangeAlg::NULL, Version::TLS_1_3) {
             read_len += message.encoded.len();
             let is_server_hello = message.parsed.server().is_some();
             QUICStream::<S>::handle_handshake(&mut StreamParam {

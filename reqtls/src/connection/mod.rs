@@ -381,7 +381,7 @@ impl Connection {
     }
 
     pub fn handle_client_hello(&mut self, writer: &mut Writer, config: &mut ServerConfig, client_hello: ClientHello) -> RlsResult<()> {
-        writer.write_u8(RecordType::HandShake.as_u8())?;
+        writer.write_u8(RecordType::HandShake.into_inner())?;
         writer.write_u16(Version::TLS_1_2.into_inner())?;
         let start = writer.offset().end;
         writer.write_u16(0)?;
@@ -410,7 +410,7 @@ impl Connection {
         self.derived.set_client_random(client_hello.random());
         self.server = true;
         if self.version() == Version::TLS_1_3 {
-            writer.write_u8(RecordType::CipherSpec.as_u8())?;
+            writer.write_u8(RecordType::CipherSpec.into_inner())?;
             writer.write_u16(Version::TLS_1_2.into_inner())?;
             writer.write_slice(&[0, 1, 1])?;
             shared_secret.truncate(shared_secret_len);
@@ -545,7 +545,7 @@ impl Connection {
         cert_verify.set_hash(self.mtls_hash);
         let sign = AlgoSigner::sign(key.pkey(), self.mtls_hash, &mem::take(&mut self.session_bytes))?;
         cert_verify.set_sign(Buf::Vec(sign));
-        writer.write_u8(RecordType::HandShake.as_u8())?;
+        writer.write_u8(RecordType::HandShake.into_inner())?;
         writer.write_u16(self.version.inner())?;
         writer.write_u16(cert_verify.len() as u16)?;
         cert_verify.write_to(writer)?;
