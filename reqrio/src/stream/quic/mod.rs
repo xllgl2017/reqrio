@@ -239,9 +239,9 @@ impl<S> QUICStream<S> {
         while reader.unread_len() > 0 {
             let frame = QUICFrame::from_reader(&mut reader).unwrap();
             match frame {
-                QUICFrame::Ack { largest_acknowledged, first_ack_range, ack_range, .. } => {
+                QUICFrame::Ack { largest_acknowledged, first_ack_range, ack_range: _ack_range, .. } => {
                     #[cfg(feature = "log")]
-                    trace!("[QUIC ACK] largest={}; first={}; range={:?}",largest_acknowledged, first_ack_range, ack_range);
+                    trace!("[QUIC ACK] largest={}; first={}; range={:?}",largest_acknowledged, first_ack_range, _ack_range);
                     let start = largest_acknowledged - first_ack_range;
                     for large in start..=largest_acknowledged {
                         self.conn.recv_nums_mut().remove(large);

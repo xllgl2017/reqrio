@@ -69,7 +69,7 @@ impl DerivedKey {
     fn export_key(&self, label: &str, key: String) -> RlsResult<()> {
         if let Some(ref key_log) = self.key_log {
             let mut f = OpenOptions::new().create(true).append(true).open(key_log)?;
-            write!(f, "{} {} {}\r\n", label, hex::encode(self.client_random), key)?;
+            writeln!(f, "{} {} {}", label, hex::encode(self.client_random), key)?;
         }
         Ok(())
     }
