@@ -139,9 +139,8 @@ pub extern "system" fn Fingerprint_add_ext_bytes(fingerprint: *mut Fingerprint, 
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
-pub extern "system" fn Fingerprint_add_ext_algorithm(fingerprint: *mut Fingerprint, ext_typ: ExtensionType, algorithm: u16) {
+pub extern "system" fn Fingerprint_add_ext_algorithm(fingerprint: *mut Fingerprint, ext_typ: ExtensionType, algorithm: SignatureAlgorithm) {
     let fingerprint = unsafe { fingerprint.as_mut() };
-    let algorithm: SignatureAlgorithm = algorithm.into();
     if let Some(fingerprint) = fingerprint {
         match fingerprint.tls_mut().find_mut(ext_typ) {
             Some(Extension::SignatureAlgorithms(values)) => values.push(algorithm),
@@ -260,7 +259,7 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
             let typ = ExtensionType::new(key.parse::<u16>().or(Err("Invalid extend type"))?);
             match typ {
                 ExtensionType::SignatureAlgorithms if !value.is_null() => {
-                    let values: Vec<SignatureAlgorithm> = value.members().map(|x| x.as_u16().unwrap_or(0).into()).collect();
+                    let values: Vec<SignatureAlgorithm> = value.members().map(|x| SignatureAlgorithm::new(x.as_u16().unwrap_or(0))).collect();
                     extensions.push(Extension::SignatureAlgorithms(values));
                 }
                 ExtensionType::CompressionCertificate if !value.is_null() => {
@@ -281,7 +280,7 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
                 }
                 ExtensionType::KeyShare if !value.is_null() => {
                     let values: Vec<KeyEntry> = value.members().map(|x| {
-                        let curve=NamedCurve::new(x.as_u16().unwrap_or(0));
+                        let curve = NamedCurve::new(x.as_u16().unwrap_or(0));
                         KeyEntry::new(curve)
                     }).collect();
                     extensions.push(Extension::KeyShare(values));

@@ -13,7 +13,7 @@ pub use evp::{AeadCtx, AeadDir, Iv};
 pub use hash::*;
 pub use padding::Padding;
 pub use rsa::{certificate, RsaCipher, RsaKey, RsaPadding};
-pub use signature::{AlgorithmSigner, SignatureAlgorithm};
+pub use signature::{AlgoSigner, SignatureAlgorithm};
 use std::ffi::c_int;
 
 pub trait BoringResExt {

@@ -287,7 +287,7 @@ mod gm_sm;
 pub use alpn::ALPN;
 pub use boring::{
     base64, certificate::CertStore, certificate::CertType, certificate::Certificate, cipher, hash,
-    hmac, AeadCtx, AeadDir, AlgorithmSigner, Cipher, CipherType, Padding, RsaCipher,
+    hmac, AeadCtx, AeadDir, AlgoSigner, Cipher, CipherType, Padding, RsaCipher,
     RsaKey, RsaPadding, SignatureAlgorithm,
 };
 #[cfg(feature = "cert_signer")]
@@ -313,7 +313,7 @@ pub use key::{KeyType, TlsSession};
 #[cfg(feature = "log")]
 pub use log::*;
 pub use message::{Alert, CertificateRequest, CertificateVerify, Certificates, ClientHello, ClientKeyExchange,
-                  HandshakeType, Message, MessageParsed, NamedCurve, ServerHello,
+                  HandshakeType, Message, MessageParsed, NamedCurve, ServerHello, EncryptedExtension,
                   ServerHelloDone, ServerKeyExchange, SessionTicket};
 #[cfg(feature = "quic")]
 pub use message::{PacketType, QUICFlag, QUICPacket};

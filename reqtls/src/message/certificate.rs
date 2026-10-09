@@ -144,7 +144,7 @@ impl<'a> CertificateRequest<'a> {
         };
         reader.read_u24()?;
         for _ in 0..reader.read_u8()? {
-            res.cert_type.push(CertType::new(reader.read_u8()?));
+            res.cert_type.push(CertType::new(reader.read_u8()? as _));
         }
         let len = reader.read_u16()?;
         for _ in (0..len).step_by(2) {

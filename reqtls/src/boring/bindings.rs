@@ -167,10 +167,6 @@ unsafe extern "C" {
 
     pub(crate) fn EVP_PKEY_CTX_set_rsa_padding(ctx: *mut EVP_PKEY_CTX, padding: c_int) -> c_int;
 
-    pub(crate) fn EVP_PKEY_CTX_set_rsa_mgf1_md(ctx: *mut EVP_PKEY_CTX, md: *const EVP_MD) -> c_int;
-
-    pub(crate) fn EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx: *mut EVP_PKEY_CTX, salt_len: c_int) -> c_int;
-
     pub(crate) fn EVP_MD_CTX_copy_ex(
         out: *mut EVP_MD_CTX,
         in_: *const EVP_MD_CTX,
@@ -221,38 +217,6 @@ unsafe extern "C" {
         md_out_size: *mut c_uint,
         type_: *const EVP_MD,
         impl_: *mut ENGINE,
-    ) -> c_int;
-
-    pub(crate) fn EVP_DigestSignInit(
-        ctx: *mut EVP_MD_CTX,
-        pctx: *mut *mut EVP_PKEY_CTX,
-        type_: *const EVP_MD,
-        e: *mut ENGINE,
-        pkey: *mut EVP_PKEY,
-    ) -> c_int;
-
-    pub(crate) fn EVP_DigestSign(
-        ctx: *mut EVP_MD_CTX,
-        out_sig: *mut u8,
-        out_sig_len: *mut usize,
-        data: *const u8,
-        data_len: usize,
-    ) -> c_int;
-
-    pub(crate) fn EVP_DigestVerifyInit(
-        ctx: *mut EVP_MD_CTX,
-        pctx: *mut *mut EVP_PKEY_CTX,
-        type_: *const EVP_MD,
-        e: *mut ENGINE,
-        pkey: *mut EVP_PKEY,
-    ) -> c_int;
-
-    pub(crate) fn EVP_DigestVerify(
-        ctx: *mut EVP_MD_CTX,
-        sig: *const u8,
-        sig_len: usize,
-        data: *const u8,
-        len: usize,
     ) -> c_int;
 
     pub(crate) fn PKCS5_PBKDF2_HMAC(

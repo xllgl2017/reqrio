@@ -1,7 +1,8 @@
 use std::fmt::{Debug, Formatter};
+use std::os::raw::c_int;
 
 #[derive(PartialEq)]
-pub struct CertType(u8);
+pub struct CertType(c_int);
 impl CertType {
     pub const RSA: CertType = CertType(1);
     pub const ECDSA: CertType = CertType(64);
@@ -16,7 +17,7 @@ impl CertType {
             _ => "Reserved"
         }
     }
-    pub const fn new(v: u8) -> CertType {
+    pub const fn new(v: c_int) -> CertType {
         CertType(v)
     }
 }

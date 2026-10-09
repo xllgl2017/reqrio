@@ -3,7 +3,7 @@ mod quic;
 use super::record::{RecordLayer, RecordType};
 use super::suite::CipherSuite;
 use super::version::Version;
-use crate::boring::{certificate, AeadDir, AlgorithmSigner, BoringResExt};
+use crate::boring::{certificate, AeadDir, AlgoSigner, BoringResExt};
 use crate::buffer::{Buf, CipherEncodeBuffer, TlsDecodeBuffer};
 use crate::error::{HandShakeError, RlsResult};
 use crate::key::{DerivedKey, KeyType, TlsSession};
@@ -252,17 +252,16 @@ impl Connection {
         #[cfg(feature = "log")]
         info!("[CertVerify] verify={}; server={}; algorithm={}", self.verify, server, verify.hash().spec());
         if !self.verify { return Ok(()); }
-        let mut sign_data = Vec::with_capacity(256);
-        sign_data.extend([0x20; 64]);
-        match server {
-            true => sign_data.extend_from_slice(b"TLS 1.3, server CertificateVerify"),
-            false => sign_data.extend_from_slice(b"TLS 1.3, client CertificateVerify")
-        }
-        sign_data.push(0);
-        sign_data.extend_from_slice(self.hasher.current_hash()?);
         let cert = self.certificates.first_mut().ok_or("missing cert")?;
-        let signer = AlgorithmSigner::new_verify(cert.pub_key()?, verify.hash())?;
-        signer.verify(sign_data, verify.sign().as_ref())?;
+        let mut signer = AlgoSigner::new(cert.pub_key()?, verify.hash(), 0)?;
+        signer.update([0x20; 64])?;
+        match server {
+            true => signer.update(b"TLS 1.3, server CertificateVerify")?,
+            false => signer.update(b"TLS 1.3, client CertificateVerify")?
+        }
+        signer.update([0])?;
+        signer.update(self.hasher.current_hash()?)?;
+        signer.verify_final(verify.sign())?;
         Ok(())
     }
 
@@ -301,8 +300,9 @@ impl Connection {
             }
             (true, _) => {
                 let sign_data = self.gen_key_sign_data(&server_key, &mut Sm2Key::none())?;
-                let signature = AlgorithmSigner::new_verify(self.certificates[0].pub_key()?, self.sig_alg)?;
-                signature.verify(sign_data, server_key.hellman_param().signature().as_ref())?;
+                let mut signature = AlgoSigner::new(self.certificates[0].pub_key()?, self.sig_alg, 0)?;
+                signature.update(sign_data)?;
+                signature.verify_final(server_key.hellman_param().signature().as_ref())?;
             }
             (_, _) => {}
         }
@@ -387,23 +387,25 @@ impl Connection {
                 if pubkey.is_null() { return Err(HandShakeError::SecretPubKeyNull.into()); }
                 server_key_exchange.hellman_param_mut().set_pub_key(Buf::new_ref(unsafe { slice::from_raw_parts(pubkey, pubkey_len) }));
                 let sign_data = self.gen_key_sign_data(&server_key_exchange, &mut Sm2Key::none())?;
-                let signer = AlgorithmSigner::new_sign(pri_key.pkey(), server_key_exchange.hellman_param().signature_algorithm())?;
-                server_key_exchange.hellman_param_mut().set_signature(Buf::Vec(signer.sign(&sign_data)?));
+                let mut signer = AlgoSigner::new(pri_key.pkey(), server_key_exchange.hellman_param().signature_algorithm(), 1)?;
+                signer.update(sign_data)?;
+                server_key_exchange.hellman_param_mut().set_signature(Buf::Vec(signer.sign_final()?));
                 self.exchange_pub_key = Buf::Vec(server_key_exchange.hellman_param().pub_key().to_vec());
                 server_key_exchange.write_to(writer)?;
                 ServerHelloDone::new().write_to(writer)?;
             }
             Version::TLS_1_3 => {
-                let mut sign_data = Vec::with_capacity(256);
-                sign_data.extend([0x20; 64]);
-                sign_data.extend_from_slice(b"TLS 1.3, server CertificateVerify");
-                sign_data.push(0);
+                let mut verify = CertificateVerify::default();
+                
+                let mut signer = AlgoSigner::new(pri_key.pkey(), verify.hash(), 1)?;
+                signer.update([0x20; 64])?;
+                signer.update(b"TLS 1.3, server CertificateVerify")?;
+                signer.update([0])?;
                 let start = writer.end();
                 self.update_session(writer.filled())?;
-                sign_data.extend_from_slice(self.hasher.current_hash()?);
-                let mut verify = CertificateVerify::default();
-                let signer = AlgorithmSigner::new_sign(pri_key.pkey(), verify.hash())?;
-                let sign = signer.sign(sign_data)?;
+                signer.update(self.hasher.current_hash()?)?;
+                let sign = signer.sign_final()?;
+                
                 verify.set_sign(sign.as_ref());
                 verify.write_to(writer)?;
                 self.update_session(writer.slice_at(start))?;
@@ -495,9 +497,11 @@ impl Connection {
     pub fn server(&self) -> bool { self.server }
     pub fn handle_mtls_client(&mut self, writer: &mut Writer, key: &RsaKey) -> RlsResult<()> {
         let mut cert_verify = CertificateVerify::default();
-        cert_verify.set_hash(self.mtls_hash.as_u16().into());
-        let signer = AlgorithmSigner::new_sign(key.pkey(), self.mtls_hash)?;
-        let sign = signer.sign(mem::take(&mut self.session_bytes))?;
+        cert_verify.set_hash(self.mtls_hash);
+        // let mut signer = AlgoSigner::new(key.pkey(), self.mtls_hash, 1)?;
+        // signer.update(mem::take(&mut self.session_bytes))?;
+        // let sign = signer.sign_final()?;
+        let sign = AlgoSigner::sign(key.pkey(), self.mtls_hash, &mem::take(&mut self.session_bytes))?;
         cert_verify.set_sign(&sign);
         let mut record = RecordLayer::handshake(self.version);
         record.messages.push(Message::new_parsed(MessageParsed::CertificateVerify(cert_verify)));

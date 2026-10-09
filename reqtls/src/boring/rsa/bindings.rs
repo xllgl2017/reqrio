@@ -192,12 +192,6 @@ pub(crate) const X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY: i32 = 20;
 
 pub(crate) const GEN_URI: i32 = 6;
 
-pub(crate) const EVP_PKEY_RSA: i32 = 6;
-
-pub(crate) const EVP_PKEY_EC: i32 = 408;
-
-pub(crate) const EVP_PKEY_ED25519: i32 = 949;
-
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct X509 {

@@ -155,12 +155,7 @@ impl Certificate {
     pub fn cert_type(&mut self) -> RlsResult<CertType> {
         let pkey = self.pub_key()?;
         let key_type = unsafe { EVP_PKEY_id(pkey.as_ptr()) };
-        match key_type {
-            EVP_PKEY_RSA => Ok(CertType::RSA),
-            EVP_PKEY_EC => Ok(CertType::ECDSA),
-            EVP_PKEY_ED25519 => Ok(CertType::ED25519),
-            _ => Ok(CertType::new(0)),
-        }
+        Ok(CertType::new(key_type))
     }
 }
 
