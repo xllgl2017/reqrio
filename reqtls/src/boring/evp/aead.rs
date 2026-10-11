@@ -1,13 +1,13 @@
-use crate::boring::bindings::EVP_AEAD_DEFAULT_TAG_LENGTH;
+use super::iv::Iv;
+use crate::RlsError;
 use crate::boring::BoringResExt;
+use crate::boring::bindings::EVP_AEAD_DEFAULT_TAG_LENGTH;
 use crate::buffer::{CipherEncodeBuffer, TlsDecodeBuffer};
 use crate::error::RlsResult;
 use crate::extend::Aead;
-use crate::RlsError;
+use crate::ffi::c_struct_free;
 use std::os::raw::{c_int, c_void};
 use std::ptr::null_mut;
-use crate::ffi::c_struct_free;
-use super::iv::Iv;
 
 
 #[repr(C)]
@@ -200,11 +200,11 @@ impl AeadCtx {
 
 #[cfg(test)]
 mod aead_tests {
-    use crate::boring::evp::aead::AeadDir;
     use crate::boring::AeadCtx;
+    use crate::boring::evp::aead::AeadDir;
     use crate::buffer::{CipherEncodeBuffer, TlsDecodeBuffer};
     use crate::{CipherSuite, RecordType, Version, Writer};
-    use std::{env, fs};
+    use std::{env, fs, mem};
 
     fn test_aead(suite: &'static CipherSuite, key: &[u8], size: usize, en: &[u8]) {
         let ctx = AeadCtx::new_with_key(*suite.aead(), AeadDir::Open, key).unwrap();
@@ -278,5 +278,18 @@ mod aead_tests {
             38,
             &[23, 3, 3, 0, 33, 117, 245, 41, 12, 78, 148, 113, 238, 9, 193, 134, 57, 89, 54, 164, 34, 117, 170, 210, 251, 96, 6, 14, 229, 70, 1, 117, 118, 12, 51, 77, 24, 208],
         );
+    }
+
+    #[test]
+    fn test_aead_ctx_struct() {
+        assert_eq!(size_of::<AeadCtx>(), 184);
+        assert_eq!(align_of::<AeadCtx>(), 8);
+        assert_eq!(mem::offset_of!(AeadCtx, aead), 0);
+        assert_eq!(mem::offset_of!(AeadCtx, seq), 8);
+        assert_eq!(mem::offset_of!(AeadCtx, iv), 16);
+        assert_eq!(mem::offset_of!(AeadCtx, tag_len), 40);
+        assert_eq!(mem::offset_of!(AeadCtx, enc), 44);
+        assert_eq!(mem::offset_of!(AeadCtx, ctx), 48);
+        assert_eq!(mem::offset_of!(AeadCtx, rsv), 56);
     }
 }

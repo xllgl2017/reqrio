@@ -87,8 +87,13 @@ impl<'a, S> TlsConnecting<'a, S> {
             _ => {
                 let writer = &mut self.app_buf;
                 writer.write_u8(HandshakeType::EncryptedExtensions.into_inner())?;
-                writer.write_u24(2)?;
-                writer.write_u16(0)?;
+                writer.write_u24((9 + config.alpn.value().len()) as u24)?;
+                writer.write_u16((7 + config.alpn.value().len()) as u16)?;
+                writer.write_u16(ExtensionType::ApplicationLayerProtocolNegotiation.into_inner())?;
+                writer.write_u16((3 + config.alpn.value().len()) as u16)?;
+                writer.write_u16((1 + config.alpn.value().len()) as u16)?;
+                writer.write_u8(config.alpn.value().len() as u8)?;
+                writer.write_slice(config.alpn.value().as_bytes())?;
                 certificates.write_to(writer, tls_stream.conn.version())?;
                 tls_stream.conn.gen_server_hello(writer, config.cert_key)?;
                 let len = tls_stream.conn.make_message(RecordType::HandShake, writer.filled(), tls_stream.write_buffer.unfilled())?;

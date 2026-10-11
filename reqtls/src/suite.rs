@@ -1,7 +1,7 @@
-use std::cmp::max;
+use crate::Version;
 use crate::extend::Aead;
 use crate::hash::HashType;
-use crate::Version;
+use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 
 #[repr(C)]
@@ -736,10 +736,30 @@ impl CipherSuite {
 #[cfg(test)]
 mod tests {
     use crate::CipherSuite;
+    use std::mem;
 
     #[test]
     fn test_cipher_suite() {
         let suite = CipherSuite::from(0xc02b);
         assert_eq!(suite, CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256);
+    }
+
+    #[test]
+    fn test_cipher_suite_struct() {
+        assert_eq!(size_of::<CipherSuite>(), 96);
+        assert_eq!(align_of::<CipherSuite>(), 8);
+        assert_eq!(mem::offset_of!(CipherSuite, value), 0);
+        assert_eq!(mem::offset_of!(CipherSuite, aead), 4);
+        assert_eq!(mem::offset_of!(CipherSuite, exchange), 8);
+        assert_eq!(mem::offset_of!(CipherSuite, mac), 12);
+        assert_eq!(mem::offset_of!(CipherSuite, hash), 16);
+        assert_eq!(mem::offset_of!(CipherSuite, key_size), 24);
+        assert_eq!(mem::offset_of!(CipherSuite, fix_iv_size), 32);
+        assert_eq!(mem::offset_of!(CipherSuite, explict_iv_size), 40);
+        assert_eq!(mem::offset_of!(CipherSuite, trans_iv_len), 48);
+        assert_eq!(mem::offset_of!(CipherSuite, mac_key_size), 56);
+        assert_eq!(mem::offset_of!(CipherSuite, block_size), 64);
+        assert_eq!(mem::offset_of!(CipherSuite, version), 72);
+        assert_eq!(mem::offset_of!(CipherSuite, spec), 80);
     }
 }

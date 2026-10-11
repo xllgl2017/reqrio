@@ -408,6 +408,7 @@ impl Connection {
         self.derived.init(KeyType::Handshake, self.suite);
         self.hasher.update(self.session_bytes.as_slice())?;
         self.derived.set_client_random(client_hello.random());
+        self.sig_alg = SignatureAlgorithm::RSA_PSS_RSAE_SHA256;
         self.server = true;
         if self.version() == Version::TLS_1_3 {
             writer.write_u8(RecordType::CipherSpec.into_inner())?;
@@ -570,7 +571,7 @@ impl Connection {
 mod tests {
     use crate::boring::AeadDir;
     use crate::{CipherSuite, Connection, RecordType, TlsSession, Version};
-
+    use std::mem;
 
     fn test_encrypt(key: &[u8], suite: &'static CipherSuite, iv: &[u8], en: &[u8]) {
         let mut connection = Connection::new_client(TlsSession::default(), None, false);
@@ -623,5 +624,31 @@ mod tests {
         mac_key.extend([1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8]);
         let en = [22, 1, 1, 0, 80, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 198, 14, 19, 241, 183, 40, 82, 246, 189, 252, 121, 16, 190, 240, 95, 119, 196, 14, 130, 24, 130, 104, 168, 11, 212, 183, 172, 109, 10, 147, 121, 104, 165, 193, 48, 97, 205, 97, 245, 216, 86, 25, 229, 237, 236, 10, 247, 24, 137, 39, 196, 218, 125, 105, 75, 180, 126, 4, 204, 216, 153, 88, 207, 149];
         test_encrypt(&mac_key, suite, &iv, &en);
+    }
+
+    #[test]
+    fn test_conn_struct() {
+        assert_eq!(size_of::<Connection>(), 1248);
+        assert_eq!(align_of::<Connection>(), 8);
+        assert_eq!(mem::offset_of!(Connection, decryptor), 0);
+        assert_eq!(mem::offset_of!(Connection, encryptor), 184);
+        assert_eq!(mem::offset_of!(Connection, suite), 368);
+        assert_eq!(mem::offset_of!(Connection, named_curve), 376);
+        assert_eq!(mem::offset_of!(Connection, sig_alg), 378);
+        assert_eq!(mem::offset_of!(Connection, version), 380);
+        assert_eq!(mem::offset_of!(Connection, verify), 382);
+        assert_eq!(mem::offset_of!(Connection, server), 383);
+        assert_eq!(mem::offset_of!(Connection, mtls_enable), 384);
+        assert_eq!(mem::offset_of!(Connection, mtls_hash), 386);
+        assert_eq!(mem::offset_of!(Connection, secrets_count), 392);
+        assert_eq!(mem::offset_of!(Connection, secrets), 400);
+        assert_eq!(mem::offset_of!(Connection, alpn), 408);
+        assert_eq!(mem::offset_of!(Connection, server_name), 440);
+        assert_eq!(mem::offset_of!(Connection, derived), 480);
+        assert_eq!(mem::offset_of!(Connection, exchange_pub_key), 1064);
+        assert_eq!(mem::offset_of!(Connection, session_bytes), 1096);
+        assert_eq!(mem::offset_of!(Connection, certificates), 1120);
+        assert_eq!(mem::offset_of!(Connection, root_stores), 1144);
+        assert_eq!(mem::offset_of!(Connection, hasher), 1152);
     }
 }

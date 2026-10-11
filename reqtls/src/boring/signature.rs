@@ -1,8 +1,8 @@
-use crate::boring::bindings::*;
 use crate::boring::BoringResExt;
+use crate::boring::bindings::*;
 use crate::error::RlsResult;
-use crate::ffi::{c_struct_free, CPointer};
-use crate::{RlsError, REVERSED};
+use crate::ffi::{CPointer, c_struct_free};
+use crate::{REVERSED, RlsError};
 use std::fmt::{Debug, Formatter};
 use std::os::raw::{c_int, c_void};
 use std::ptr::null_mut;
@@ -236,6 +236,7 @@ impl AlgoSigner {
 mod tests {
     use crate::boring::certificate::ROOT_STORES;
     use crate::{AlgoSigner, Certificate, SignatureAlgorithm};
+    use std::mem;
 
     #[test]
     fn test_sign() {
@@ -293,5 +294,18 @@ oo6y7KOW
         let mut signer = AlgoSigner::new(cert.pub_key().unwrap(), SignatureAlgorithm::RSA_PSS_RSAE_SHA256, 0).unwrap();
         signer.update(sign_data).unwrap();
         signer.verify_final(&sign).unwrap();
+    }
+
+    #[test]
+    fn test_algo_signer_struct() {
+        assert_eq!(size_of::<AlgoSigner>(), 40);
+        assert_eq!(align_of::<AlgoSigner>(), 8);
+        assert_eq!(mem::offset_of!(AlgoSigner, md_ctx), 0);
+        assert_eq!(mem::offset_of!(AlgoSigner, enc), 8);
+        assert_eq!(mem::offset_of!(AlgoSigner, evp_md), 16);
+        assert_eq!(mem::offset_of!(AlgoSigner, padding), 24);
+        assert_eq!(mem::offset_of!(AlgoSigner, salt_len), 28);
+        assert_eq!(mem::offset_of!(AlgoSigner, rsa), 32);
+        assert_eq!(mem::offset_of!(AlgoSigner, algorithm), 34);
     }
 }
