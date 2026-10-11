@@ -528,10 +528,10 @@ impl Connection {
 
     pub fn update_session(&mut self, data: impl AsRef<[u8]>) -> RlsResult<()> {
         // println!("update session: {} {:x?}", data.as_ref().len(), data.as_ref());
-        if self.mtls_enable || !self.hasher.inited() {
+        if self.mtls_enable || !self.hasher.initialed() {
             self.session_bytes.extend_from_slice(data.as_ref());
         }
-        if self.hasher.inited() {
+        if self.hasher.initialed() {
             self.hasher.update(data)?;
         }
         Ok(())

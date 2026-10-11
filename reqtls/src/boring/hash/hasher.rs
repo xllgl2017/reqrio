@@ -70,7 +70,7 @@ impl Hasher {
         &self.hash_type
     }
 
-    pub fn inited(&self) -> bool {
+    pub fn initialed(&self) -> bool {
         !self.ctx.is_null()
     }
 }
