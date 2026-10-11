@@ -31,7 +31,7 @@ impl SignatureAlgorithm {
             SignatureAlgorithm::RSA_PKCS1_SHA384 => unsafe { EVP_sha384() }
             SignatureAlgorithm::RSA_PKCS1_SHA512 => unsafe { EVP_sha512() }
             SignatureAlgorithm::SM2_ASN1 => unsafe { EVP_sm3() }
-            _ => panic!("unsupported signature algorithm"),
+            _ => null_mut(),
         }
     }
 
@@ -48,7 +48,7 @@ impl SignatureAlgorithm {
             SignatureAlgorithm::RSA_PKCS1_SHA384 |
             SignatureAlgorithm::RSA_PKCS1_SHA512 |
             SignatureAlgorithm::RSA_PKCS1_SHA1 => RSA_PKCS1_PADDING,
-            _ => panic!("unsupported signature algorithm"),
+            _ => 0,
         }
     }
 
