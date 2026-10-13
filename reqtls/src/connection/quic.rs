@@ -7,7 +7,7 @@ use crate::quic::{QUICNum, QUICRange};
 use crate::{Aead, Buf, BufferError, Cipher, CipherSuite, CipherType, Connection, PacketType, Reader, TlsSession, Version, Writer};
 #[cfg(feature = "log")]
 use log::trace;
-use std::path::PathBuf;
+use std::sync::Arc;
 
 pub struct QUICConnection {
     recv_sample: Cipher,
@@ -18,7 +18,7 @@ pub struct QUICConnection {
 }
 
 impl QUICConnection {
-    pub fn new(session: TlsSession, key_log: Option<PathBuf>, verify: bool) -> QUICConnection {
+    pub fn new(session: TlsSession, key_log: Option<Arc<String>>, verify: bool) -> QUICConnection {
         let mut conn = Connection::new_client(session, key_log, true).with_verify(verify);
         conn.suite = &CipherSuite::TLS_AES_128_GCM_SHA256;
         conn.version = Version::TLS_1_3;
