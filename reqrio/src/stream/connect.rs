@@ -106,7 +106,7 @@ impl<'a, S> TlsConnecting<'a, S> {
 }
 
 impl<'a, S: Read + Write> TlsConnecting<'a, S> {
-    pub fn wait(mut self) -> HlsResult<TlsStream<S>> {
+    pub fn wait(&mut self) -> HlsResult<TlsStream<S>> {
         let mut tls_stream = self.state.deref_mut();
         if !self.sent_client_hello {
             tls_stream.build_client_hello(self.config.client_mut().ok_or(HandShakeError::MissingClientConfig)?)?;
@@ -282,8 +282,8 @@ pub struct StreamConnect<'a, S> {
     pub(crate) proxy_connected: bool,
     #[cfg(feature = "aync")]
     pub(crate) stream: Stream,
-    #[cfg(feature = "aync")]
-    pub(crate) buffer: Writer,
+    // #[cfg(feature = "aync")]
+    // pub(crate) buffer: Writer,
     #[cfg(feature = "aync")]
     pub(crate) tls_connected: bool,
 }
@@ -303,10 +303,17 @@ impl<'a> StreamConnect<'a, std::net::TcpStream> {
                 let conn = Connection::new_client(session, mem::take(&mut config.key_log), false)
                     .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
                 self.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, proxy_stream, Timeout::longer())));
-                let tls_stream = self.tls_connecting.wait()?;
+                let mut tls_stream = self.tls_connecting.wait()?;
                 let alpn = tls_stream.alpn().clone();
                 let stream = match &alpn {
-                    h2 if h2 == ALPN::HTTP20 => HTTPStream::SyncH2(HTTP2StreamS::new(Stream::SyncHttps(tls_stream), self.fingerprint)?),
+                    h2 if h2 == ALPN::HTTP20 => {
+                        let mut buffer = self.tls_connecting.app_buf;
+                        buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
+                        self.fingerprint.h2().build_setting().write_to(&mut buffer)?;
+                        self.fingerprint.h2().build_window_update().write_to(&mut buffer)?;
+                        tls_stream.write_all(buffer.filled())?;
+                        HTTPStream::SyncH2(HTTP2StreamS::new(Stream::SyncHttps(tls_stream), buffer))
+                    }
                     _ => HTTPStream::SyncH1(HTTP1Stream::new(Stream::SyncHttps(tls_stream)))
                 };
                 Ok((alpn, stream))
@@ -340,11 +347,6 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
                     let timeout = proxy_stream.timeout.clone();
                     connector.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, proxy_stream, timeout)));
                     connector.proxy_connected = true;
-                    let mut buffer = Writer::with_capacity(24657);
-                    buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
-                    connector.fingerprint.h2().build_setting().write_to(&mut buffer)?;
-                    connector.fingerprint.h2().build_window_update().write_to(&mut buffer)?;
-                    connector.buffer = buffer;
                 }
                 _ => return Poll::Ready(Err("stream not supported".into()))
             }
@@ -357,15 +359,19 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
                         return Poll::Ready(Ok((ALPN::HTTP11, HTTPStream::AsyncH1(HTTP1Stream::new(Stream::AsyncHttps(tls_stream))))));
                     }
                     connector.stream = Stream::AsyncHttps(tls_stream);
+                    let buffer = &mut connector.tls_connecting.app_buf;
+                    buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
+                    connector.fingerprint.h2().build_setting().write_to(buffer)?;
+                    connector.fingerprint.h2().build_window_update().write_to(buffer)?;
                 }
                 Poll::Pending => return Poll::Pending,
             }
         }
-        let mut writer = connector.stream.write(&mut connector.buffer);
+        let mut writer = connector.stream.write(&mut connector.tls_connecting.app_buf);
         match Pin::new(&mut writer).poll(cx)? {
             Poll::Ready(_) => {
                 let stream = mem::replace(&mut connector.stream, Stream::NonConnection);
-                let buffer = mem::replace(&mut connector.buffer, Writer::none());
+                let buffer = mem::replace(&mut connector.tls_connecting.app_buf, Writer::none());
                 Poll::Ready(Ok((ALPN::HTTP20, HTTPStream::AsyncH2(HTTP2StreamA::new(stream, buffer)))))
             }
             Poll::Pending => Poll::Pending,

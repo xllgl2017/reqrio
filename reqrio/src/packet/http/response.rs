@@ -22,6 +22,7 @@ pub struct Response {
     #[deprecated]
     pub(crate) uri: Uri,
     pub(crate) header: Header,
+    #[deprecated]
     coder: Option<Box<dyn StreamDecode + Send + Sync>>,
     read_size: usize,
     h2_buffer: Writer,

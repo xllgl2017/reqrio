@@ -56,7 +56,7 @@ impl<S> TlsStream<S> {
             sent_client_hello: false,
             state: ConnState::Connecting(Box::new(TlsStream::new(conn, stream, timeout))),
             config: Config::Client(config),
-            app_buf: Writer::with_capacity(16384),
+            app_buf: Writer::with_capacity(24657),
             #[cfg(feature = "aync")]
             timeout_reset: false,
             sent_server_hello: false,
@@ -71,7 +71,7 @@ impl<S> TlsStream<S> {
             sent_client_hello: true,
             state: ConnState::Connecting(Box::new(TlsStream::new(conn, stream, Timeout::longer()))),
             config: Config::Server(config),
-            app_buf: Writer::with_capacity(16384),
+            app_buf: Writer::with_capacity(24657),
             #[cfg(feature = "aync")]
             timeout_reset: false,
             sent_server_hello: false,

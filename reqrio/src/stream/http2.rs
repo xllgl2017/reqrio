@@ -3,10 +3,10 @@ use crate::pack::{HPackDecode, HPackEncode};
 use crate::packet::HeaderParam;
 use crate::reader::ReadExt;
 use crate::request::RequestBuffer;
-use crate::{Body, Fingerprint, H2FrameFlag, H2FrameType, H2Frame, H2Setting, Header, Response};
+use crate::{Body, H2FrameFlag, H2FrameType, H2Frame, H2Setting, Header, Response};
 #[cfg(feature = "log")]
 use crate::{warn, trace};
-use reqtls::{u24, Writer, Reader};
+use reqtls::{u24, Writer, Reader, Buffer};
 use std::collections::HashMap;
 use crate::stream::Stream;
 
@@ -22,13 +22,9 @@ pub struct HTTP2StreamS {
 
 
 impl HTTP2StreamS {
-    pub fn new(mut stream: Stream, fingerprint: &Fingerprint) -> HlsResult<HTTP2StreamS> {
-        let mut buffer = Writer::with_capacity(24657);
-        buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
-        fingerprint.h2().build_setting().write_to(&mut buffer)?;
-        fingerprint.h2().build_window_update().write_to(&mut buffer)?;
-        stream.write(&mut buffer).wait()?;
-        Ok(HTTP2StreamS {
+    pub fn new(stream: Stream, mut buffer: Buffer) -> HTTP2StreamS {
+        buffer.reset();
+        HTTP2StreamS {
             encoder: HPackEncode::new(65536),
             decoder: HPackDecode::new(65536),
             sid: 1,
@@ -36,7 +32,7 @@ impl HTTP2StreamS {
             read_buffer: buffer,
             write_buffer: Writer::with_capacity(16438),
             increment: 0,
-        })
+        }
     }
 
     fn flush(stream: &mut Stream, buffer: &mut Writer) -> HlsResult<()> {
@@ -193,11 +189,6 @@ pub struct HTTP2StreamA {
 #[cfg(feature = "aync")]
 impl HTTP2StreamA {
     pub fn new(stream: Stream, mut buffer: Writer) -> HTTP2StreamA {
-        // let mut buffer = Buffer::with_capacity(24657);
-        // buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
-        // fingerprint.h2().build_setting().write_to(&mut buffer)?;
-        // fingerprint.h2().build_window_update().write_to(&mut buffer)?;
-        // stream.write(buffer.filled()).await?;
         buffer.reset();
         HTTP2StreamA {
             encoder: HPackEncode::new(65536),

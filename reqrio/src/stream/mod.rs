@@ -331,7 +331,7 @@ impl Stream {
                     version: param.version,
                 }),
                 state: ConnState::Connected,
-                app_buf: Writer::with_capacity(16384),
+                app_buf: Writer::with_capacity(24657),
                 #[cfg(feature = "aync")]
                 timeout_reset: false,
             },
@@ -339,8 +339,6 @@ impl Stream {
             proxy_connected: false,
             #[cfg(feature = "aync")]
             stream: Stream::NonConnection,
-            #[cfg(feature = "aync")]
-            buffer: Writer::none(),
             #[cfg(feature = "aync")]
             tls_connected: false,
         }

@@ -344,7 +344,6 @@ impl Writer {
 
 impl std::io::Write for Writer {
     fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        println!("{}",std::str::from_utf8(buf).unwrap());
         self.write_slice(buf)?;
         Ok(buf.len())
     }
@@ -511,15 +510,6 @@ impl BufPtr {
 impl Debug for BufPtr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.as_slice())
-    }
-}
-
-impl Clone for BufPtr {
-    fn clone(&self) -> Self {
-        BufPtr {
-            ptr: CPointer::new(self.ptr.as_mut_ptr()).with_free(false),
-            len: self.len,
-        }
     }
 }
 
