@@ -13,9 +13,9 @@ use crate::*;
 pub use quic::QUICConnection;
 use crate::ffi::c_struct_free;
 use std::os::raw::{c_int, c_void};
-use std::path::PathBuf;
 use std::ptr::null_mut;
 use std::{mem, slice};
+use std::sync::Arc;
 
 unsafe extern "C" {
     #[allow(improper_ctypes)]
@@ -80,7 +80,7 @@ impl Default for Connection {
 impl Connection {
     const HRR_MAGIC: [u8; 32] = [207, 33, 173, 116, 229, 154, 97, 17, 190, 29, 140, 2, 30, 101, 184, 145, 194, 162, 17, 22, 122, 187, 140, 94, 7, 158, 9, 226, 200, 168, 51, 156];
 
-    pub fn new(session: TlsSession, key_log: Option<PathBuf>, quic: bool) -> Connection {
+    pub fn new(session: TlsSession, key_log: Option<Arc<String>>, quic: bool) -> Connection {
         Connection {
             decryptor: AeadCtx::none(),
             encryptor: AeadCtx::none(),
@@ -105,7 +105,7 @@ impl Connection {
         }
     }
 
-    pub fn new_client(session: TlsSession, key_log: Option<PathBuf>, quic: bool) -> Connection {
+    pub fn new_client(session: TlsSession, key_log: Option<Arc<String>>, quic: bool) -> Connection {
         Connection::new(session, key_log, quic)
     }
 
@@ -628,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_conn_struct() {
-        assert_eq!(size_of::<Connection>(), 1248);
+        assert_eq!(size_of::<Connection>(), 1224);
         assert_eq!(align_of::<Connection>(), 8);
         assert_eq!(mem::offset_of!(Connection, decryptor), 0);
         assert_eq!(mem::offset_of!(Connection, encryptor), 184);
@@ -645,10 +645,10 @@ mod tests {
         assert_eq!(mem::offset_of!(Connection, alpn), 408);
         assert_eq!(mem::offset_of!(Connection, server_name), 440);
         assert_eq!(mem::offset_of!(Connection, derived), 480);
-        assert_eq!(mem::offset_of!(Connection, exchange_pub_key), 1064);
-        assert_eq!(mem::offset_of!(Connection, session_bytes), 1096);
-        assert_eq!(mem::offset_of!(Connection, certificates), 1120);
-        assert_eq!(mem::offset_of!(Connection, root_stores), 1144);
-        assert_eq!(mem::offset_of!(Connection, hasher), 1152);
+        assert_eq!(mem::offset_of!(Connection, exchange_pub_key), 1040);
+        assert_eq!(mem::offset_of!(Connection, session_bytes), 1072);
+        assert_eq!(mem::offset_of!(Connection, certificates), 1096);
+        assert_eq!(mem::offset_of!(Connection, root_stores), 1120);
+        assert_eq!(mem::offset_of!(Connection, hasher), 1128);
     }
 }

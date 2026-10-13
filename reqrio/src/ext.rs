@@ -45,9 +45,9 @@ pub trait ReqExt: Sized {
     }
 
     ///导出tls key log，不设置时读取SSLKEYLOGFILE环境变量，为保证通信安全，请勿用于生产模式，以免造成隐私泄露
-    fn set_key_log(&mut self, path: impl AsRef<Path>);
+    fn set_key_log(&mut self, path: impl Into<String>);
 
-    fn with_key_log(mut self, path: impl AsRef<Path>) -> Self {
+    fn with_key_log(mut self, path: impl Into<String>) -> Self {
         self.set_key_log(path);
         self
     }

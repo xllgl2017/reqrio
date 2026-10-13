@@ -1,5 +1,6 @@
 use crate::{Certificate, RsaKey, TlsFinger, TlsSession, Version, ALPN, NamedCurve};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub enum Config<'a> {
     Server(ServerConfig<'a>),
@@ -38,7 +39,7 @@ pub struct ClientConfig<'a> {
     ///额外的ca证书，用于自签证书
     pub ca_certs: &'a [Certificate],
     ///tls密钥导出路径，None不导出
-    pub key_log: Option<PathBuf>,
+    pub key_log: Option<Arc<String>>,
     ///使用tls会话数据恢复会话
     pub session: &'a Option<TlsSession>,
     ///TLS版本
@@ -53,7 +54,7 @@ pub struct ServerConfig<'a> {
     pub cert_key: &'a RsaKey,
     pub verify: bool,
     pub ca_certs: &'a Vec<Certificate>,
-    pub key_log: Option<PathBuf>,
+    pub key_log: Option<Arc<String>>,
     ///tls握手版本，优先选择config的，没有的情况下自动选择第一个
     pub version: Version,
     ///密钥交换算法，优先选择config的，没有的情况下自动选择最后一个

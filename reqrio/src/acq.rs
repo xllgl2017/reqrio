@@ -8,7 +8,7 @@ use crate::stream::{ConnParam, HTTPStream, Proxy, Stream};
 use crate::*;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub struct AcReq {
     header: Header,
@@ -23,7 +23,7 @@ pub struct AcReq {
     key: RsaKey,
     ca_certs: Vec<Certificate>,
     alpn: ALPN,
-    key_log: Option<PathBuf>,
+    key_log: Option<Arc<String>>,
     url: Url,
     tls_session: Option<TlsSession>,
     ignore_order: bool,
@@ -47,7 +47,7 @@ impl Default for AcReq {
             key: RsaKey::none(),
             ca_certs: vec![],
             alpn: ALPN::HTTP20,
-            key_log: None,
+            key_log: None, //env::var("SSLKEYLOGFILE").ok().map(|x| Arc::new(x)),
             url: Default::default(),
             tls_session: None,
             ignore_order: false,
@@ -220,7 +220,7 @@ impl AcReq {
                 cert: &mut self.certs,
                 key: &mut self.key,
                 ca_cert: &self.ca_certs,
-                key_log: &self.key_log,
+                key_log: self.key_log.clone(),
                 ech: false,
                 session: &self.tls_session,
                 version: self.version,
@@ -328,8 +328,8 @@ impl ReqExt for AcReq {
         self.redirect_times = max_redirect_exceeded
     }
 
-    fn set_key_log(&mut self, path: impl AsRef<Path>) {
-        self.key_log = Some(path.as_ref().to_path_buf());
+    fn set_key_log(&mut self, path: impl Into<String>) {
+        self.key_log = Some(Arc::new(path.into()));
     }
 
     fn set_alpn(&mut self, alpn: ALPN) {
