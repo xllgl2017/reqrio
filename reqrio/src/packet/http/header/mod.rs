@@ -172,6 +172,18 @@ impl Header {
         Some(header.value())
     }
 
+    /// HPack table size
+    ///
+    /// on first header item
+    pub fn update_table_size(&self) -> Option<usize> {
+        let value = self.get("update-table-size")?;
+        match value {
+            HeaderValue::Number(len) => Some(*len),
+            HeaderValue::String(len) => Some(len.parse().ok()?),
+            _ => None
+        }
+    }
+
     pub fn get_str(&self, name: impl AsRef<str>) -> Option<&str> {
         let header = self.inner.iter().find(|x| x.name().eq_ignore_ascii_case(name.as_ref()))?;
         header.value().as_string()
