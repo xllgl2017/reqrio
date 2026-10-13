@@ -11,6 +11,7 @@ pub struct ChunkDecoder<C: StreamDecode> {
     /// trim end
     trim_end: bool,
     finish: bool,
+    trim_need_one: bool,
 }
 
 impl<C: StreamDecode> ChunkDecoder<C> {
@@ -21,6 +22,7 @@ impl<C: StreamDecode> ChunkDecoder<C> {
             read_size: 0,
             trim_end: true,
             finish: false,
+            trim_need_one: false,
         }
     }
 
@@ -56,6 +58,10 @@ impl<C: StreamDecode> ChunkDecoder<C> {
 
 impl<C: StreamDecode> StreamDecode for ChunkDecoder<C> {
     fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError> {
+        if self.trim_need_one {
+            self.trim_need_one = false;
+            reader.add_len(1);
+        }
         if self.want_size == self.read_size {
             if !self.trim_end {
                 reader.read_u16()?;
@@ -66,6 +72,11 @@ impl<C: StreamDecode> StreamDecode for ChunkDecoder<C> {
             if !self.handle_decomp(need, reader, out)? { return Ok(()); }
         }
         self.handle_chunk(reader, out)?;
+        if reader.unread_len() == 1 && reader.current().ok() == Some(13) && self.read_size == self.want_size {
+            reader.add_len(1);
+            self.trim_need_one = true;
+            self.trim_end = true;
+        }
         Ok(())
     }
 

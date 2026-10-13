@@ -10,6 +10,7 @@ mod tls_stream;
 mod read;
 mod write;
 mod connect;
+mod message;
 
 use crate::packet::HeaderParam;
 use crate::stream::connect::{ConnState, StreamConnect, TlsConnecting};
@@ -18,7 +19,7 @@ use crate::stream::http3::HTTP3StreamA;
 use crate::stream::read::StreamRead;
 use crate::stream::write::{StreamShutdown, StreamWrite};
 use crate::*;
-pub use http1::{HTTP1Stream, SendParam};
+use http1::{HTTP1Stream, SendParam};
 #[cfg(feature = "aync")]
 use http2::HTTP2StreamA;
 use http2::HTTP2StreamS;
@@ -32,6 +33,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 pub use tls_stream::*;
 pub use ws::*;
+pub use message::StreamMessage;
 
 pub struct ConnParam<'a> {
     pub url: &'a Url,
@@ -166,7 +168,7 @@ impl HTTPStream {
         }
     }
 
-    pub(crate) fn recv_sync(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    pub(crate) fn recv_sync(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         match self {
             HTTPStream::NonConnection => Err("need connected before recv".into()),
             HTTPStream::SyncH1(h1) => h1.recv_sync(responses),
@@ -205,7 +207,7 @@ impl HTTPStream {
     pub(crate) async fn send_async(&mut self, header: &Header, body: &Body<'_>, param: HeaderParam<'_>) -> HlsResult<u64> {
         match self {
             HTTPStream::NonConnection => Err("need connected before send".into()),
-            HTTPStream::AsyncH1(h1) => Ok(h1.send_async(SendParam{
+            HTTPStream::AsyncH1(h1) => Ok(h1.send_async(SendParam {
                 method: param.method,
                 url: param.url,
                 header,
@@ -218,7 +220,7 @@ impl HTTPStream {
         }
     }
 
-    pub(crate) async fn recv_async(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    pub(crate) async fn recv_async(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         match self {
             HTTPStream::NonConnection => Err("need connected before send".into()),
             HTTPStream::AsyncH1(h1) => h1.recv_async(responses).await,

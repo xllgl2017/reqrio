@@ -10,6 +10,7 @@ use std::ffi::{c_char, CStr, CString};
 use std::ops::{Deref};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr::{null, null_mut};
+use crate::stream::StreamMessage;
 
 #[cfg(feature = "log")]
 const LOGER: Logger = Logger {
@@ -202,7 +203,7 @@ pub unsafe extern "C" fn ScReq_do_http(
             let resp = match stream {
                 true => {
                     let resp = req.send_stream(method, *url, *body)?;
-                    resp as *const Response as *mut Response
+                    resp as *const StreamMessage as *mut Response
                 }
                 false => Box::into_raw(Box::new(req.do_http(method, *url, body.deref())?))
             };

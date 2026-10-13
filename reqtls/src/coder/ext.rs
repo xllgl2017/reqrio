@@ -16,7 +16,7 @@ pub trait StreamEncode {
 impl StreamDecode for () {
     fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError> {
         let unread = unsafe { slice::from_raw_parts(reader.unread_ptr(), reader.unread_len()) };
-        out.write_slice(unread)?;
+        out.extend_from_slice(unread)?;
         reader.add_len(reader.unread_len());
         Ok(())
     }

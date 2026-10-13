@@ -2,12 +2,12 @@ use crate::error::HlsResult;
 use crate::pack::{PackError, QPackDecode, QPackEncode, QPackType};
 use crate::packet::{H3Frame, H3Setting, H3Stream, HeaderParam};
 use crate::request::RequestBuffer;
-use crate::stream::ConnParam;
+use crate::stream::quic::QUICStream;
+use crate::stream::quic::Queue;
+use crate::stream::{ConnParam, StreamMessage};
 use crate::*;
 use reqtls::quic::{self, QUICFrame, QUICFrameFlag};
 use std::collections::HashMap;
-use crate::stream::quic::Queue;
-use crate::stream::quic::QUICStream;
 
 pub struct StreamParam {
     typ: H3Stream,
@@ -58,7 +58,7 @@ impl HTTP3StreamS {
     }
 
 
-    pub fn recv(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    pub fn recv(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         let mut res = vec![];
         let off = self.quic.read_next_packet().wait()?;
         self.quic.handle_queues(off, &mut self.stream_ids, HTTP3StreamS::handle_stream)?;
@@ -122,7 +122,7 @@ struct RecvParam<'a> {
     encoder: &'a mut QPackEncode,
     res: &'a mut Vec<u64>,
     max_stream: &'a mut u64,
-    responses: &'a mut HashMap<u64, Response>,
+    responses: &'a mut HashMap<u64, StreamMessage>,
 }
 
 trait H3Handle {
@@ -228,7 +228,7 @@ trait H3Handle {
                     }
                     H3Frame::Data(body) => {
                         let Some(response) = recv.responses.get_mut(sid) else { continue };
-                        response.push_raw_slice(body.as_ref())?;
+                        response.extend_body(body.as_slice())?;
                     }
                     H3Frame::Reserved { .. } => {}
                 }
@@ -292,7 +292,7 @@ impl HTTP3StreamA {
     }
 
 
-    pub async fn recv(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    pub async fn recv(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         let mut res = vec![];
         let off = self.quic.read_next_packet().await?;
         self.quic.handle_queues(off, &mut self.stream_ids, HTTP3StreamA::handle_stream)?;

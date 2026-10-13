@@ -1,10 +1,10 @@
 use crate::error::HlsResult;
 use crate::reader::ReadExt;
 use crate::stream::Stream;
-use crate::{Body, ContentType, Header, Method, Response};
-use reqtls::{Url, Writer};
+use crate::*;
 use std::collections::HashMap;
 use std::io::Write;
+
 
 pub struct SendParam<'a> {
     pub method: Method,
@@ -90,6 +90,7 @@ impl HTTP1Stream {
         Ok(self.send_sid - 1)
     }
 
+    #[cfg(feature = "aync")]
     pub async fn send_async<'a>(&'a mut self, param: SendParam<'a>) -> std::io::Result<u64> {
         let mut body_reader = param.body.as_reader()?;
         self.encode(body_reader.len(), &param)?;
@@ -103,9 +104,9 @@ impl HTTP1Stream {
         Ok(self.send_sid - 1)
     }
 
-    fn recv(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    fn recv(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         let response = responses.get_mut(&self.recv_sid).ok_or("resp not initialized")?;
-        let finish = response.extend_buffer(&mut self.read_buffer)?;
+        let finish = response.update_by_buffer(&mut self.read_buffer)?;
         if finish {
             let res = vec![self.recv_sid];
             self.recv_sid += 1;
@@ -113,13 +114,14 @@ impl HTTP1Stream {
         } else { Ok(vec![]) }
     }
 
-    pub fn recv_sync(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    pub fn recv_sync(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         self.read_buffer.check_move(16384)?;
         self.stream.read(&mut self.read_buffer).wait()?;
         self.recv(responses)
     }
 
-    pub async fn recv_async(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    #[cfg(feature = "aync")]
+    pub async fn recv_async(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         self.read_buffer.check_move(16384)?;
         self.stream.read(&mut self.read_buffer).await?;
         self.recv(responses)
@@ -144,9 +146,10 @@ mod tests {
     use crate::reader::HCow;
     use crate::stream::Stream;
     use crate::stream::http1::SendParam;
-    use crate::{Application, Body, ContentType, HTTP1Stream, Header, Method, json};
+    use crate::{Application, Body, ContentType, Header, Method, json};
     use reqrio_json::JsonValue;
     use reqtls::Url;
+    use super::HTTP1Stream;
 
     #[test]
     fn test_h1_hdr_encode() {

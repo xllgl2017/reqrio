@@ -2,7 +2,7 @@ use crate::error::HlsResult;
 use crate::*;
 use std::ffi::{c_char, CStr, CString};
 use std::ptr::null_mut;
-
+use crate::stream::StreamMessage;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn ws_open(url: *const c_char, hdr: *const c_char) -> *mut WebSocket {
@@ -28,11 +28,12 @@ pub extern "system" fn ws_open_raw(url: *const c_char, context: *const c_char) -
         let mut stream = ScReq::new().connect(url)?.into_stream()?;
         buffer.write_slice(context)?;
         stream.write(&mut buffer).wait()?;
-        let mut resp = Response::new();
+        let mut resp = StreamMessage::default();
         loop {
             stream.read(&mut buffer).wait()?;
-            if resp.extend_buffer(&mut buffer)? { break; };
+            if resp.update_by_buffer(&mut buffer)? { break; };
         }
+        let resp  = resp.final_response();
         let ws = WebSocket::new_with_buffer(resp, stream, buffer)?;
         Ok(Box::into_raw(Box::new(ws)))
     }().unwrap_or(null_mut())

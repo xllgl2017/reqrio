@@ -299,7 +299,7 @@ pub use packet::{
 pub use reqrio_json as json;
 pub use reqtls::*;
 pub use scq::ScReq;
-pub use stream::{Proxy, ProxyStream, ConnParam, WebSocket, TlsStream, HTTP1Stream, Stream, SendParam};
+pub use stream::{Proxy, ProxyStream, ConnParam, WebSocket, TlsStream, Stream, StreamMessage};
 #[cfg(feature = "quic")]
 pub use stream::{QUICStream, HTTP3StreamS};
 pub use time::{Time, TimeError, Timeout};

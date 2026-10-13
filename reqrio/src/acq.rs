@@ -4,7 +4,7 @@ use crate::ext::ReqPriExt;
 use crate::ext::{ReqExt, ReqUrl};
 use crate::json::JsonValue;
 use crate::packet::HeaderParam;
-use crate::stream::{ConnParam, HTTPStream, Proxy, Stream};
+use crate::stream::{ConnParam, HTTPStream, Proxy, Stream, StreamMessage};
 use crate::*;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -27,7 +27,7 @@ pub struct AcReq {
     url: Url,
     tls_session: Option<TlsSession>,
     ignore_order: bool,
-    responses: HashMap<u64, Response>,
+    responses: HashMap<u64, StreamMessage>,
     recv_ids: HashSet<u64>,
     version: Version,
 }
@@ -47,11 +47,11 @@ impl Default for AcReq {
             key: RsaKey::none(),
             ca_certs: vec![],
             alpn: ALPN::HTTP20,
-            key_log: None, 
+            key_log: None,
             url: Default::default(),
             tls_session: None,
             ignore_order: false,
-            responses: HashMap::with_capacity(100),
+            responses: HashMap::with_capacity(20),
             recv_ids: HashSet::new(),
             version: Version::TLS_1_3,
         }
@@ -116,7 +116,7 @@ impl AcReq {
             priority: &self.fingerprint.h2().priority,
             weight: &self.fingerprint.h2().weight,
         }).await?;
-        self.responses.insert(sid, Response::new());
+        self.responses.insert(sid, StreamMessage::new(sid));
         Ok(sid)
     }
 
@@ -149,10 +149,10 @@ impl AcReq {
         Err("redirection exceeds the maximum".into())
     }
 
-    async fn recv_stream(&mut self, sid: u64) -> HlsResult<&Response> {
+    async fn recv_stream(&mut self, sid: u64) -> HlsResult<&StreamMessage> {
         loop {
             let resp = self.responses.get(&sid).ok_or("response not inited or finished")?;
-            if !resp.header().is_empty() { break; }
+            if !resp.header.is_empty() { break; }
             let ids = self.stream.recv_async(&mut self.responses).await?;
             ids.into_iter().for_each(|id| { self.recv_ids.insert(id); });
         }
@@ -163,7 +163,7 @@ impl AcReq {
     pub async fn next_chunk(&mut self, sid: u64) -> HlsResult<Option<&[u8]>> {
         loop {
             let resp = self.responses.get(&sid).ok_or("response not inited or finished")?;
-            if !resp.raw.is_empty() { break; }
+            if !resp.body.is_empty() { break; }
             if self.recv_ids.remove(&sid) {
                 self.responses.remove(&sid);
                 return Ok(None);
@@ -172,13 +172,13 @@ impl AcReq {
             ids.into_iter().for_each(|id| { self.recv_ids.insert(id); });
         }
         let resp = self.responses.get_mut(&sid).ok_or("response not inited or finished")?;
-        let offset = resp.raw.offset();
-        resp.raw.reset();
-        Ok(Some(resp.raw.slice(offset)))
+        let offset = resp.body.offset();
+        resp.body.reset();
+        Ok(Some(resp.body.slice(offset)))
     }
 
     /// 流式请求，仅返回请求头，请求体需调next_chunk
-    pub async fn send_stream<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<&Response> {
+    pub async fn send_stream<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<&StreamMessage> {
         let sid = self.send(method, url, body).await?;
         self.recv_stream(sid).await
     }
@@ -284,7 +284,7 @@ impl ReqStreamExt for AcReq {
 }
 
 impl ReqPriExt for AcReq {
-    fn responses(&mut self) -> &mut HashMap<u64, Response> {
+    fn responses(&mut self) -> &mut HashMap<u64, StreamMessage> {
         &mut self.responses
     }
 }

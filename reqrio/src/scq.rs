@@ -1,7 +1,7 @@
 use crate::body::Body;
 use crate::ext::{ReqPriExt, ReqUrl};
 use crate::packet::HeaderParam;
-use crate::stream::{ConnParam, HTTPStream, Stream};
+use crate::stream::{HTTPStream, Stream};
 use crate::*;
 use json::JsonValue;
 use std::borrow::Cow;
@@ -25,7 +25,7 @@ pub struct ScReq {
     url: Url,
     tls_session: Option<TlsSession>,
     pub(crate) ignore_order: bool,
-    responses: HashMap<u64, Response>,
+    responses: HashMap<u64, StreamMessage>,
     recv_ids: HashSet<u64>,
     version: Version,
 }
@@ -49,7 +49,7 @@ impl Default for ScReq {
             url: Url::default(),
             tls_session: None,
             ignore_order: false,
-            responses: HashMap::with_capacity(100),
+            responses: HashMap::with_capacity(20),
             recv_ids: HashSet::new(),
             version: Version::TLS_1_3,
         }
@@ -115,7 +115,7 @@ impl ScReq {
             weight: &self.fingerprint.h2().weight,
             priority: &self.fingerprint.h2().priority,
         })?;
-        self.responses.insert(sid, Response::new());
+        self.responses.insert(sid, StreamMessage::new(sid));
         Ok(sid)
     }
 
@@ -128,10 +128,10 @@ impl ScReq {
         }
     }
 
-    fn recv_stream(&mut self, sid: u64) -> HlsResult<&Response> {
+    fn recv_stream(&mut self, sid: u64) -> HlsResult<&StreamMessage> {
         loop {
             let resp = self.responses.get(&sid).ok_or("response not inited or finished")?;
-            if !resp.header().is_empty() { break; }
+            if !resp.header.is_empty() { break; }
             let ids = self.stream.recv_sync(&mut self.responses)?;
             ids.into_iter().for_each(|id| { self.recv_ids.insert(id); });
         }
@@ -142,7 +142,7 @@ impl ScReq {
     pub fn next_chunk(&mut self, sid: u64) -> HlsResult<Option<&[u8]>> {
         loop {
             let resp = self.responses.get(&sid).ok_or("response not inited or finished")?;
-            if !resp.raw.is_empty() { break; }
+            if !resp.body.is_empty() { break; }
             if self.recv_ids.remove(&sid) {
                 self.responses.remove(&sid);
                 return Ok(None);
@@ -151,13 +151,13 @@ impl ScReq {
             ids.into_iter().for_each(|id| { self.recv_ids.insert(id); });
         }
         let resp = self.responses.get_mut(&sid).ok_or("response not inited or finished")?;
-        let offset = resp.raw.offset();
-        resp.raw.reset();
-        Ok(Some(resp.raw.slice(offset)))
+        let offset = resp.body.offset();
+        resp.body.reset();
+        Ok(Some(resp.body.slice(offset)))
     }
 
     /// 流式请求，仅返回请求头，请求体需调next_chunk
-    pub fn send_stream<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<&Response> {
+    pub fn send_stream<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<&StreamMessage> {
         let sid = self.send(method, url, body)?;
         self.recv_stream(sid)
     }
@@ -288,7 +288,7 @@ impl ReqStreamExt for ScReq {
 }
 
 impl ReqPriExt for ScReq {
-    fn responses(&mut self) -> &mut HashMap<u64, Response> {
+    fn responses(&mut self) ->  &mut HashMap<u64, StreamMessage> {
         &mut self.responses
     }
 }

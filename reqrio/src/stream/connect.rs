@@ -218,7 +218,7 @@ impl<'a, S: Write> ProxyConnecting<'a, S> {
             handle_proxy: matches!(self.proxy,  Proxy::Null),
             http_proxy: matches!(self.proxy, Proxy::HttpPlain(_)),
             buffer,
-            resp: Response::new(),
+            resp: StreamMessage::default(),
             #[cfg(feature = "aync")]
             timeout,
         })
@@ -266,7 +266,7 @@ impl<'a, S: AsyncWrite + Unpin> Future for ProxyConnecting<'a, S> {
             handle_proxy: matches!(connector.proxy,  Proxy::Null),
             http_proxy: matches!(connector.proxy, Proxy::HttpPlain(_)),
             buffer,
-            resp: Response::new(),
+            resp: StreamMessage::default(),
             timeout,
         }))
     }

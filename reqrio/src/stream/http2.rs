@@ -3,12 +3,12 @@ use crate::pack::{HPackDecode, HPackEncode};
 use crate::packet::HeaderParam;
 use crate::reader::ReadExt;
 use crate::request::RequestBuffer;
-use crate::{Body, H2FrameFlag, H2FrameType, H2Frame, H2Setting, Header, Response};
+use crate::*;
 #[cfg(feature = "log")]
 use crate::{warn, trace};
 use reqtls::{u24, Writer, Reader, Buffer};
 use std::collections::HashMap;
-use crate::stream::Stream;
+use crate::stream::{Stream, StreamMessage};
 
 pub struct HTTP2StreamS {
     encoder: HPackEncode,
@@ -79,7 +79,7 @@ impl HTTP2StreamS {
         Ok(frame_len)
     }
 
-    pub fn recv(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    pub fn recv(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         let frame_size = self.read_next_frame()?;
         let res = self.handle_frame(frame_size, responses);
         Self::flush(&mut self.stream, &mut self.write_buffer)?;
@@ -122,7 +122,7 @@ struct H2Param<'a> {
 
 trait H2Handle {
     fn params(&mut self) -> H2Param<'_>;
-    fn handle_frame(&mut self, frame_size: usize, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    fn handle_frame(&mut self, frame_size: usize, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         let param = self.params();
         let reader = Reader::from_slice(&param.read_buffer.filled()[..frame_size]);
         let frame = H2Frame::from_reader(reader)?;
@@ -133,13 +133,13 @@ trait H2Handle {
         match *frame.frame_type() {
             H2FrameType::Data => {
                 let resp = responses.get_mut(&sid).ok_or("resp not inited")?;
-                resp.push_raw_slice(frame.payload().as_ref())?;
+                resp.extend_body(frame.payload().as_slice())?;
                 if frame.flag().end_stream() { res.push(sid); }
             }
             H2FrameType::Headers => {
                 let resp = responses.get_mut(&sid).ok_or("resp not inited")?;
                 param.decoder.decode_into(frame.payload().as_ref(), resp)?;
-                if let Some(size) = resp.header().get("update-table-size") {
+                if let Some(size) = resp.header.get("update-table-size") {
                     let size = size.to_string().parse::<usize>()?;
                     param.encoder.update_table_size(size);
                     param.decoder.update_table_size(size);
@@ -243,7 +243,7 @@ impl HTTP2StreamA {
         Ok(frame_len)
     }
 
-    pub async fn recv(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
+    pub async fn recv(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         let frame_size = self.read_next_frame().await?;
         let res = self.handle_frame(frame_size, responses);
         Self::flush(&mut self.stream, &mut self.write_buffer).await?;

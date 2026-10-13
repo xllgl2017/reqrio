@@ -16,6 +16,7 @@ use std::task::{Context, Poll};
 use tokio::io::AsyncRead;
 #[cfg(feature = "aync")]
 use tokio::io::ReadBuf;
+use crate::stream::StreamMessage;
 
 #[derive(Clone, Debug)]
 pub enum Proxy {
@@ -153,7 +154,7 @@ pub struct ProxyStream<S> {
     pub(crate) handle_proxy: bool,
     pub(crate) http_proxy: bool,
     pub(crate) buffer: Writer,
-    pub(crate) resp: Response,
+    pub(crate) resp: StreamMessage,
     #[cfg(feature = "aync")]
     pub(crate) timeout: Timeout,
 }
@@ -202,9 +203,9 @@ impl Read for ProxyStream<std::net::TcpStream> {
                         #[cfg(feature = "aync")]
                         timeout_reset: false,
                     }.wait()?;
-                    if self.resp.extend_buffer(&mut self.buffer)? { break; }
+                    if self.resp.update_by_buffer(&mut self.buffer)? { break; }
                 }
-                let status = self.resp.status().code();
+                let status = self.resp.status.code();
                 if status != 200 { return Err(io::Error::other(format!("connect http proxy error-{}", status))); }
             } else {
                 BufReading {
@@ -261,11 +262,11 @@ impl AsyncRead for ProxyStream<tokio::net::TcpStream> {
                         timeout_reset: false,
                     };
                     match Pin::new(&mut reader).poll(cx)? {
-                        Poll::Ready(_) => if stream.resp.extend_buffer(&mut stream.buffer)? { break; },
+                        Poll::Ready(_) => if stream.resp.update_by_buffer(&mut stream.buffer)? { break; },
                         Poll::Pending => return Poll::Pending,
                     }
                 }
-                let status = stream.resp.status();
+                let status = stream.resp.status;
                 if status.code() != 200 { return Poll::Ready(Err(io::Error::other(format!("connect http proxy fail-{:?}", status)))); }
             } else {
                 let mut reader = BufReading {

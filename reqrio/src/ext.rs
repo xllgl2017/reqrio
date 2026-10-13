@@ -1,7 +1,7 @@
 use crate::error::HlsResult;
 use crate::packet::*;
 use crate::reader::ReadExt;
-use crate::stream::{HTTPStream, Stream};
+use crate::stream::{HTTPStream, Stream, StreamMessage};
 use crate::*;
 use json::JsonValue;
 use std::collections::HashMap;
@@ -145,18 +145,18 @@ pub trait ReqExt: Sized {
 }
 
 pub(crate) trait ReqPriExt: ReqExt {
-    fn responses(&mut self) -> &mut HashMap<u64, Response>;
+    fn responses(&mut self) -> &mut HashMap<u64, StreamMessage>;
 
 
     fn get_resp(&mut self, sid: u64) -> Option<Response> {
-        let resp = self.responses().remove(&sid);
-        if let Some(resp) = &resp { self.update_cookie(resp) };
-        resp
+        let resps = self.responses();
+        let resp = resps.remove(&sid).map(|x| x.final_response())?;
+        self.update_cookie(resp.header());
+        Some(resp)
     }
 
-    fn update_cookie(&mut self, response: &Response) {
-        let Some(cookies) = response.header().cookies()else { return; };
-        for cookie in cookies {
+    fn update_cookie(&mut self, header: &Header) {
+        for cookie in header.cookies().unwrap_or(&[]) {
             if cookie.name() == "" && cookie.value() == "" { continue; }
             self.header_mut().add_cookie(cookie.clone());
         }
