@@ -6,7 +6,7 @@ use crate::*;
 use json::JsonValue;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub struct ScReq {
     header: Header,
@@ -21,7 +21,7 @@ pub struct ScReq {
     key: RsaKey,
     ca_certs: Vec<Certificate>,
     alpn: ALPN,
-    key_log: Option<PathBuf>,
+    key_log: Option<Arc<String>>,
     url: Url,
     tls_session: Option<TlsSession>,
     pub(crate) ignore_order: bool,
@@ -218,7 +218,7 @@ impl ScReq {
                 cert: &mut self.certs,
                 key: &self.key,
                 ca_cert: &self.ca_certs,
-                key_log: &self.key_log,
+                key_log: self.key_log.clone(),
                 ech: false,
                 session: &self.tls_session,
                 version: self.version,
@@ -332,12 +332,16 @@ impl ReqExt for ScReq {
         self.redirect_times = max_redirect_exceeded
     }
 
-    fn set_key_log(&mut self, path: impl AsRef<Path>) {
-        self.key_log = Some(path.as_ref().to_owned());
+    fn set_key_log(&mut self, path: impl Into<String>) {
+        self.key_log = Some(Arc::new(path.into()));
     }
 
     fn set_alpn(&mut self, alpn: ALPN) {
         self.alpn = alpn;
+    }
+
+    fn set_version(&mut self, version: Version) {
+        self.version = version;
     }
 
     fn set_mtls(&mut self, certs: Vec<Certificate>, key: RsaKey, ca: Option<Vec<Certificate>>) {
@@ -353,18 +357,14 @@ impl ReqExt for ScReq {
     fn tls_session(&self) -> Option<&TlsSession> {
         self.stream.tls_session()
     }
-
     fn set_fingerprint(&mut self, fingerprint: Fingerprint) {
         self.fingerprint = fingerprint;
     }
+
     fn set_header_keys(&mut self, headers: Vec<HeaderItem>, keep_sort: bool) -> HlsResult<()> {
         self.ignore_order = keep_sort;
         self.header.set_by_keys(headers, keep_sort)?;
         Ok(())
-    }
-
-    fn set_version(&mut self, version: Version) {
-        self.version = version;
     }
 }
 

@@ -29,8 +29,7 @@ pub use proxy::ProxyStream;
 #[cfg(feature = "quic")]
 pub use quic::QUICStream;
 use std::collections::HashMap;
-use std::env;
-use std::path::{Path, PathBuf};
+use std::sync::Arc;
 pub use tls_stream::*;
 pub use ws::*;
 
@@ -44,7 +43,7 @@ pub struct ConnParam<'a> {
     pub cert: &'a mut Vec<Certificate>,
     pub key: &'a RsaKey,
     pub ca_cert: &'a Vec<Certificate>,
-    pub key_log: &'a Option<PathBuf>,
+    pub key_log: Option<Arc<String>>,
     pub ech: bool,
     pub session: &'a Option<TlsSession>,
     pub version: Version,
@@ -60,10 +59,7 @@ impl<'a, 'b: 'a> From<&'a mut ConnParam<'b>> for ClientConfig<'a> {
             cert_key: param.key,
             verify: param.verify,
             ca_certs: param.ca_cert,
-            key_log: param.key_log.clone().or_else(|| match env::var("SSLKEYLOGFILE") {
-                Ok(key_log) => Some(Path::new(&key_log).to_path_buf()),
-                Err(_) => None
-            }),
+            key_log: param.key_log.take(),
             session: param.session,
             version: param.version,
         }

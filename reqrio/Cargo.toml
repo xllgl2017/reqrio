@@ -11,6 +11,16 @@ repository = "https://github.com/xllgl2017/reqrio/tree/main/reqrio"
 name = "reqrio"
 crate-type = ['rlib', 'cdylib']
 
+[[test]]
+name = "server_test"
+path = "tests/server_test.rs"
+required-features = ["reqtls/cert_signer"]
+
+[[test]]
+name = "quic_test"
+path = "tests/quic_test.rs"
+required-features = ["quic"]
+
 [dependencies]
 reqrio-json = { workspace = true }
 serde = { workspace = true, optional = true }
