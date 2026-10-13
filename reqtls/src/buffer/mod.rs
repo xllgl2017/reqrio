@@ -300,6 +300,14 @@ impl Writer {
         Ok(if is_subscribed { 0 } else { -2 })
     }
 
+    pub fn extend_from_slice(&mut self, buf: &[u8]) -> Result<(), BufferError> {
+        if self.capacity - self.end < buf.len() {
+            let new_cap = max(self.capacity + buf.len(), self.capacity * 2);
+            self.resize(new_cap)?;
+        }
+        self.write_slice(buf)
+    }
+
     #[inline]
     pub const fn unfilled_len(&self) -> usize {
         self.capacity - self.end
@@ -316,11 +324,11 @@ impl Writer {
     }
 
     #[inline]
-    pub fn unfilled_ptr(&mut self) -> *mut u8 {
+    pub const fn unfilled_ptr(&mut self) -> *mut u8 {
         unsafe { self.ptr.add(self.end) }
     }
 
-    pub fn unfilled(&mut self) -> &mut [u8] {
+    pub const fn unfilled(&mut self) -> &mut [u8] {
         let ptr = self.unfilled_ptr();
         unsafe { slice::from_raw_parts_mut(ptr, self.unfilled_len()) }
     }

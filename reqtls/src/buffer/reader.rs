@@ -124,10 +124,10 @@ impl<'a> Reader<'a> {
         self.size - self.pos
     }
 
-    pub fn unread_ptr(&self) -> *const u8 {
+    pub const fn unread_ptr(&self) -> *const u8 {
         unsafe { self.ptr.add(self.pos) }
     }
-
+    
     pub fn read_ptr(&mut self, size: usize) -> Result<*const u8, BufferError> {
         let ptr = unsafe { Reader_read_slice(self, size) };
         if ptr.is_null() {
