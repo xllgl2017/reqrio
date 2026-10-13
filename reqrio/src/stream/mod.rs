@@ -18,9 +18,7 @@ use crate::stream::http3::HTTP3StreamA;
 use crate::stream::read::StreamRead;
 use crate::stream::write::{StreamShutdown, StreamWrite};
 use crate::*;
-#[cfg(feature = "aync")]
-use http1::HTTP1StreamA;
-use http1::HTTP1StreamS;
+pub use http1::{HTTP1Stream, SendParam};
 #[cfg(feature = "aync")]
 use http2::HTTP2StreamA;
 use http2::HTTP2StreamS;
@@ -75,12 +73,12 @@ impl<'a, 'b: 'a> From<&'a mut ConnParam<'b>> for ClientConfig<'a> {
 
 pub enum HTTPStream {
     NonConnection,
-    SyncH1(HTTP1StreamS),
+    SyncH1(HTTP1Stream),
     SyncH2(HTTP2StreamS),
     #[cfg(feature = "quic")]
     SyncH3(HTTP3StreamS),
     #[cfg(feature = "aync")]
-    AsyncH1(HTTP1StreamA),
+    AsyncH1(HTTP1Stream),
     #[cfg(feature = "aync")]
     AsyncH2(HTTP2StreamA),
     #[cfg(all(feature = "aync", feature = "quic"))]
@@ -158,7 +156,12 @@ impl HTTPStream {
     pub(crate) fn send_sync(&mut self, header: &Header, body: &Body<'_>, param: HeaderParam) -> HlsResult<u64> {
         match self {
             HTTPStream::NonConnection => Err("need connected before send".into()),
-            HTTPStream::SyncH1(h1) => h1.send(header, body, param),
+            HTTPStream::SyncH1(h1) => Ok(h1.send_sync(SendParam {
+                method: param.method,
+                url: param.url,
+                header,
+                body,
+            })?),
             HTTPStream::SyncH2(h2) => h2.send(header, body, param),
             #[cfg(feature = "quic")]
             HTTPStream::SyncH3(h3) => h3.send(header, body, param),
@@ -170,7 +173,7 @@ impl HTTPStream {
     pub(crate) fn recv_sync(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
         match self {
             HTTPStream::NonConnection => Err("need connected before recv".into()),
-            HTTPStream::SyncH1(h1) => h1.recv(responses),
+            HTTPStream::SyncH1(h1) => h1.recv_sync(responses),
             HTTPStream::SyncH2(h2) => h2.recv(responses),
             #[cfg(feature = "quic")]
             HTTPStream::SyncH3(h3) => h3.recv(responses),
@@ -206,7 +209,12 @@ impl HTTPStream {
     pub(crate) async fn send_async(&mut self, header: &Header, body: &Body<'_>, param: HeaderParam<'_>) -> HlsResult<u64> {
         match self {
             HTTPStream::NonConnection => Err("need connected before send".into()),
-            HTTPStream::AsyncH1(h1) => h1.send(header, body, param).await,
+            HTTPStream::AsyncH1(h1) => Ok(h1.send_async(SendParam{
+                method: param.method,
+                url: param.url,
+                header,
+                body,
+            }).await?),
             HTTPStream::AsyncH2(h2) => h2.send(header, body, param).await,
             #[cfg(feature = "quic")]
             HTTPStream::AsyncH3(h3) => h3.send(header, body, param).await,
@@ -217,7 +225,7 @@ impl HTTPStream {
     pub(crate) async fn recv_async(&mut self, responses: &mut HashMap<u64, Response>) -> HlsResult<Vec<u64>> {
         match self {
             HTTPStream::NonConnection => Err("need connected before send".into()),
-            HTTPStream::AsyncH1(h1) => h1.recv(responses).await,
+            HTTPStream::AsyncH1(h1) => h1.recv_async(responses).await,
             HTTPStream::AsyncH2(h2) => h2.recv(responses).await,
             #[cfg(feature = "quic")]
             HTTPStream::AsyncH3(h3) => h3.recv(responses).await,

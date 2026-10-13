@@ -18,11 +18,11 @@ pub(crate) struct H2HeaderReader<'a> {
 
 impl<'a> H2HeaderReader<'a> {
     const INVALID_KEYS: [&'static str; 4] = ["connection", "host", "transfer-encoding", "upgrade"];
-    pub(crate) fn skip_h2_key(key: &HeaderItem, ct: &ContentType, body: usize, method: &Method) -> bool {
+    pub(crate) fn skip_h2_key(key: &HeaderItem, ct: &ContentType, body: usize, method: Method) -> bool {
         let is_ct = key.name().eq_ignore_ascii_case("content-type");
         if is_ct && !matches!(ct,ContentType::Null) { return false; }
         let is_len = key.name().eq_ignore_ascii_case("content-length");
-        if is_len && body == 0 && method == &Method::GET { return true; }
+        if (is_len && method != Method::GET) || (is_len && method == Method::GET && body != 0) { return false; }
         let is_invalid_key = Self::INVALID_KEYS.iter().any(|x| x.eq_ignore_ascii_case(key.name()));
         is_invalid_key || (key.value().is_empty() && key.is_reserved())
     }
@@ -89,7 +89,7 @@ mod tests {
         let mut encoder = HPackEncode::new(4096);
         let sid = 1;
         let mut reader = header.as_h2_reader(HeaderParam {
-            method: &Method::POST,
+            method: Method::POST,
             url: &url,
             hpack_encoder: Some(&mut encoder),
             h_sid: &sid,

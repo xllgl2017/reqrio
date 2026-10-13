@@ -293,7 +293,7 @@ impl<'a> StreamConnect<'a, std::net::TcpStream> {
         let proxy_stream = self.proxy_connecting.wait()?;
         match self.url.scheme() {
             Scheme::Http | Scheme::Ws => {
-                let stream = HTTPStream::SyncH1(HTTP1StreamS::new(Stream::SyncHttp(proxy_stream)));
+                let stream = HTTPStream::SyncH1(HTTP1Stream::new(Stream::SyncHttp(proxy_stream)));
                 Ok((ALPN::HTTP11, stream))
             }
             Scheme::Https | Scheme::Wss => {
@@ -307,7 +307,7 @@ impl<'a> StreamConnect<'a, std::net::TcpStream> {
                 let alpn = tls_stream.alpn().clone();
                 let stream = match &alpn {
                     h2 if h2 == ALPN::HTTP20 => HTTPStream::SyncH2(HTTP2StreamS::new(Stream::SyncHttps(tls_stream), self.fingerprint)?),
-                    _ => HTTPStream::SyncH1(HTTP1StreamS::new(Stream::SyncHttps(tls_stream)))
+                    _ => HTTPStream::SyncH1(HTTP1Stream::new(Stream::SyncHttps(tls_stream)))
                 };
                 Ok((alpn, stream))
             }
@@ -328,7 +328,7 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
             };
             match connector.url.scheme() {
                 Scheme::Http | Scheme::Ws => {
-                    let stream = HTTPStream::AsyncH1(HTTP1StreamA::new(Stream::AsyncHttp(proxy_stream)));
+                    let stream = HTTPStream::AsyncH1(HTTP1Stream::new(Stream::AsyncHttp(proxy_stream)));
                     return Poll::Ready(Ok((ALPN::HTTP11, stream)));
                 }
                 Scheme::Https | Scheme::Wss => {
@@ -354,7 +354,7 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
                 Poll::Ready(tls_stream) => {
                     let alpn = tls_stream.alpn().clone();
                     if alpn != ALPN::HTTP20 {
-                        return Poll::Ready(Ok((ALPN::HTTP11, HTTPStream::AsyncH1(HTTP1StreamA::new(Stream::AsyncHttps(tls_stream))))));
+                        return Poll::Ready(Ok((ALPN::HTTP11, HTTPStream::AsyncH1(HTTP1Stream::new(Stream::AsyncHttps(tls_stream))))));
                     }
                     connector.stream = Stream::AsyncHttps(tls_stream);
                 }

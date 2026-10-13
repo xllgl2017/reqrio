@@ -19,7 +19,7 @@ impl Default for DynamicTable {
 impl DynamicTable {
     pub fn new_size(max_size: usize) -> Self {
         DynamicTable {
-            values: Vec::with_capacity(max_size),
+            values: Vec::with_capacity(256),
             max_size: Arc::new(AtomicUsize::new(max_size)),
             size: 0,
         }
@@ -27,7 +27,6 @@ impl DynamicTable {
     #[cfg(test)]
     pub fn size(&self) -> usize { self.size }
 
-    // pub fn max_size(&self) -> usize { self.max_size }
     ///动态表插入时应位于最前端
     ///
     /// 文档文档rfc7541-4.4

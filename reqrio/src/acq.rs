@@ -104,7 +104,7 @@ impl AcReq {
         let url = url.into().build()?;
         self.set_url(url.as_ref()).await?;
         let sid = self.stream.send_async(&self.header, &body.into(), HeaderParam {
-            method: &method,
+            method,
             url: url.as_ref(),
             hpack_encoder: None,
             h_sid: &0,

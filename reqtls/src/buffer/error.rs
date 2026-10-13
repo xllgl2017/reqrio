@@ -77,3 +77,9 @@ impl From<BufferError> for std::fmt::Error {
         std::fmt::Error
     }
 }
+
+impl From<BufferError> for std::io::Error {
+    fn from(value: BufferError) -> Self {
+        std::io::Error::other(value)
+    }
+}

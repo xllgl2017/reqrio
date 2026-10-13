@@ -39,6 +39,7 @@ impl HeaderValue {
         }
     }
 
+    #[deprecated]
     pub fn may_len(&self) -> usize {
         match self {
             HeaderValue::String(v) => v.len(),
@@ -52,9 +53,9 @@ impl HeaderValue {
 impl Display for HeaderValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HeaderValue::String(v) => f.write_str(v),
-            HeaderValue::Number(v) => f.write_str(v.to_string().as_str()),
-            HeaderValue::ContextType(v) => f.write_str(v.to_string().as_str()),
+            HeaderValue::String(v) => write!(f, "{}", v),
+            HeaderValue::Number(v) => write!(f, "{}", v),
+            HeaderValue::ContextType(v) => write!(f, "{}", v.spec()),
             HeaderValue::Cookies(v) => write!(f, "{}", v)
         }
     }

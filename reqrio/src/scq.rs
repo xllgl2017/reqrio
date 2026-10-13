@@ -103,7 +103,7 @@ impl ScReq {
         let url = url.into().build()?;
         self.set_url(url.as_ref())?;
         let sid = self.stream.send_sync(&self.header, &body.into(), HeaderParam {
-            method: &method,
+            method,
             url: url.as_ref(),
             h_sid: &0,
             hpack_encoder: None,

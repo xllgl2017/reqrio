@@ -8,7 +8,7 @@ use crate::*;
 use crate::{Application, ContentType, Text};
 pub use ext::{BodyData, BodyExt};
 pub use multi_form::{FileForm, FormError, HttpFile};
-use reader::RawBodyReader;
+pub use reader::RawBodyReader;
 pub use reader::H2BodyReader;
 #[cfg(feature = "quic")]
 pub use reader::H3BodyReader;

@@ -63,7 +63,7 @@ mod tests {
         let url = "https://img-s-msn-com.akamaized.net".try_into().unwrap();
         let mut encoder = QPackEncode::new(4096);
         let mut reader = header.as_h3_reader(HeaderParam {
-            method: &Method::GET,
+            method: Method::GET,
             url: &url,
             qpack_encoder: Some(&mut encoder),
             q_sid: &0,

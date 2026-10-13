@@ -5,18 +5,19 @@ use crate::error::HlsResult;
 use crate::json::JsonValue;
 #[cfg(feature = "quic")]
 use crate::packet::http::header::reader::H3HeaderReader;
-use crate::reader::{RefReader, StrCow};
+use crate::reader::StrCow;
 use crate::*;
 pub use error::HeaderError;
 pub use key::HeaderItem;
 pub use method::Method;
-use reader::{H1HeaderReader, H2HeaderReader};
+use reader::H2HeaderReader;
 pub use reader::{HeaderParam, HeaderReader};
 pub use status::HttpStatus;
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::mem;
 pub use value::HeaderValue;
+use std::ops::Deref;
 
 mod value;
 mod key;
@@ -36,6 +37,13 @@ impl Default for Header {
             alpn: ALPN::default(),
             inner: Vec::with_capacity(30 * size_of::<HeaderItem>()),
         }
+    }
+}
+
+impl Deref for Header {
+    type Target = Vec<HeaderItem>;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
@@ -340,13 +348,7 @@ impl Header {
         header?.cookies_mut()
     }
 
-    // pub fn method(&self) -> &Method { &self.method }
-
     pub fn alpn(&self) -> &ALPN { &self.alpn }
-
-    // pub fn uri(&self) -> &Uri {
-    //     &self.uri
-    // }
 
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
@@ -363,12 +365,6 @@ impl Header {
     pub fn accept_encoding(&self) -> Option<&str> {
         self.get("accept-encoding")?.as_string()
     }
-
-    // pub fn set_method(&mut self, method: Method) { self.method = method; }
-
-    // pub fn set_uri(&mut self, uri: Uri) {
-    //     self.uri = uri;
-    // }
 
     pub fn location(&self) -> Option<&str> {
         self.get("location")?.as_string()
@@ -412,67 +408,68 @@ impl Header {
         }
     }
 
-    fn as_h1_reader<'a>(&'a self, params: HeaderParam<'a>, ct: &'a ContentType) -> H1HeaderReader<'a> {
-        let mut reader = RefReader::default();
-        reader.add_str(params.method.spec());
-        reader.add_str(" ");
-        if params.url.uri().is_empty() {
-            reader.add_str("/")
-        } else {
-            reader.add_str(params.url.uri().path());
-        }
-        if !params.url.uri().params().is_empty() { reader.add_str("?") };
-        for (i, param) in params.url.uri().params().iter().enumerate() {
-            reader.add_str(param.name());
-            if param.equal_sign() { reader.add_str("="); }
-            reader.add_str(param.value_raw());
-            if i != params.url.uri().params().len() - 1 { reader.add_str("&") }
-        }
-        reader.add_str(" ");
-        reader.add_str("HTTP/1.1");
-        reader.add_str("\r\n");
-        for key in self.inner.iter() {
-            if H1HeaderReader::skip_h1_key(key, &params.body_len, ct) { continue; }
-
-            reader.add_str(key.name());
-            reader.add_str(": ");
-            match key.name() {
-                "host" | "Host" => {
-                    reader.add_str(params.url.sni());
-                    if params.url.addr().port() != 80 && params.url.addr().port() != 443 {
-                        reader.add_str(":");
-                        reader.add_string(params.url.addr().port().to_string());
-                    }
-                }
-                "content-length" | "Content-Length" => reader.add_string(params.body_len.to_string()),
-                "content-type" | "Content-Type" => match ct.spec() {
-                    Cow::Borrowed(b) => reader.add_str(b),
-                    Cow::Owned(o) => reader.add_string(o),
-                }
-                "cookie" | "Cookie" => {
-                    if let Some(cookies) = key.cookies() {
-                        for (index, cookie) in cookies.iter().enumerate() {
-                            reader.add_str(cookie.name());
-                            if cookie.equal_sign() { reader.add_str("="); }
-                            reader.add_str(cookie.value());
-                            if index != key.cookies().unwrap_or(&[]).len() - 1 { reader.add_str("; ") }
-                        }
-                    }
-                }
-                _ => match key.value().as_string() {
-                    None => reader.add_string(key.value().to_string()),
-                    Some(v) => reader.add_str(v),
-                }
-            }
-            reader.add_str("\r\n");
-        }
-        reader.add_str("\r\n");
-        H1HeaderReader {
-            reader,
-            pos: 0,
-            wrote: false,
-        }
-    }
+    // #[deprecated = "use `encode_h1` instead"]
+    // fn as_h1_reader<'a>(&'a self, params: HeaderParam<'a>, ct: &'a ContentType) -> H1HeaderReader<'a> {
+    //     let mut reader = RefReader::default();
+    //     reader.add_str(params.method.spec());
+    //     reader.add_str(" ");
+    //     if params.url.uri().is_empty() {
+    //         reader.add_str("/")
+    //     } else {
+    //         reader.add_str(params.url.uri().path());
+    //     }
+    //     if !params.url.uri().params().is_empty() { reader.add_str("?") };
+    //     for (i, param) in params.url.uri().params().iter().enumerate() {
+    //         reader.add_str(param.name());
+    //         if param.equal_sign() { reader.add_str("="); }
+    //         reader.add_str(param.value_raw());
+    //         if i != params.url.uri().params().len() - 1 { reader.add_str("&") }
+    //     }
+    //     reader.add_str(" ");
+    //     reader.add_str("HTTP/1.1");
+    //     reader.add_str("\r\n");
+    //     for key in self.inner.iter() {
+    //         if H1HeaderReader::skip_h1_key(key, params.body_len, ct) { continue; }
+    // 
+    //         reader.add_str(key.name());
+    //         reader.add_str(": ");
+    //         match key.name() {
+    //             "host" | "Host" => {
+    //                 reader.add_str(params.url.sni());
+    //                 if params.url.addr().port() != 80 && params.url.addr().port() != 443 {
+    //                     reader.add_str(":");
+    //                     reader.add_string(params.url.addr().port().to_string());
+    //                 }
+    //             }
+    //             "content-length" | "Content-Length" => reader.add_string(params.body_len.to_string()),
+    //             "content-type" | "Content-Type" => match ct.spec() {
+    //                 Cow::Borrowed(b) => reader.add_str(b),
+    //                 Cow::Owned(o) => reader.add_string(o),
+    //             }
+    //             "cookie" | "Cookie" => {
+    //                 if let Some(cookies) = key.cookies() {
+    //                     for (index, cookie) in cookies.iter().enumerate() {
+    //                         reader.add_str(cookie.name());
+    //                         if cookie.equal_sign() { reader.add_str("="); }
+    //                         reader.add_str(cookie.value());
+    //                         if index != key.cookies().unwrap_or(&[]).len() - 1 { reader.add_str("; ") }
+    //                     }
+    //                 }
+    //             }
+    //             _ => match key.value().as_string() {
+    //                 None => reader.add_string(key.value().to_string()),
+    //                 Some(v) => reader.add_str(v),
+    //             }
+    //         }
+    //         reader.add_str("\r\n");
+    //     }
+    //     reader.add_str("\r\n");
+    //     H1HeaderReader {
+    //         reader,
+    //         pos: 0,
+    //         wrote: false,
+    //     }
+    // }
 
     fn gen_frame_keys<'a>(&'a self, param: &HeaderParam<'a>, ct: &'a ContentType) -> Vec<(StrCow<'a>, StrCow<'a>)> {
         let mut keys = vec![];
@@ -485,6 +482,7 @@ impl Header {
         keys.push((StrCow::Borrowed(":scheme"), StrCow::Borrowed(param.url.scheme().spec())));
         let uri = if param.url.uri().is_empty() { StrCow::Borrowed("/") } else { StrCow::Owned(param.url.uri().to_string()) };
         for key in self.inner.iter() {
+            // println!("{} {} {} {}", key.name(), param.body_len, param.method, 0);
             if H2HeaderReader::skip_h2_key(key, ct, param.body_len, param.method) { continue; }
             let name = key.name().to_lowercase();
             if name == "content-type" {
@@ -538,7 +536,7 @@ impl Header {
             h2 if h2 == ALPN::HTTP20 => HeaderReader::H2(self.as_h2_reader(param, ct)?),
             #[cfg(feature = "quic")]
             h3 if h3 == ALPN::HTTP30 => HeaderReader::H3(self.as_h3_reader(param, ct)?),
-            _ => HeaderReader::H1(self.as_h1_reader(param, ct))
+            _ => unreachable!()
         })
     }
 
@@ -597,8 +595,9 @@ impl Display for Header {
 
 #[cfg(test)]
 mod tests {
-    use crate::{json, Header};
+    use crate::{Header, json};
     use reqtls::ALPN;
+
 
     #[test]
     fn test_header_order() {

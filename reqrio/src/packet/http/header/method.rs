@@ -18,7 +18,7 @@ pub enum Method {
 }
 
 impl Method {
-    pub const fn spec(&self) -> &str {
+    pub const fn spec(&self) -> &'static str {
         match self {
             Method::GET => "GET",
             Method::POST => "POST",

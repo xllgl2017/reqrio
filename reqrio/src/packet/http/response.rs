@@ -13,11 +13,13 @@ pub struct Response {
     //share c
     #[cfg(feature = "export")]
     pub(crate) sid: u64,
+    #[deprecated]
     pub(crate) method: Method,
     status: HttpStatus,
     alpn: ALPN,
     pub(crate) raw: Writer,
     //rust owned
+    #[deprecated]
     pub(crate) uri: Uri,
     pub(crate) header: Header,
     coder: Option<Box<dyn StreamDecode + Send + Sync>>,
@@ -46,14 +48,6 @@ impl Default for Response {
 impl Response {
     pub fn new() -> Response {
         Response::default()
-    }
-
-    #[cfg(feature = "export")]
-    pub(crate) fn new_header(header: Header) -> Response {
-        Response {
-            header,
-            ..Default::default()
-        }
     }
 
     fn write_buffer(buffer: &mut Writer, buf: &[u8]) -> Result<usize, BufferError> {
@@ -238,9 +232,11 @@ impl Response {
     ///only for resp
     pub fn status(&self) -> HttpStatus { self.status }
 
+    #[deprecated]
     ///only for req
     pub fn method(&self) -> Method { self.method }
 
+    #[deprecated]
     ///only for req
     pub fn uri(&self) -> &Uri { &self.uri }
 }

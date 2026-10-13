@@ -3,7 +3,7 @@ use crate::pack::{HPackDecode, HPackEncode};
 use crate::packet::HeaderParam;
 use crate::reader::ReadExt;
 use crate::request::RequestBuffer;
-use crate::{Body, Fingerprint, H2FrameFlag, H2FrameType, H2Frame, H2Setting, Header, HeaderValue, Response};
+use crate::{Body, Fingerprint, H2FrameFlag, H2FrameType, H2Frame, H2Setting, Header, Response};
 #[cfg(feature = "log")]
 use crate::{warn, trace};
 use reqtls::{u24, Writer, Reader};
@@ -143,9 +143,10 @@ trait H2Handle {
             H2FrameType::Headers => {
                 let resp = responses.get_mut(&sid).ok_or("resp not inited")?;
                 param.decoder.decode_into(frame.payload().as_ref(), resp)?;
-                if let Some(size) = resp.header().get("update-table-size") && let HeaderValue::Number(size) = size {
-                    param.encoder.update_table_size(*size);
-                    param.decoder.update_table_size(*size);
+                if let Some(size) = resp.header().get("update-table-size") {
+                    let size = size.to_string().parse::<usize>()?;
+                    param.encoder.update_table_size(size);
+                    param.decoder.update_table_size(size);
                 }
                 if frame.flag().end_header() { resp.make_coding()?; }
                 if frame.flag().end_stream() { res.push(sid); }

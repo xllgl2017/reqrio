@@ -194,7 +194,7 @@ pub trait ReqStreamExt: ReqExt {
     fn h1_raw_string(&mut self, url: &Url, body: &Body<'_>) -> HlsResult<String> {
         let body_raw = body.to_vec()?;
         let header_reader = self.header().as_reader(HeaderParam {
-            method: &Method::GET,
+            method: Method::GET,
             url,
             h_sid: &0,
             hpack_encoder: None,
