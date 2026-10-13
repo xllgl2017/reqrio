@@ -6,7 +6,7 @@ use crate::prf::Prf;
 use crate::{rand, CipherSuite, HandShakeError, HashType, Hmac, Version};
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::PathBuf;
+use std::sync::Arc;
 
 #[repr(C)]
 pub(crate) struct DerivedKey {
@@ -20,14 +20,14 @@ pub(crate) struct DerivedKey {
     prf: Prf,
     key_block: KeyBlock,
     prk: Vec<u8>,
-    key_log: Option<PathBuf>,
+    key_log: Option<Arc<String>>,
 }
 
 impl DerivedKey {
     const ZERO: [u8; 64] = [0; 64];
     #[cfg(feature = "quic")]
     const INIT_SLAT: [u8; 20] = [56, 118, 44, 247, 245, 89, 52, 179, 77, 23, 154, 230, 164, 200, 12, 173, 204, 187, 127, 10];
-    pub fn new(session: TlsSession, key_log: Option<PathBuf>, quic: bool) -> Self {
+    pub fn new(session: TlsSession, key_log: Option<Arc<String>>, quic: bool) -> Self {
         DerivedKey {
             prf: Prf::default(),
             hash: HashType::Sha256,
@@ -62,16 +62,14 @@ impl DerivedKey {
             false => ("master secret", [self.client_random, self.server_random].concat())
         };
         self.prf.prf(&share_secret, label, &seed, self.session.master_secret_mut())?;
-        self.export_key("CLIENT_RANDOM", hex::encode(self.session.master_secret()))?;
+        self.export_key("CLIENT_RANDOM", hex::encode(self.session.master_secret()));
         Ok(())
     }
 
-    fn export_key(&self, label: &str, key: String) -> RlsResult<()> {
-        if let Some(ref key_log) = self.key_log {
-            let mut f = OpenOptions::new().create(true).append(true).open(key_log)?;
-            writeln!(f, "{} {} {}", label, hex::encode(self.client_random), key)?;
-        }
-        Ok(())
+    fn export_key(&self, label: &str, key: String) {
+        let Some(ref key_log) = self.key_log else { return; };
+        let Ok(mut f) = OpenOptions::new().create(true).append(true).open(key_log.as_str()) else { return; };
+        let _ = writeln!(f, "{} {} {}", label, hex::encode(self.client_random), key);
     }
 
     pub fn make_handshake_traffic_secret(&mut self, share_secret: Vec<u8>, session_hash: &[u8]) -> RlsResult<()> {
@@ -81,11 +79,11 @@ impl DerivedKey {
         //client handshake traffic
         let mut hkdf = Hkdf::new(&derived, &share_secret, self.hash)?;
         hkdf.hkdf("tls13 c hs traffic", session_hash, self.traffic_secret.client_traffic_mut())?;
-        self.export_key("CLIENT_HANDSHAKE_TRAFFIC_SECRET", hex::encode(self.traffic_secret.client_traffic()))?;
+        self.export_key("CLIENT_HANDSHAKE_TRAFFIC_SECRET", hex::encode(self.traffic_secret.client_traffic()));
         //server handshake traffic
         hkdf.hkdf("tls13 s hs traffic", session_hash, self.traffic_secret.server_traffic_mut())?;
         self.prk = hkdf.into_prk().to_vec();
-        self.export_key("SERVER_HANDSHAKE_TRAFFIC_SECRET", hex::encode(self.traffic_secret.server_traffic()))?;
+        self.export_key("SERVER_HANDSHAKE_TRAFFIC_SECRET", hex::encode(self.traffic_secret.server_traffic()));
         Ok(())
     }
 
@@ -95,9 +93,9 @@ impl DerivedKey {
         hkdf.hkdf("tls13 derived", self.hash.tls13_secret()?, &mut salt)?;
         let mut hkdf = Hkdf::new(&salt, &Self::ZERO[..self.hash.hash_size()], self.hash)?;
         hkdf.hkdf("tls13 c ap traffic", session_hash, self.traffic_secret.client_traffic_mut())?;
-        self.export_key("CLIENT_TRAFFIC_SECRET_0", hex::encode(self.traffic_secret.client_traffic()))?;
+        self.export_key("CLIENT_TRAFFIC_SECRET_0", hex::encode(self.traffic_secret.client_traffic()));
         hkdf.hkdf("tls13 s ap traffic", session_hash, self.traffic_secret.server_traffic_mut())?;
-        self.export_key("SERVER_TRAFFIC_SECRET_0", hex::encode(self.traffic_secret.server_traffic()))?;
+        self.export_key("SERVER_TRAFFIC_SECRET_0", hex::encode(self.traffic_secret.server_traffic()));
         Ok(())
     }
 
