@@ -5,8 +5,6 @@ use crate::stream::{HTTPStream, Stream};
 use crate::*;
 use json::JsonValue;
 use std::collections::HashMap;
-use std::path::Path;
-
 
 pub trait ReqExt: Sized {
     fn header_mut(&mut self) -> &mut Header;
@@ -44,11 +42,19 @@ pub trait ReqExt: Sized {
         self
     }
 
-    ///导出tls key log，不设置时读取SSLKEYLOGFILE环境变量，为保证通信安全，请勿用于生产模式，以免造成隐私泄露
+    /// 导出tls key log
+    /// 注意: 为保证通信安全，生产模式勿使用，以免造成隐私泄露
     fn set_key_log(&mut self, path: impl Into<String>);
 
     fn with_key_log(mut self, path: impl Into<String>) -> Self {
         self.set_key_log(path);
+        self
+    }
+    ///接受SSLKEYLOGFILE，
+    fn with_env_key_log(mut self) -> Self {
+        if let Ok(key_log) = std::env::var("SSLKEYLOGFILE") {
+            self.set_key_log(key_log);
+        }
         self
     }
 

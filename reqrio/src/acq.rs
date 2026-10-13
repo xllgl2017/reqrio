@@ -47,7 +47,7 @@ impl Default for AcReq {
             key: RsaKey::none(),
             ca_certs: vec![],
             alpn: ALPN::HTTP20,
-            key_log: None, //env::var("SSLKEYLOGFILE").ok().map(|x| Arc::new(x)),
+            key_log: None, 
             url: Default::default(),
             tls_session: None,
             ignore_order: false,

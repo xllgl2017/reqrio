@@ -1,5 +1,4 @@
-use crate::{Certificate, RsaKey, TlsFinger, TlsSession, Version, ALPN, NamedCurve};
-use std::path::PathBuf;
+use crate::{Certificate, NamedCurve, RsaKey, TlsFinger, TlsSession, Version, ALPN};
 use std::sync::Arc;
 
 pub enum Config<'a> {

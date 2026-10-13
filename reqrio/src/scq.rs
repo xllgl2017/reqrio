@@ -6,7 +6,6 @@ use crate::*;
 use json::JsonValue;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 use std::sync::Arc;
 
 pub struct ScReq {
