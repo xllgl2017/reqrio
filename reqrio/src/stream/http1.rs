@@ -4,14 +4,7 @@ use crate::stream::Stream;
 use crate::*;
 use std::collections::HashMap;
 use std::io::Write;
-
-
-pub struct SendParam<'a> {
-    pub method: Method,
-    pub url: &'a Url,
-    pub header: &'a Header,
-    pub body: &'a Body<'a>,
-}
+use super::message::SendParam;
 
 pub struct HTTP1Stream {
     write_buffer: Writer,
@@ -179,7 +172,9 @@ mod tests {
             method: Method::GET,
             url: &url,
             body: &Body::new(BodyKind::Data(HCow::Owned(JsonValue::Null)), ContentType::Application(Application::Json)),
+            priority: false,
             header: &header,
+            weight: 0,
         }).unwrap();
         assert_eq!(std::str::from_utf8(stream.write_buffer.filled()).unwrap(), r#"Connection: keep-alive
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254181b) XWEB/20001

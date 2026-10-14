@@ -282,8 +282,6 @@ pub struct StreamConnect<'a, S> {
     pub(crate) proxy_connected: bool,
     #[cfg(feature = "aync")]
     pub(crate) stream: Stream,
-    // #[cfg(feature = "aync")]
-    // pub(crate) buffer: Writer,
     #[cfg(feature = "aync")]
     pub(crate) tls_connected: bool,
 }
@@ -302,7 +300,7 @@ impl<'a> StreamConnect<'a, std::net::TcpStream> {
                 let session = config.session.as_ref().cloned().unwrap_or_default();
                 let conn = Connection::new_client(session, mem::take(&mut config.key_log), false)
                     .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
-                self.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, proxy_stream, Timeout::longer())));
+                self.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, Timeout::longer(), proxy_stream)));
                 let mut tls_stream = self.tls_connecting.wait()?;
                 let alpn = tls_stream.alpn().clone();
                 let stream = match &alpn {
@@ -312,7 +310,8 @@ impl<'a> StreamConnect<'a, std::net::TcpStream> {
                         self.fingerprint.h2().build_setting().write_to(&mut buffer)?;
                         self.fingerprint.h2().build_window_update().write_to(&mut buffer)?;
                         tls_stream.write_all(buffer.filled())?;
-                        HTTPStream::SyncH2(HTTP2StreamS::new(Stream::SyncHttps(tls_stream), buffer))
+                        buffer.reset();
+                        HTTPStream::SyncH2(HTTP2Stream::new(buffer, Stream::SyncHttps(tls_stream)))
                     }
                     _ => HTTPStream::SyncH1(HTTP1Stream::new(Stream::SyncHttps(tls_stream)))
                 };
@@ -345,7 +344,7 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
                     let conn = Connection::new_client(session, mem::take(&mut config.key_log), false)
                         .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
                     let timeout = proxy_stream.timeout.clone();
-                    connector.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, proxy_stream, timeout)));
+                    connector.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, timeout, proxy_stream)));
                     connector.proxy_connected = true;
                 }
                 _ => return Poll::Ready(Err("stream not supported".into()))
@@ -372,7 +371,7 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
             Poll::Ready(_) => {
                 let stream = mem::replace(&mut connector.stream, Stream::NonConnection);
                 let buffer = mem::replace(&mut connector.tls_connecting.app_buf, Writer::none());
-                Poll::Ready(Ok((ALPN::HTTP20, HTTPStream::AsyncH2(HTTP2StreamA::new(stream, buffer)))))
+                Poll::Ready(Ok((ALPN::HTTP20, HTTPStream::AsyncH2(HTTP2Stream::new(buffer, stream)))))
             }
             Poll::Pending => Poll::Pending,
         }

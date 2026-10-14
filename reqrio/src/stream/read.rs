@@ -70,67 +70,69 @@ impl<'a, S: AsyncRead + Unpin> Future for BufReading<'a, S> {
 }
 
 #[must_use = "streams do nothing unless `.wait()/.await`"]
-pub struct RecordReading<'a, S> {
+pub struct ChunkReading<'a, S> {
+    pub(crate) len_size: usize,
+    pub(crate) func: Box<dyn Fn(&[u8]) -> usize>,
     pub(crate) stream: &'a mut S,
-    pub(crate) buf: &'a mut Writer,
+    pub(crate) buf: &'a mut Buffer,
     #[cfg(feature = "aync")]
     pub(crate) timeout: &'a mut Timeout,
 }
 
-impl<'a, S: Read> RecordReading<'a, S> {
+impl<'a, S: Read> ChunkReading<'a, S> {
     pub fn wait(self) -> HlsResult<usize> {
-        if self.buf.len() < 5 {
+        if self.buf.len() < self.len_size {
             BufReading {
                 buf: self.buf,
                 stream: self.stream,
-                want_size: 5,
+                want_size: self.len_size,
                 #[cfg(feature = "aync")]
                 timeout: self.timeout,
                 #[cfg(feature = "aync")]
                 timeout_reset: false,
             }.wait()?;
         }
-        let record_len = u16::from_be_bytes([self.buf.filled()[3], self.buf.filled()[4]]) as usize + 5;
+        let chunk_size = (self.func)(self.buf.filled());
         BufReading {
             buf: self.buf,
             stream: self.stream,
-            want_size: record_len,
+            want_size: chunk_size,
             #[cfg(feature = "aync")]
             timeout: self.timeout,
             #[cfg(feature = "aync")]
             timeout_reset: false,
         }.wait()?;
-        Ok(record_len)
+        Ok(chunk_size)
     }
 }
 
 #[cfg(feature = "aync")]
-impl<'a, S: AsyncRead + Unpin> Future for RecordReading<'a, S> {
+impl<'a, S: AsyncRead + Unpin> Future for ChunkReading<'a, S> {
     type Output = HlsResult<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let record_reading = self.get_mut();
-        if record_reading.buf.len() < 5 {
+        let chunk_reading = self.get_mut();
+        // println!("{} {}", chunk_reading.buf.len(), chunk_reading.len_size);
+        if chunk_reading.buf.len() < chunk_reading.len_size {
             let mut reading = BufReading {
-                stream: record_reading.stream,
-                buf: record_reading.buf,
-                want_size: 5,
-                timeout: record_reading.timeout,
+                stream: chunk_reading.stream,
+                buf: chunk_reading.buf,
+                want_size: chunk_reading.len_size,
+                timeout: chunk_reading.timeout,
                 timeout_reset: false,
             };
             if Pin::new(&mut reading).poll(cx)?.is_pending() { return Poll::Pending; }
         }
-        let filled = record_reading.buf.filled();
-        let record_len = u16::from_be_bytes([filled[3], filled[4]]) as usize + 5;
+        let chunk_size = (chunk_reading.func)(chunk_reading.buf.filled());
         let mut reading = BufReading {
-            stream: record_reading.stream,
-            buf: record_reading.buf,
-            want_size: record_len,
-            timeout: record_reading.timeout,
+            stream: chunk_reading.stream,
+            buf: chunk_reading.buf,
+            want_size: chunk_size,
+            timeout: chunk_reading.timeout,
             timeout_reset: false,
         };
         if Pin::new(&mut reading).poll(cx)?.is_pending() { return Poll::Pending; }
-        Poll::Ready(Ok(record_len))
+        Poll::Ready(Ok(chunk_size))
     }
 }
 

@@ -2,12 +2,25 @@ use crate::error::HlsResult;
 use crate::pack::{QPackEncode, QPackType};
 use crate::reader::{ReadExt, StrCow};
 use reqtls::Writer;
+use crate::{ContentType, HeaderItem, Method};
 
 pub struct H3HeaderReader<'a> {
     pub(crate) keys: Vec<(StrCow<'a>, StrCow<'a>)>,
     pub(crate) encoder: &'a mut QPackEncode,
     pub(crate) wrote: bool,
     pub(crate) sid: &'a u64,
+}
+
+impl<'a> H3HeaderReader<'a> {
+    const INVALID_KEYS: [&'static str; 4] = ["connection", "host", "transfer-encoding", "upgrade"];
+    pub(crate) fn skip_h2_key(key: &HeaderItem, ct: &ContentType, body: usize, method: Method) -> bool {
+        let is_ct = key.name().eq_ignore_ascii_case("content-type");
+        if is_ct && !matches!(ct,ContentType::Null) { return false; }
+        let is_len = key.name().eq_ignore_ascii_case("content-length");
+        if (is_len && method != Method::GET) || (is_len && method == Method::GET && body != 0) { return false; }
+        let is_invalid_key = Self::INVALID_KEYS.iter().any(|x| x.eq_ignore_ascii_case(key.name()));
+        is_invalid_key || (key.value().is_empty() && key.is_reserved())
+    }
 }
 
 impl<'a> ReadExt for H3HeaderReader<'a> {
@@ -23,7 +36,7 @@ impl<'a> ReadExt for H3HeaderReader<'a> {
         buf.write_u16(0)?;
         self.encoder.encode_head(buf)?;
         for (key, value) in self.keys.iter() {
-            self.encoder.encode_one(QPackType::Stream, key, value, &self.sid, buf)?;
+            self.encoder.encode_one(QPackType::Stream, key, value, self.sid, buf)?;
         }
         let len = buf.offset().end - offset.end - 3;
         assert!(len < 16384);
@@ -67,11 +80,9 @@ mod tests {
             url: &url,
             qpack_encoder: Some(&mut encoder),
             q_sid: &0,
-            hpack_encoder: None,
-            h_sid: &0,
             body_len: 0,
-            weight: &0,
-            priority: &false,
+            weight: 0,
+            priority: false,
         }, &ContentType::Null).unwrap();
         let mut buffer = Writer::with_capacity(4096);
         let len = reader.read(&mut buffer).unwrap();

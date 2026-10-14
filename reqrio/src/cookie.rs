@@ -29,10 +29,6 @@ impl CookieManager {
         self.0.iter().find(|c| c.name() == name)
     }
 
-    pub fn req_may_len(&self) -> usize {
-        self.0.iter().map(|x| x.name().len() + x.value().len() + 1).sum()
-    }
-
     pub fn remove(&mut self, name: &str) -> Option<Cookie> {
         let pos = self.0.iter().position(|c| c.name() == name);
         pos.map(|i| self.0.remove(i))

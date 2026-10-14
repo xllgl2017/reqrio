@@ -40,7 +40,7 @@ pub struct ClientConfig<'a> {
     ///tls密钥导出路径，None不导出
     pub key_log: Option<Arc<String>>,
     ///使用tls会话数据恢复会话
-    pub session: &'a Option<TlsSession>,
+    pub session: Option<TlsSession>,
     ///TLS版本
     pub version: Version,
 }

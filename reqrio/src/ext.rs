@@ -1,6 +1,5 @@
 use crate::error::HlsResult;
 use crate::packet::*;
-use crate::reader::ReadExt;
 use crate::stream::{HTTPStream, Stream, StreamMessage};
 use crate::*;
 use json::JsonValue;
@@ -184,38 +183,7 @@ pub(crate) trait ReqPriExt: ReqExt {
 pub trait ReqStreamExt: ReqExt {
     fn into_stream(self) -> HlsResult<Stream>;
     fn http_stream_mut(&mut self) -> &mut HTTPStream;
-    fn read_to_vec<T: ReadExt>(mut reader: T) -> HlsResult<Vec<u8>> {
-        let mut res = vec![0; reader.len()];
-        let mut buffer = Writer::from_ptr(res.as_mut_ptr(), res.len());
-        loop {
-            reader.read(&mut buffer)?;
-            if reader.wrote() { break; }
-            res.resize(res.capacity() + 1024, 0);
-        }
-        assert_eq!(res.len(), buffer.len());
-        Ok(res)
-    }
-    /// * 最好在调试模式使用，生产模式使用时，一个请求将会产生两次reader，影响效率
-    /// * H2严禁使用，否则影响hpack编码
-    fn h1_raw_string(&mut self, url: &Url, body: &Body<'_>) -> HlsResult<String> {
-        let body_raw = body.to_vec()?;
-        let header_reader = self.header().as_reader(HeaderParam {
-            method: Method::GET,
-            url,
-            h_sid: &0,
-            hpack_encoder: None,
-            #[cfg(feature = "quic")]
-            q_sid: &0,
-            #[cfg(feature = "quic")]
-            qpack_encoder: None,
-            body_len: body_raw.len(),
-            priority: &false,
-            weight: &0,
-        }, body.context_type())?;
-        let mut header = Self::read_to_vec(header_reader)?;
-        header.extend(body_raw);
-        Ok(String::from_utf8_lossy(&header).to_string())
-    }
+
 }
 
 pub trait UrlExt {

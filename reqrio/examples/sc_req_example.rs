@@ -63,7 +63,7 @@ fn build_finger() -> Fingerprint {
         ],
     };
     let h2 = H2Finger {
-        setting: vec![
+        settings: vec![
             H2Setting::EnablePush(0),
             H2Setting::HeaderTableSize(4096),
             H2Setting::InitialWindowSize(8192),

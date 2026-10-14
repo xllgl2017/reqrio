@@ -106,15 +106,13 @@ impl AcReq {
         let sid = self.stream.send_async(&self.header, &body.into(), HeaderParam {
             method,
             url: url.as_ref(),
-            hpack_encoder: None,
-            h_sid: &0,
             #[cfg(feature = "quic")]
             qpack_encoder: None,
             #[cfg(feature = "quic")]
             q_sid: &0,
             body_len: 0,
-            priority: &self.fingerprint.h2().priority,
-            weight: &self.fingerprint.h2().weight,
+            priority: self.fingerprint.h2().priority,
+            weight: self.fingerprint.h2().weight,
         }).await?;
         self.responses.insert(sid, StreamMessage::new(sid));
         Ok(sid)
@@ -144,6 +142,7 @@ impl AcReq {
                 redirect_times += 1;
                 continue;
             }
+            if self.tls_session.is_none() { self.tls_session = self.stream.tls_session().cloned() }
             return Ok(resp);
         }
         Err("redirection exceeds the maximum".into())
@@ -222,7 +221,8 @@ impl AcReq {
                 ca_cert: &self.ca_certs,
                 key_log: self.key_log.clone(),
                 ech: false,
-                session: &self.tls_session,
+                //仅第一次尝试恢复会话，若连接失败就建立新的会话
+                session: self.tls_session.take(),
                 version: self.version,
             };
             let res = tokio::time::timeout(self.timeout.connect(), self.stream.conn_async(param)).await;
@@ -232,7 +232,6 @@ impl AcReq {
                 Ok(Ok(alpn)) => {
                     #[cfg(feature = "log")]
                     debug!("[AcReq] Connected | ALPN: {} | RemoteAddr: {}", alpn, url.unwrap_or(&self.url).addr());
-                    self.tls_session = None;
                     if !self.ignore_order { self.header.init_by_alpn(alpn); }
                     if let Some(url) = url {
                         self.url = url.clone();

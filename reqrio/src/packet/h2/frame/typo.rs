@@ -25,6 +25,22 @@ impl H2FrameType {
     pub const fn into_inner(self) -> u8 { self.0 }
 
     pub const fn inner(&self) -> u8 { self.0 }
+
+    pub const fn spec(&self) -> &str {
+        match *self {
+            H2FrameType::Data => "Data",
+            H2FrameType::Headers => "Headers",
+            H2FrameType::Priority => "Priority",
+            H2FrameType::RstStream => "RstStream",
+            H2FrameType::Settings => "Settings",
+            H2FrameType::PushPromise => "PushPromise",
+            H2FrameType::Ping => "Ping",
+            H2FrameType::Goaway => "Goaway",
+            H2FrameType::WindowUpdate => "WindowUpdate",
+            H2FrameType::Continuation => "Continuation",
+            _ => "Unknown",
+        }
+    }
 }
 
 impl Debug for H2FrameType {
@@ -36,18 +52,6 @@ impl Debug for H2FrameType {
 
 impl Display for H2FrameType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            H2FrameType::Data => write!(f, "Data(0x({:02x}))", self.0),
-            H2FrameType::Headers => write!(f, "Headers(0x({:02x}))", self.0),
-            H2FrameType::Priority => write!(f, "Priority(0x({:02x}))", self.0),
-            H2FrameType::RstStream => write!(f, "RstStream(0x({:02x}))", self.0),
-            H2FrameType::Settings => write!(f, "Settings(0x({:02x}))", self.0),
-            H2FrameType::PushPromise => write!(f, "PushPromise(0x({:02x}))", self.0),
-            H2FrameType::Ping => write!(f, "Ping(0x({:02x}))", self.0),
-            H2FrameType::Goaway => write!(f, "Goaway(0x({:02x}))", self.0),
-            H2FrameType::WindowUpdate => write!(f, "WindowUpdate(0x({:02x}))", self.0),
-            H2FrameType::Continuation => write!(f, "Continuation(0x({:02x}))", self.0),
-            _ => write!(f, "FrameType::Unknown(0x({:02x}))", self.0),
-        }
+        write!(f, "{}(0x({:02x}))", self.spec(), self.inner())
     }
 }

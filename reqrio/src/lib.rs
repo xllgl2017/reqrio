@@ -275,6 +275,7 @@ mod stream;
 mod body;
 mod fingerprint;
 mod reader;
+#[cfg(feature = "quic")]
 mod request;
 mod cookie;
 mod time;

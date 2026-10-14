@@ -1,3 +1,4 @@
+use std::io;
 use crate::error::HlsResult;
 use crate::stream::Stream;
 use crate::*;
@@ -65,14 +66,16 @@ pub struct StreamWrite<'a> {
 
 impl<'a> StreamWrite<'a> {
     pub fn wait(self) -> HlsResult<()> {
-        let stream: &mut dyn Write = match self.stream {
-            Stream::NonConnection => return Err("NonConnection".into()),
-            Stream::SyncHttp(stream) => stream,
-            Stream::SyncHttps(stream) => stream,
-            #[cfg(feature = "aync")]
-            _ => unreachable!(),
-        };
-        stream.write_all(self.buf.filled())?;
+        if !self.buf.is_empty() {
+            let stream: &mut dyn Write = match self.stream {
+                Stream::NonConnection => return Err(io::ErrorKind::NotConnected.into()),
+                Stream::SyncHttp(stream) => stream,
+                Stream::SyncHttps(stream) => stream,
+                #[cfg(feature = "aync")]
+                _ => unreachable!(),
+            };
+            stream.write_all(self.buf.filled())?;
+        }
         self.buf.reset();
         Ok(())
     }
@@ -83,16 +86,18 @@ impl<'a> Future for StreamWrite<'a> {
     type Output = HlsResult<()>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let writer = self.get_mut();
-        let stream: &mut (dyn AsyncWrite + Unpin) = match writer.stream {
-            Stream::NonConnection => return Poll::Ready(Err("NonConnection".into())),
-            Stream::AsyncHttp(stream) => stream,
-            Stream::AsyncHttps(stream) => stream,
-            _ => unreachable!(),
-        };
-        loop {
-            match Pin::new(&mut *stream).poll_write(cx, writer.buf.filled())? {
-                Poll::Ready(len) => if writer.buf.used_empty(len) { break; },
-                Poll::Pending => return Poll::Pending,
+        if !writer.buf.is_empty() {
+            let stream: &mut (dyn AsyncWrite + Unpin) = match writer.stream {
+                Stream::NonConnection => return Poll::Ready(Err(io::ErrorKind::NotConnected.into())),
+                Stream::AsyncHttps(stream) => stream,
+                Stream::AsyncHttp(stream) => stream,
+                _ => unreachable!(),
+            };
+            loop {
+                match Pin::new(&mut *stream).poll_write(cx, writer.buf.filled())? {
+                    Poll::Ready(len) => if writer.buf.used_empty(len) { break; },
+                    Poll::Pending => return Poll::Pending,
+                }
             }
         }
         writer.buf.reset();
@@ -109,7 +114,7 @@ pub struct StreamShutdown<'a> {
 impl<'a> StreamShutdown<'a> {
     pub fn wait(self) -> HlsResult<()> {
         match self.stream {
-            Stream::NonConnection => Err("NonConnection".into()),
+            Stream::NonConnection => Err(io::ErrorKind::NotConnected.into()),
             Stream::SyncHttp(stream) => stream.shutdown(),
             Stream::SyncHttps(stream) => stream.shutdown(),
             #[cfg(feature = "aync")]
@@ -124,7 +129,7 @@ impl<'a> Future for StreamShutdown<'a> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let reader = self.get_mut();
         let stream: &mut (dyn AsyncWrite + Unpin) = match reader.stream {
-            Stream::NonConnection => return Poll::Ready(Err("NonConnection".into())),
+            Stream::NonConnection => return Poll::Ready(Err(io::ErrorKind::NotConnected.into())),
             Stream::AsyncHttp(stream) => stream,
             Stream::AsyncHttps(stream) => stream,
             _ => unreachable!(),

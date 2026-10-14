@@ -105,15 +105,14 @@ impl ScReq {
         let sid = self.stream.send_sync(&self.header, &body.into(), HeaderParam {
             method,
             url: url.as_ref(),
-            h_sid: &0,
-            hpack_encoder: None,
             #[cfg(feature = "quic")]
             q_sid: &0,
             #[cfg(feature = "quic")]
             qpack_encoder: None,
+            #[cfg(feature = "quic")]
             body_len: 0,
-            weight: &self.fingerprint.h2().weight,
-            priority: &self.fingerprint.h2().priority,
+            weight: self.fingerprint.h2().weight,
+            priority: self.fingerprint.h2().priority,
         })?;
         self.responses.insert(sid, StreamMessage::new(sid));
         Ok(sid)
@@ -177,6 +176,9 @@ impl ScReq {
                 redirect_times += 1;
                 continue;
             }
+            if self.tls_session.is_none() {
+                self.tls_session = self.stream.tls_session().cloned();
+            }
             return Ok(resp);
         }
         Err("redirection exceeds the maximum".into())
@@ -220,14 +222,13 @@ impl ScReq {
                 ca_cert: &self.ca_certs,
                 key_log: self.key_log.clone(),
                 ech: false,
-                session: &self.tls_session,
+                session: self.tls_session.take(),
                 version: self.version,
             };
             match self.stream.conn_sync(param) {
                 Ok(alpn) => {
                     #[cfg(feature = "log")]
                     debug!("[AcReq] Connected | ALPN: {} | RemoteAddr: {}", alpn, url.unwrap_or(&self.url).addr());
-                    self.tls_session = None;
                     if !self.ignore_order { self.header.init_by_alpn(alpn); }
                     if let Some(url) = url { self.url = url.clone(); }
                     return Ok(());
@@ -288,7 +289,7 @@ impl ReqStreamExt for ScReq {
 }
 
 impl ReqPriExt for ScReq {
-    fn responses(&mut self) ->  &mut HashMap<u64, StreamMessage> {
+    fn responses(&mut self) -> &mut HashMap<u64, StreamMessage> {
         &mut self.responses
     }
 }

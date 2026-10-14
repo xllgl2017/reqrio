@@ -325,20 +325,20 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
             extensions,
         };
         let mut h2 = H2Finger {
-            setting: vec![],
+            settings: vec![],
             window_size: custom["window_size"].as_u32().or(Err("missing window_size"))?,
             weight: custom["weight"].as_u8().unwrap_or(0),
             priority: custom["priority"].as_bool().unwrap_or(false),
         };
         for (key, value) in custom["settings"].entries() {
             match key {
-                "HeaderTableSize" => h2.setting.push(H2Setting::HeaderTableSize(value.as_u32()?)),
-                "EnablePush" => h2.setting.push(H2Setting::EnablePush(value.as_u32()?)),
-                "MaxConcurrentStreams" => h2.setting.push(H2Setting::MaxConcurrentStreams(value.as_u32()?)),
-                "InitialWindowSize" => h2.setting.push(H2Setting::InitialWindowSize(value.as_u32()?)),
-                "MaxFrameSize" => h2.setting.push(H2Setting::MaxFrameSize(value.as_u32()?)),
-                "MaxHeaderListSize" => h2.setting.push(H2Setting::MaxHeaderListSize(value.as_u32()?)),
-                "Reserved" => h2.setting.push(H2Setting::Reserved { flag: value["flag"].as_u16()?, value: value["value"].as_u32()? }),
+                "HeaderTableSize" => h2.settings.push(H2Setting::HeaderTableSize(value.as_u32()?)),
+                "EnablePush" => h2.settings.push(H2Setting::EnablePush(value.as_u32()?)),
+                "MaxConcurrentStreams" => h2.settings.push(H2Setting::MaxConcurrentStreams(value.as_u32()?)),
+                "InitialWindowSize" => h2.settings.push(H2Setting::InitialWindowSize(value.as_u32()?)),
+                "MaxFrameSize" => h2.settings.push(H2Setting::MaxFrameSize(value.as_u32()?)),
+                "MaxHeaderListSize" => h2.settings.push(H2Setting::MaxHeaderListSize(value.as_u32()?)),
+                "Reserved" => h2.settings.push(H2Setting::Reserved { flag: value["flag"].as_u16()?, value: value["value"].as_u32()? }),
                 _ => return Err("unknown setting type".into()),
             }
         }

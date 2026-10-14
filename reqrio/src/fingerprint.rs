@@ -1,13 +1,13 @@
 use std::fmt::Debug;
 use crate::*;
-use crate::packet::{H2EncodeFrame};
 #[cfg(feature = "quic")]
 use crate::packet::{H3Frame, H3Setting};
+use crate::reader::HCow;
 
 #[derive(Debug)]
 pub struct H2Finger {
     ///SETTING
-    pub setting: Vec<H2Setting>,
+    pub settings: Vec<H2Setting>,
     ///WINDOW UPDATE: window size increment
     pub window_size: u32,
     ///weight
@@ -19,7 +19,7 @@ pub struct H2Finger {
 impl Default for H2Finger {
     fn default() -> Self {
         H2Finger {
-            setting: vec![
+            settings: vec![
                 H2Setting::HeaderTableSize(65536),
                 H2Setting::EnablePush(0),
                 H2Setting::InitialWindowSize(6291456),
@@ -33,16 +33,16 @@ impl Default for H2Finger {
 }
 
 impl H2Finger {
-    pub fn build_setting(&self) -> H2EncodeFrame<'_> {
-        H2EncodeFrame::new_setting(&self.setting)
+    pub fn build_setting(&self) -> H2Frame<'_> {
+        H2Frame::new_setting(HCow::Borrowed(&self.settings))
     }
 
-    pub fn build_window_update(&self) -> H2EncodeFrame<'_> {
-        H2EncodeFrame::new_window_update(&self.window_size)
+    pub fn build_window_update(&self) -> H2Frame<'_> {
+        H2Frame::new_window_update(self.window_size)
     }
 
     pub fn add_setting(&mut self, setting: H2Setting) {
-        self.setting.push(setting);
+        self.settings.push(setting);
     }
 
     pub fn set_window_size(&mut self, window_size: u32) {
@@ -102,7 +102,7 @@ impl Fingerprint {
                 extensions: vec![],
             },
             h2: H2Finger {
-                setting: vec![],
+                settings: vec![],
                 window_size: 0,
                 weight: 0,
                 priority: false,

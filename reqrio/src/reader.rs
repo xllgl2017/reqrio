@@ -88,6 +88,7 @@ pub enum StrCow<'a> {
     Owned(String),
 }
 
+#[cfg(feature = "quic")]
 impl<'a> StrCow<'a> {
     pub fn len(&self) -> usize {
         match self {

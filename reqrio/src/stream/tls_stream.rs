@@ -1,7 +1,7 @@
 use super::connect::{ConnState, TlsConnecting};
 use crate::Timeout;
 use crate::error::HlsResult;
-use crate::stream::read::RecordReading;
+use crate::stream::read::ChunkReading;
 use crate::stream::write::BufWriting;
 use reqtls::*;
 #[cfg(feature = "aync")]
@@ -26,12 +26,12 @@ pub struct TlsStream<S> {
     shutdown_wrote: bool,
     #[cfg(feature = "aync")]
     write_offset: usize,
-    #[allow(unused)]
+    #[cfg(feature = "aync")]
     pub(super) timeout: Timeout,
 }
 
 impl<S> TlsStream<S> {
-    pub(crate) fn new(conn: Connection, stream: S, timeout: Timeout) -> TlsStream<S> {
+    pub(crate) fn new(conn: Connection, _timeout: Timeout, stream: S) -> TlsStream<S> {
         TlsStream {
             conn,
             stream,
@@ -44,17 +44,18 @@ impl<S> TlsStream<S> {
             shutdown_wrote: false,
             #[cfg(feature = "aync")]
             write_offset: 0,
-            timeout,
+            #[cfg(feature = "aync")]
+            timeout:_timeout,
         }
     }
 
-    pub fn connect(mut config: ClientConfig<'_>, stream: S, timeout: Timeout) -> TlsConnecting<'_, S> {
+    pub fn connect(mut config: ClientConfig<'_>, timeout: Timeout, stream: S) -> TlsConnecting<'_, S> {
         let session = config.session.as_ref().cloned().unwrap_or_default();
         let conn = Connection::new_client(session, config.key_log.take(), false)
             .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
         TlsConnecting {
             sent_client_hello: false,
-            state: ConnState::Connecting(Box::new(TlsStream::new(conn, stream, timeout))),
+            state: ConnState::Connecting(Box::new(TlsStream::new(conn, timeout, stream))),
             config: Config::Client(config),
             app_buf: Writer::with_capacity(24657),
             #[cfg(feature = "aync")]
@@ -69,7 +70,7 @@ impl<S> TlsStream<S> {
             .with_named_curve(config.named_curve);
         TlsConnecting {
             sent_client_hello: true,
-            state: ConnState::Connecting(Box::new(TlsStream::new(conn, stream, Timeout::longer()))),
+            state: ConnState::Connecting(Box::new(TlsStream::new(conn, Timeout::longer(), stream))),
             config: Config::Server(config),
             app_buf: Writer::with_capacity(24657),
             #[cfg(feature = "aync")]
@@ -89,8 +90,10 @@ impl<S> TlsStream<S> {
         }
     }
 
-    pub(super) fn read_next_record(&mut self) -> RecordReading<'_, S> {
-        RecordReading {
+    pub(super) fn read_next_record(&mut self) -> ChunkReading<'_, S> {
+        ChunkReading {
+            len_size: 5,
+            func: Box::new(|filled| u16::from_be_bytes([filled[3], filled[4]]) as usize + 5),
             stream: &mut self.stream,
             buf: &mut self.read_buffer,
             #[cfg(feature = "aync")]
@@ -142,7 +145,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
                 Poll::Ready(len) => len,
                 Poll::Pending => return Poll::Pending,
             };
-            let len = stream.handle_record(record_len, None, buf.initialized_mut()).unwrap();
+            let len = stream.handle_record(record_len, None, buf.initialized_mut())?;
             stream.read_buffer.used_empty(record_len);
             if len == 0 { continue; }
             buf.set_filled(len);

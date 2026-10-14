@@ -19,10 +19,8 @@ use crate::stream::http3::HTTP3StreamA;
 use crate::stream::read::StreamRead;
 use crate::stream::write::{StreamShutdown, StreamWrite};
 use crate::*;
-use http1::{HTTP1Stream, SendParam};
-#[cfg(feature = "aync")]
-use http2::HTTP2StreamA;
-use http2::HTTP2StreamS;
+use http1::HTTP1Stream;
+use http2::HTTP2Stream;
 #[cfg(feature = "quic")]
 pub use http3::HTTP3StreamS;
 pub use proxy::Proxy;
@@ -33,7 +31,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 pub use tls_stream::*;
 pub use ws::*;
-pub use message::StreamMessage;
+pub use message::{StreamMessage, SendParam};
 
 pub struct ConnParam<'a> {
     pub url: &'a Url,
@@ -47,7 +45,7 @@ pub struct ConnParam<'a> {
     pub ca_cert: &'a Vec<Certificate>,
     pub key_log: Option<Arc<String>>,
     pub ech: bool,
-    pub session: &'a Option<TlsSession>,
+    pub session: Option<TlsSession>,
     pub version: Version,
 }
 
@@ -62,7 +60,7 @@ impl<'a, 'b: 'a> From<&'a mut ConnParam<'b>> for ClientConfig<'a> {
             verify: param.verify,
             ca_certs: param.ca_cert,
             key_log: param.key_log.take(),
-            session: param.session,
+            session: param.session.take(),
             version: param.version,
         }
     }
@@ -72,13 +70,13 @@ impl<'a, 'b: 'a> From<&'a mut ConnParam<'b>> for ClientConfig<'a> {
 pub enum HTTPStream {
     NonConnection,
     SyncH1(HTTP1Stream),
-    SyncH2(HTTP2StreamS),
+    SyncH2(HTTP2Stream),
     #[cfg(feature = "quic")]
     SyncH3(HTTP3StreamS),
     #[cfg(feature = "aync")]
     AsyncH1(HTTP1Stream),
     #[cfg(feature = "aync")]
-    AsyncH2(HTTP2StreamA),
+    AsyncH2(HTTP2Stream),
     #[cfg(all(feature = "aync", feature = "quic"))]
     AsyncH3(HTTP3StreamA),
 }
@@ -159,8 +157,17 @@ impl HTTPStream {
                 url: param.url,
                 header,
                 body,
+                priority: param.priority,
+                weight: param.weight,
             })?),
-            HTTPStream::SyncH2(h2) => h2.send(header, body, param),
+            HTTPStream::SyncH2(h2) => h2.send_sync(SendParam {
+                method: param.method,
+                url: param.url,
+                header,
+                body,
+                priority: param.priority,
+                weight: param.weight,
+            }),
             #[cfg(feature = "quic")]
             HTTPStream::SyncH3(h3) => h3.send(header, body, param),
             #[cfg(feature = "aync")]
@@ -172,7 +179,7 @@ impl HTTPStream {
         match self {
             HTTPStream::NonConnection => Err("need connected before recv".into()),
             HTTPStream::SyncH1(h1) => h1.recv_sync(responses),
-            HTTPStream::SyncH2(h2) => h2.recv(responses),
+            HTTPStream::SyncH2(h2) => h2.recv_sync(responses),
             #[cfg(feature = "quic")]
             HTTPStream::SyncH3(h3) => h3.recv(responses),
             #[cfg(feature = "aync")]
@@ -212,8 +219,17 @@ impl HTTPStream {
                 url: param.url,
                 header,
                 body,
+                priority: param.priority,
+                weight: param.weight,
             }).await?),
-            HTTPStream::AsyncH2(h2) => h2.send(header, body, param).await,
+            HTTPStream::AsyncH2(h2) => h2.send_async(SendParam {
+                method: param.method,
+                url: param.url,
+                header,
+                body,
+                priority: param.priority,
+                weight: param.weight,
+            }).await,
             #[cfg(feature = "quic")]
             HTTPStream::AsyncH3(h3) => h3.send(header, body, param).await,
             _ => Err("invalid async stream".into()),
@@ -224,7 +240,7 @@ impl HTTPStream {
         match self {
             HTTPStream::NonConnection => Err("need connected before send".into()),
             HTTPStream::AsyncH1(h1) => h1.recv_async(responses).await,
-            HTTPStream::AsyncH2(h2) => h2.recv(responses).await,
+            HTTPStream::AsyncH2(h2) => h2.recv_async(responses).await,
             #[cfg(feature = "quic")]
             HTTPStream::AsyncH3(h3) => h3.recv(responses).await,
             _ => Err("invalid async stream".into()),
@@ -288,6 +304,17 @@ impl Stream {
         }
     }
 
+    #[cfg(feature = "aync")]
+    pub fn timeout(&self) -> &Timeout {
+        match self {
+            Stream::NonConnection => unreachable!(),
+            Stream::SyncHttp(stream) => &stream.timeout,
+            Stream::SyncHttps(stream) => &stream.timeout,
+            Stream::AsyncHttp(stream) => &stream.timeout,
+            Stream::AsyncHttps(stream) => &stream.timeout,
+        }
+    }
+
     pub fn read<'a>(&'a mut self, buffer: &'a mut Writer) -> StreamRead<'a> {
         StreamRead {
             stream: self,
@@ -343,3 +370,29 @@ impl Stream {
     }
 }
 
+impl std::io::Read for Stream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let stream: &mut dyn std::io::Read = match self {
+            Stream::NonConnection => return Err(std::io::Error::from(std::io::ErrorKind::NotConnected)),
+            Stream::SyncHttp(stream) => stream,
+            Stream::SyncHttps(stream) => stream,
+            #[cfg(feature = "aync")]
+            _ => unreachable!(),
+        };
+        stream.read(buf)
+    }
+}
+
+#[cfg(feature = "aync")]
+impl tokio::io::AsyncRead for Stream {
+    fn poll_read(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut tokio::io::ReadBuf<'_>) -> std::task::Poll<std::io::Result<()>> {
+        let stream: &mut (dyn tokio::io::AsyncRead + Unpin) = match self.get_mut() {
+            Stream::NonConnection => return std::task::Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::NotConnected))),
+            Stream::AsyncHttp(stream) => stream,
+            Stream::AsyncHttps(stream) => stream,
+            #[cfg(feature = "aync")]
+            _ => unreachable!(),
+        };
+        tokio::io::AsyncRead::poll_read(std::pin::Pin::new(stream), cx, buf)
+    }
+}

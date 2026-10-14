@@ -1,5 +1,5 @@
 use std::ops::{BitOr, BitOrAssign};
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Copy)]
 pub struct H2FrameFlag(u8);
 
 
@@ -37,6 +37,25 @@ impl H2FrameFlag {
     }
 
     pub const fn inner(&self) -> u8 { self.0 }
+}
+
+#[cfg(debug_assertions)]
+impl std::fmt::Debug for H2FrameFlag {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.priority() {
+            write!(fmt, "Priority")?
+        }
+        if self.padding() {
+            write!(fmt, "|Padding")?
+        }
+        if self.end_header() {
+            write!(fmt, "EndHeader")?
+        }
+        if self.end_stream() {
+            write!(fmt, "EndStream")?
+        }
+        Ok(())
+    }
 }
 
 impl BitOrAssign for H2FrameFlag {

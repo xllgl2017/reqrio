@@ -14,10 +14,8 @@ pub struct RequestBuffer<'a> {
 impl<'a> RequestBuffer<'a> {
     pub fn new(header: &'a Header, body: &'a Body, mut param: HeaderParam<'a>) -> HlsResult<RequestBuffer<'a>> {
         let body_reader = match header.alpn() {
-            #[cfg(feature = "quic")]
             h3 if h3 == ALPN::HTTP30 => BodyReader::HTTP3(H3BodyReader::new_size(1024, body.as_reader()?)),
-            h2 if h2 == ALPN::HTTP20 => BodyReader::HTTP2(H2BodyReader::new_size(8192, body.as_reader()?, param.h_sid)),
-            _ => BodyReader::HTTP1(body.as_reader()?)
+            _ => unreachable!()
         };
         param.body_len = body_reader.len();
         let header = header.as_reader(param, body.context_type())?;
