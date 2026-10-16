@@ -275,8 +275,6 @@ mod stream;
 mod body;
 mod fingerprint;
 mod reader;
-#[cfg(feature = "quic")]
-mod request;
 mod cookie;
 mod time;
 #[cfg(feature = "log")]
@@ -302,7 +300,7 @@ pub use reqtls::*;
 pub use scq::ScReq;
 pub use stream::{Proxy, ProxyStream, ConnParam, WebSocket, TlsStream, Stream, StreamMessage};
 #[cfg(feature = "quic")]
-pub use stream::{QUICStream, HTTP3StreamS};
+pub use stream::QUICStream;
 pub use time::{Time, TimeError, Timeout};
 #[cfg(feature = "tokio")]
 pub use tokio;

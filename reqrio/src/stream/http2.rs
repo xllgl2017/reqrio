@@ -304,7 +304,7 @@ mod tests {
             method: Method::POST,
             url: &url,
             header: &header,
-            body: &Body::none(),
+            body: Body::none(),
             priority: true,
             weight: 146,
         }, 0).unwrap();

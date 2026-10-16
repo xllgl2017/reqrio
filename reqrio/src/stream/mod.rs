@@ -12,73 +12,46 @@ mod write;
 mod connect;
 mod message;
 
-use crate::packet::HeaderParam;
-use crate::stream::connect::{ConnState, StreamConnect, TlsConnecting};
-#[cfg(all(feature = "quic", feature = "aync"))]
-use crate::stream::http3::HTTP3StreamA;
+use crate::stream::connect::{ConnState, HTTPStreamConnect, TlsConnecting};
 use crate::stream::read::StreamRead;
 use crate::stream::write::{StreamShutdown, StreamWrite};
 use crate::*;
 use http1::HTTP1Stream;
 use http2::HTTP2Stream;
 #[cfg(feature = "quic")]
-pub use http3::HTTP3StreamS;
+use stream::connect::QUICStreamConnect;
 pub use proxy::Proxy;
 pub use proxy::ProxyStream;
 #[cfg(feature = "quic")]
 pub use quic::QUICStream;
 use std::collections::HashMap;
-use std::sync::Arc;
 pub use tls_stream::*;
 pub use ws::*;
 pub use message::{StreamMessage, SendParam};
+use crate::fingerprint::H3Finger;
+#[cfg(feature = "quic")]
+use crate::stream::http3::HTTP3Stream;
+use crate::stream::quic::QUICConnect;
 
 pub struct ConnParam<'a> {
     pub url: &'a Url,
     pub proxy: &'a Proxy,
     pub timeout: &'a Timeout,
-    pub fingerprint: &'a mut Fingerprint,
-    pub alpn: &'a ALPN,
-    pub verify: bool,
-    pub cert: &'a mut Vec<Certificate>,
-    pub key: &'a RsaKey,
-    pub ca_cert: &'a Vec<Certificate>,
-    pub key_log: Option<Arc<String>>,
     pub ech: bool,
-    pub session: Option<TlsSession>,
-    pub version: Version,
 }
-
-impl<'a, 'b: 'a> From<&'a mut ConnParam<'b>> for ClientConfig<'a> {
-    fn from(param: &'a mut ConnParam<'b>) -> Self {
-        ClientConfig {
-            sni: param.url.sni(),
-            alpn: param.alpn,
-            fingerprint: param.fingerprint.tls_mut(),
-            client_cert: param.cert,
-            cert_key: param.key,
-            verify: param.verify,
-            ca_certs: param.ca_cert,
-            key_log: param.key_log.take(),
-            session: param.session.take(),
-            version: param.version,
-        }
-    }
-}
-
 
 pub enum HTTPStream {
     NonConnection,
     SyncH1(HTTP1Stream),
     SyncH2(HTTP2Stream),
     #[cfg(feature = "quic")]
-    SyncH3(HTTP3StreamS),
+    SyncH3(HTTP3Stream<std::net::UdpSocket>),
     #[cfg(feature = "aync")]
     AsyncH1(HTTP1Stream),
     #[cfg(feature = "aync")]
     AsyncH2(HTTP2Stream),
     #[cfg(all(feature = "aync", feature = "quic"))]
-    AsyncH3(HTTP3StreamA),
+    AsyncH3(HTTP3Stream<tokio::net::UdpSocket>),
 }
 
 impl HTTPStream {
@@ -149,27 +122,13 @@ impl HTTPStream {
 
 
 impl HTTPStream {
-    pub(crate) fn send_sync(&mut self, header: &Header, body: &Body<'_>, param: HeaderParam) -> HlsResult<u64> {
+    pub(crate) fn send_sync(&mut self, param: SendParam) -> HlsResult<u64> {
         match self {
             HTTPStream::NonConnection => Err("need connected before send".into()),
-            HTTPStream::SyncH1(h1) => Ok(h1.send_sync(SendParam {
-                method: param.method,
-                url: param.url,
-                header,
-                body,
-                priority: param.priority,
-                weight: param.weight,
-            })?),
-            HTTPStream::SyncH2(h2) => h2.send_sync(SendParam {
-                method: param.method,
-                url: param.url,
-                header,
-                body,
-                priority: param.priority,
-                weight: param.weight,
-            }),
+            HTTPStream::SyncH1(h1) => Ok(h1.send_sync(param)?),
+            HTTPStream::SyncH2(h2) => h2.send_sync(param),
             #[cfg(feature = "quic")]
-            HTTPStream::SyncH3(h3) => h3.send(header, body, param),
+            HTTPStream::SyncH3(h3) => h3.send(param),
             #[cfg(feature = "aync")]
             _ => Err("invalid sync stream".into()),
         }
@@ -187,12 +146,14 @@ impl HTTPStream {
         }
     }
 
-    pub(crate) fn conn_sync<'a, 'b: 'a>(&'a mut self, param: ConnParam<'b>) -> HlsResult<ALPN> {
-        match param.alpn {
+    pub(crate) fn conn_sync(&mut self, config: ClientConfig, param: ConnParam, finger: &Fingerprint) -> HlsResult<ALPN> {
+        match config.alpn {
             #[cfg(feature = "quic")]
             h3 if h3 == ALPN::HTTP30 => {
                 let socket = std::net::UdpSocket::bind("0.0.0.0:0")?;
-                *self = HTTPStream::SyncH3(HTTP3StreamS::connect(socket, param)?);
+                let addr = param.url.addr().socket_addr(false)?;
+                let stream = QUICStream::connect(socket, addr, config, param.timeout.clone());
+                *self = Stream::connect_quic(finger.h3(), stream).wait()?;
                 Ok(ALPN::HTTP30)
             }
             _ => {
@@ -201,7 +162,7 @@ impl HTTPStream {
                 let stream = std::net::TcpStream::connect_timeout(&addr, param.timeout.connect())?;
                 stream.set_read_timeout(Some(param.timeout.read()))?;
                 stream.set_write_timeout(Some(param.timeout.write()))?;
-                let (alpn, stream) = Stream::connect(param, stream).wait()?;
+                let (alpn, stream) = Stream::connect(config, param, finger, stream).wait()?;
                 *self = stream;
                 Ok(alpn)
             }
@@ -211,27 +172,13 @@ impl HTTPStream {
 
 #[cfg(feature = "aync")]
 impl HTTPStream {
-    pub(crate) async fn send_async(&mut self, header: &Header, body: &Body<'_>, param: HeaderParam<'_>) -> HlsResult<u64> {
+    pub(crate) async fn send_async(&mut self, param: SendParam<'_>) -> HlsResult<u64> {
         match self {
             HTTPStream::NonConnection => Err("need connected before send".into()),
-            HTTPStream::AsyncH1(h1) => Ok(h1.send_async(SendParam {
-                method: param.method,
-                url: param.url,
-                header,
-                body,
-                priority: param.priority,
-                weight: param.weight,
-            }).await?),
-            HTTPStream::AsyncH2(h2) => h2.send_async(SendParam {
-                method: param.method,
-                url: param.url,
-                header,
-                body,
-                priority: param.priority,
-                weight: param.weight,
-            }).await,
+            HTTPStream::AsyncH1(h1) => Ok(h1.send_async(param).await?),
+            HTTPStream::AsyncH2(h2) => h2.send_async(param).await,
             #[cfg(feature = "quic")]
-            HTTPStream::AsyncH3(h3) => h3.send(header, body, param).await,
+            HTTPStream::AsyncH3(h3) => h3.send(param).await,
             _ => Err("invalid async stream".into()),
         }
     }
@@ -247,12 +194,14 @@ impl HTTPStream {
         }
     }
 
-    pub(crate) async fn conn_async<'a, 'b: 'a>(&'a mut self, param: ConnParam<'b>) -> HlsResult<ALPN> {
-        match param.alpn {
+    pub(crate) async fn conn_async(&mut self, config: ClientConfig<'_>, param: ConnParam<'_>, finger: &Fingerprint) -> HlsResult<ALPN> {
+        match config.alpn {
             #[cfg(feature = "quic")]
             h3 if h3 == ALPN::HTTP30 => {
                 let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await?;
-                *self = HTTPStream::AsyncH3(HTTP3StreamA::connect(socket, param).await?);
+                let addr = param.url.addr().socket_addr(false)?;
+                let stream = QUICStream::connect(socket, addr, config, param.timeout.clone());
+                *self = Stream::connect_quic(finger.h3(), stream).await?;
                 Ok(ALPN::HTTP30)
             }
             _ => {
@@ -261,7 +210,7 @@ impl HTTPStream {
                 let connect = tokio::net::TcpStream::connect(addr);
                 let stream = tokio::time::timeout(param.timeout.connect(), connect).await
                     .or(Err(TimeError::ConnectTimeout))??;
-                let (alpn, stream) = Stream::connect(param, stream).await?;
+                let (alpn, stream) = Stream::connect(config, param, finger, stream).await?;
                 *self = stream;
                 Ok(alpn)
             }
@@ -335,26 +284,15 @@ impl Stream {
         }
     }
 
-    pub fn connect<S>(param: ConnParam, stream: S) -> StreamConnect<S> {
-        StreamConnect {
-            url: param.url,
-            fingerprint: param.fingerprint,
+    pub fn connect<'a, S>(config: ClientConfig<'a>, param: ConnParam<'a>, finger: &'a Fingerprint, stream: S) -> HTTPStreamConnect<'a, S> {
+        HTTPStreamConnect {
             proxy_connecting: ProxyStream::connect(stream, param.url.addr(), param.proxy, param.timeout.clone()),
+            param,
+            fingerprint: finger,
             tls_connecting: TlsConnecting {
                 sent_client_hello: false,
                 sent_server_hello: false,
-                config: Config::Client(ClientConfig {
-                    sni: param.url.sni(),
-                    alpn: param.alpn,
-                    fingerprint: TlsFinger::DEFAULT,
-                    client_cert: param.cert,
-                    cert_key: param.key,
-                    verify: param.verify,
-                    ca_certs: param.ca_cert,
-                    key_log: param.key_log.clone(),
-                    session: param.session,
-                    version: param.version,
-                }),
+                config: Config::Client(config),
                 state: ConnState::Connected,
                 app_buf: Writer::with_capacity(24657),
                 #[cfg(feature = "aync")]
@@ -366,6 +304,22 @@ impl Stream {
             stream: Stream::NonConnection,
             #[cfg(feature = "aync")]
             tls_connected: false,
+        }
+    }
+
+    #[cfg(feature = "quic")]
+    pub fn connect_quic<'a, S>(h3_finger: &'a H3Finger, stream: QUICConnect<'a, S>) -> QUICStreamConnect<'a, S> {
+        QUICStreamConnect {
+            h3_finger,
+            conn: Some(stream),
+            #[cfg(feature = "aync")]
+            stream: None,
+            #[cfg(feature = "aync")]
+            buffer: None,
+            #[cfg(feature = "aync")]
+            offset: 0,
+            #[cfg(feature = "aync")]
+            connected: false,
         }
     }
 }
@@ -396,3 +350,12 @@ impl tokio::io::AsyncRead for Stream {
         tokio::io::AsyncRead::poll_read(std::pin::Pin::new(stream), cx, buf)
     }
 }
+
+// pub trait RIO {
+//     fn read(&mut self, buf: &mut Buffer) -> std::io::Result<usize>;
+//     fn write(&mut self, buf: &mut Buffer) -> std::io::Result<usize>;
+//     #[cfg(feature = "aync")]
+//     fn poll_read(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut Buffer) -> std::task::Poll<std::io::Result<usize>>;
+//     #[cfg(feature = "aync")]
+//     fn poll_write(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut Buffer) -> std::task::Poll<std::io::Result<usize>>;
+// }

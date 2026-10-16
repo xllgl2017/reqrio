@@ -103,6 +103,17 @@ impl<'a> CipherEncodeBuffer<'a> {
         }
     }
 
+    #[cfg(feature = "quic")]
+    pub(crate) fn new_quic2(head: &'a mut [u8], payload: &'a mut [u8], suite: &'static CipherSuite) -> CipherEncodeBuffer<'a> {
+        CipherEncodeBuffer {
+            suite,
+            head,
+            record_len: 0,
+            payload: PayloadEncodeBuffer::new_quic(payload, payload.len()),
+            quic: true,
+        }
+    }
+
     pub fn payload(&mut self) -> &mut PayloadEncodeBuffer<'a> {
         &mut self.payload
     }

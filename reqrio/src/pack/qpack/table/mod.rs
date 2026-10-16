@@ -21,13 +21,13 @@ impl Table {
         }
     }
 
-    pub fn insert(&mut self, item: PackItem, sid: &u64, refer: bool) -> Cow<'_, PackItem> {
-        self.dynamic_table.insert(item, &sid, refer)
+    pub fn insert(&mut self, item: PackItem, sid: u64, refer: bool) -> Cow<'_, PackItem> {
+        self.dynamic_table.insert(item, sid, refer)
     }
 
-    pub fn get(&mut self, index: usize, sid: &u64, dyn_idx: bool, refer: bool) -> Option<&PackItem> {
+    pub fn get(&mut self, index: usize, sid: u64, dyn_idx: bool, refer: bool) -> Option<&PackItem> {
         match dyn_idx {
-            true => self.dynamic_table.index(index, &sid, refer),
+            true => self.dynamic_table.index(index, sid, refer),
             false => self.static_table.get(index)
         }
     }
@@ -51,7 +51,7 @@ impl Table {
         self.dynamic_table.get_by_name(name, typ)
     }
 
-    pub fn get_by_name_value(&mut self, name: &str, value: &str, sid: &u64, refer: bool) -> Option<Index> {
+    pub fn get_by_name_value(&mut self, name: &str, value: &str, sid: u64, refer: bool) -> Option<Index> {
         let index = self.static_table.iter().enumerate().find_map(|(index, item)| if item.name() == name && item.value() == value {
             Some(Index::Indexed {
                 idx_dyn: false,
@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn test_qpack_table() {
         let mut table = Table::new(4096);
-        let item = table.get(17, &0, false, true).unwrap();
+        let item = table.get(17, 0, false, true).unwrap();
         assert_eq!(item.name, ":method");
         assert_eq!(item.value, "GET");
 
@@ -94,13 +94,13 @@ mod tests {
         assert_eq!(index, Index::NamedIndexed { req_insert: false, idx_dyn: false, index: 0 });
         let mut item = item.clone();
         item.set_value("www.example.com");
-        table.insert(item, &0, true);
+        table.insert(item, 0, true);
         table.dynamic_table_mut().set_increment(1);
-        let item = table.get_by_name_value(":authority", "www.example.com", &0, false).unwrap();
+        let item = table.get_by_name_value(":authority", "www.example.com", 0, false).unwrap();
         assert_eq!(item, Index::Indexed { idx_dyn: true, index: 0 });
 
-        table.insert(pack_item!(":path","/sample/path"), &0, true);
-        let item = table.get(1, &0, true, false).unwrap();
+        table.insert(pack_item!(":path","/sample/path"), 0, true);
+        let item = table.get(1, 0, true, false).unwrap();
         assert_eq!(item.name, ":path");
         assert_eq!(item.value, "/sample/path");
     }

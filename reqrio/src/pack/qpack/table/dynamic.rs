@@ -20,7 +20,7 @@ impl DynamicTable {
     pub fn new(max_size: usize) -> Self {
         DynamicTable {
             index: 0,
-            values: VecDeque::with_capacity(max_size),
+            values: VecDeque::with_capacity(100),
             max_size,
             size: 0,
             increment: 0,
@@ -28,12 +28,12 @@ impl DynamicTable {
         }
     }
 
-    pub fn insert(&mut self, item: PackItem, sid: &u64, refer: bool) -> Cow<'_, PackItem> {
+    pub fn insert(&mut self, item: PackItem, sid: u64, refer: bool) -> Cow<'_, PackItem> {
         let pass = self.resize(item.item_size());
         if !pass { return Cow::Owned(item); }
         self.size += item.item_size();
         self.values.push_back((self.index, item));
-        if refer { self.sec_reqs.entry(*sid).or_default().push(self.index) }
+        if refer { self.sec_reqs.entry(sid).or_default().push(self.index) }
         self.index += 1;
         Cow::Borrowed(&self.values[self.values.len() - 1].1)
     }
@@ -57,10 +57,10 @@ impl DynamicTable {
         self.size + item_size <= self.max_size
     }
 
-    pub fn index(&mut self, index: usize, sid: &u64, refer: bool) -> Option<&PackItem> {
+    pub fn index(&mut self, index: usize, sid: u64, refer: bool) -> Option<&PackItem> {
         let item = self.values.iter().find(|(i, _)| i == &index);
         if item.is_some() && refer {
-            self.sec_reqs.entry(*sid).or_default().push(index);
+            self.sec_reqs.entry(sid).or_default().push(index);
         }
         item.map(|(_, item)| item)
     }
@@ -69,11 +69,11 @@ impl DynamicTable {
         self.sec_reqs.remove(&sid);
     }
 
-    pub fn get_by_name_value(&mut self, name: &str, value: &str, sid: &u64, refer: bool) -> Option<Index> {
+    pub fn get_by_name_value(&mut self, name: &str, value: &str, sid: u64, refer: bool) -> Option<Index> {
         for i in 0..self.values.len() {
             let (index, item) = &self.values[self.values.len() - 1 - i];
             if item.name() == name && item.value() == value {
-                if refer { self.sec_reqs.entry(*sid).or_default().push(*index); }
+                if refer { self.sec_reqs.entry(sid).or_default().push(*index); }
                 return Some(match *index >= self.increment {
                     true => Index::PostBase(*index),
                     false => Index::Indexed {
@@ -145,8 +145,8 @@ impl DynamicTable {
     }
 
     pub fn duplicate(&mut self, index: usize) -> HlsResult<()> {
-        let item = self.index(index, &0, false).ok_or("duplicate failed")?.clone();
-        self.insert(item, &0, false);
+        let item = self.index(index, 0, false).ok_or("duplicate failed")?.clone();
+        self.insert(item, 0, false);
         Ok(())
     }
 
@@ -165,10 +165,10 @@ mod tests {
     #[test]
     fn test_dynamic_table() {
         let mut table = DynamicTable::new(4096);
-        table.insert(pack_item!(":authority", "www.example.com"), &0, false);
+        table.insert(pack_item!(":authority", "www.example.com"), 0, false);
         assert_eq!(table.size, 57);
         assert_eq!(table.index, 1);
-        let item = table.index(0, &0, true);
+        let item = table.index(0, 0, true);
         assert!(item.is_some());
     }
 
@@ -176,8 +176,8 @@ mod tests {
     fn test_req_insert_count() {
         let mut table = DynamicTable::new(220);
         assert_eq!(table.cal_req_count(3).unwrap(), 2);
-        table.insert(PackItem::new(":authority", "www.example.com"), &0, false);
-        table.insert(PackItem::new(":authority", "www.example.com"), &0, false);
+        table.insert(PackItem::new(":authority", "www.example.com"), 0, false);
+        table.insert(PackItem::new(":authority", "www.example.com"), 0, false);
         assert_eq!(3, table.en_req_count())
     }
 }

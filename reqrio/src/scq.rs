@@ -1,7 +1,6 @@
 use crate::body::Body;
 use crate::ext::{ReqPriExt, ReqUrl};
-use crate::packet::HeaderParam;
-use crate::stream::{HTTPStream, Stream};
+use crate::stream::{HTTPStream, SendParam, Stream};
 use crate::*;
 use json::JsonValue;
 use std::borrow::Cow;
@@ -102,17 +101,13 @@ impl ScReq {
     pub fn send<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<u64> {
         let url = url.into().build()?;
         self.set_url(url.as_ref())?;
-        let sid = self.stream.send_sync(&self.header, &body.into(), HeaderParam {
+        let sid = self.stream.send_sync(SendParam {
             method,
             url: url.as_ref(),
-            #[cfg(feature = "quic")]
-            q_sid: &0,
-            #[cfg(feature = "quic")]
-            qpack_encoder: None,
-            #[cfg(feature = "quic")]
-            body_len: 0,
-            weight: self.fingerprint.h2().weight,
+            header: &self.header,
+            body: body.into(),
             priority: self.fingerprint.h2().priority,
+            weight: self.fingerprint.h2().weight,
         })?;
         self.responses.insert(sid, StreamMessage::new(sid));
         Ok(sid)
@@ -210,22 +205,25 @@ impl ScReq {
 
     pub fn re_conn(&mut self, url: Option<&Url>) -> HlsResult<()> {
         for i in 1..=self.timeout.connect_times() {
+            let config = ClientConfig {
+                sni: url.unwrap_or(&self.url).sni(),
+                alpn: &self.alpn,
+                fingerprint: self.fingerprint.tls(),
+                client_cert: &mut self.certs,
+                cert_key: &self.key,
+                verify: self.verify,
+                ca_certs: &mut self.ca_certs,
+                key_log: self.key_log.clone(),
+                session: self.tls_session.take(),
+                version: self.version,
+            };
             let param = ConnParam {
                 url: url.unwrap_or(&self.url),
                 proxy: &self.proxy,
                 timeout: &self.timeout,
-                fingerprint: &mut self.fingerprint,
-                alpn: &self.alpn,
-                verify: self.verify,
-                cert: &mut self.certs,
-                key: &self.key,
-                ca_cert: &self.ca_certs,
-                key_log: self.key_log.clone(),
                 ech: false,
-                session: self.tls_session.take(),
-                version: self.version,
             };
-            match self.stream.conn_sync(param) {
+            match self.stream.conn_sync(config, param, &self.fingerprint) {
                 Ok(alpn) => {
                     #[cfg(feature = "log")]
                     debug!("[AcReq] Connected | ALPN: {} | RemoteAddr: {}", alpn, url.unwrap_or(&self.url).addr());

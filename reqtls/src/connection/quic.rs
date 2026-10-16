@@ -4,7 +4,7 @@ use crate::error::RlsResult;
 use crate::key::KeyType;
 use crate::message::{QUICFrame, QUICPacket};
 use crate::quic::{QUICNum, QUICRange};
-use crate::{Aead, Buf, BufferError, Cipher, CipherSuite, CipherType, Connection, PacketType, Reader, TlsSession, Version, Writer};
+use crate::*;
 #[cfg(feature = "log")]
 use log::trace;
 use std::sync::Arc;
@@ -15,6 +15,10 @@ pub struct QUICConnection {
     conn: Connection,
     recv_nums: QUICRange,
     current: KeyType,
+    seq: u64,
+    dcid: Vec<u8>,
+    scid: Vec<u8>,
+    token: Vec<u8>,
 }
 
 impl QUICConnection {
@@ -28,6 +32,10 @@ impl QUICConnection {
             send_sample: Cipher::aes_128_ecb(),
             recv_nums: QUICRange::default(),
             current: KeyType::Initial,
+            seq: 1,
+            dcid: rand::random::<[u8; 8]>().to_vec(),
+            scid: vec![],
+            token: vec![],
         }
     }
 
@@ -153,17 +161,68 @@ impl QUICConnection {
         Ok(())
     }
 
-    pub fn tls_conn(&mut self) -> &mut Connection {
+    pub fn make_message2(&mut self, buffer: &mut Buffer, dcid: &[u8], flag: QUICFlag) -> RlsResult<()> {
+        //---------------build packet---------------
+        let pd_start = buffer.start();
+        let num_len = quic::write_variant_front(self.seq, buffer)?;
+        let pn_start = buffer.start();
+        match flag.is_long_header() {
+            true => {
+                quic::write_variant_front(buffer.len() as u64, buffer)?;
+                buffer.write_slice_front(self.token.as_slice())?;
+                buffer.write_u8_front(self.token.len() as u8);
+                buffer.write_slice_front(self.scid.as_slice())?;
+                buffer.write_u8_front(self.scid.len() as u8);
+                buffer.write_slice_front(self.dcid.as_slice())?;
+                buffer.write_u8_front(self.dcid.len() as u8);
+                quic::write_variant_front(1, buffer)?;
+            }
+            false => {
+                buffer.write_slice_front(dcid)?;
+            }
+        }
+        let flag = flag.with_num_len(num_len);
+        buffer.write_u8_front(flag.encode());
+        buffer.add_len(16);
+        let pd_start = pd_start - buffer.start();
+        //---------------encrypt/encode-------------
+        let (head, payload) = buffer.filled_mut().split_at_mut(pd_start);
+        let mut encode_buffer = CipherEncodeBuffer::new_quic2(head, payload, self.conn.suite);
+        let aad = encode_buffer.aad(self.seq);
+        let nonce = self.conn.encryptor.iv.as_array(self.seq, None);
+        self.conn.encryptor.seal(&nonce, &aad, &mut encode_buffer)?;
+        let sample = buffer.slice(pn_start + 4..pn_start + 20);
+        let mut mask = self.send_sample.encrypt(sample)?;
+        mask.truncate(5);
+        match flag.is_long_header() {
+            true => buffer.filled_mut()[0] ^= mask[0] & 0x0f,
+            false => buffer.filled_mut()[0] ^= mask[0] & 0x1f,
+        }
+        let pn = buffer.slice_mut(pn_start..pn_start + num_len);
+        pn.iter_mut().enumerate().for_each(|(i, x)| {
+            *x ^= mask[i + 1]
+        });
+        self.seq += 1;
+        Ok(())
+    }
+
+    pub const fn tls_conn(&mut self) -> &mut Connection {
         &mut self.conn
     }
 
-    pub fn recv_nums(&self) -> &QUICRange {
+    pub const fn recv_nums(&self) -> &QUICRange {
         &self.recv_nums
     }
 
-    pub fn recv_nums_mut(&mut self) -> &mut QUICRange {
-        &mut self.recv_nums
-    }
+    pub const fn recv_nums_mut(&mut self) -> &mut QUICRange { &mut self.recv_nums }
+
+    pub const fn seq(&self) -> u64 { self.seq }
+
+    pub const fn set_seq(&mut self, seq: u64) { self.seq = seq }
+
+    pub const fn dcid(&self) -> &[u8] { self.dcid.as_slice() }
+
+    pub fn set_dcid(&mut self, dcid: Vec<u8>) { self.dcid = dcid }
 }
 
 
@@ -171,7 +230,7 @@ impl QUICConnection {
 mod tests {
     use crate::connection::quic::QUICConnection;
     use crate::message::QUICFrame;
-    use crate::{Buf, KeyExchangeAlg, Message, QUICPacket, Reader, RecordType, TlsSession, Version, Writer};
+    use crate::{Buf, KeyExchangeAlg, Message, PacketType, QUICFlag, QUICPacket, Reader, RecordType, TlsSession, Version, Writer, quic};
     use std::collections::HashMap;
     use std::ops::Range;
 
@@ -248,5 +307,48 @@ mod tests {
         assert!(message.is_ok());
         buffer.used_empty(reader.position());
         assert!(buffer.is_empty())
+    }
+
+    #[test]
+    fn test_quic_encrypt() {
+        let dcid = (0..12).collect::<Vec<u8>>();
+        let mut conn = QUICConnection::new(TlsSession::default(), None, false);
+        conn.dcid = dcid.clone();
+        conn.make_initial_cipher(&Buf::new_ref(&dcid), false).unwrap();
+
+        let mut writer = Writer::with_capacity(1500);
+        writer.reset_offset(100..100);
+        writer.write_slice(&(0..50).collect::<Vec<_>>()).unwrap();
+        quic::write_variant_front(writer.len() as u64, &mut writer).unwrap();
+        writer.write_slice_front(&[0]).unwrap();
+        quic::write_variant_front(writer.len() as u64, &mut writer).unwrap();
+        quic::write_variant_front(0, &mut writer).unwrap();
+        quic::write_variant_front(0xb, &mut writer).unwrap();
+        assert_eq!(writer.filled(), [11, 0, 52, 0, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]);
+        let flag = QUICFlag::new_short(PacketType::ShortHeader);
+        conn.make_message2(&mut writer, &dcid, flag).unwrap();
+        assert_eq!(writer.filled(), [91, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 49, 5, 243, 235, 202, 108, 8, 162, 186, 220, 116, 211, 125, 15, 244, 50, 15, 30, 126, 216, 231, 238, 186, 25, 186, 240, 122, 142, 46, 112, 104, 203, 171, 132, 37, 229, 178, 51, 217, 9, 231, 126, 168, 56, 215, 167, 230, 141, 50, 129, 203, 194, 29, 30, 145, 56, 214, 26, 174, 183, 249, 44, 36, 222, 85, 10, 51, 67, 185, 49, 90, 195]);
+        // println!("{:?}", buffer.filled());
+
+        // let mut writer = Buffer::with_capacity(1500);
+        // let stream = QUICFrame::Stream {
+        //     flag: QUICFrameFlag::new(0).with_fin(true),
+        //     sid: 0,
+        //     offset: 0,
+        //     payload: Buf::new_ref(&[0, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]),
+        //     buf_pos: 0..0,
+        // };
+        // let mut packet = QUICPacket::new_short(PacketType::ShortHeader, 1, stream.len(), dcid.as_slice());
+        // packet.encode().unwrap();
+        // writer.write_slice(packet.hdr_raw()).unwrap();
+        // stream.write_to(&mut writer).unwrap();
+        // assert_eq!(&writer.filled()[packet.hdr_len()..], [11, 0, 52, 0, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]);
+        // println!("{:?}", writer.filled());
+        // writer.add_len(16);
+        //
+        // let mut conn = QUICConnection::new(TlsSession::default(), None, false);
+        // conn.make_initial_cipher(&Buf::new_ref(&dcid), false).unwrap();
+        // conn.make_message(writer.filled_mut(), &mut packet).unwrap();
+        // println!("{:?}", writer.filled_mut());
     }
 }

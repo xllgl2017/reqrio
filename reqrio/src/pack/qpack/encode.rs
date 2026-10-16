@@ -49,7 +49,7 @@ impl QPackEncode {
         }
     }
 
-    pub fn encode_one(&mut self, typ: QPackType, name: impl AsRef<str>, value: impl AsRef<str>, sid: &u64, writer: &mut Writer) -> Result<(), BufferError> {
+    pub fn encode_one(&mut self, typ: QPackType, name: impl AsRef<str>, value: impl AsRef<str>, sid: u64, writer: &mut Writer) -> Result<(), BufferError> {
         let name = name.as_ref();
         let value = value.as_ref();
         let item = self.table.get_by_name_value(name, value, sid, true);
@@ -114,7 +114,7 @@ mod tests {
         let mut encoder = QPackEncode::new(4096);
         encoder.set_huffman(false);
         encoder.encode_head(&mut writer).unwrap();
-        encoder.encode_one(QPackType::Stream, ":path", "/index.html", &0, &mut writer).unwrap();
+        encoder.encode_one(QPackType::Stream, ":path", "/index.html", 0, &mut writer).unwrap();
         assert_eq!(hex::encode(writer.filled()), "0000510b2f696e6465782e68746d6c");
     }
 
@@ -123,20 +123,20 @@ mod tests {
         let mut writer = Writer::with_capacity(1024);
         let mut encoder = QPackEncode::new(4096);
         Index::DynamicTableCapacity(220).write_to(&mut writer).unwrap();
-        encoder.encode_one(QPackType::StreamEncoder, ":authority", "www.example.com", &1, &mut writer).unwrap();
-        encoder.encode_one(QPackType::StreamEncoder, ":path", "/sample/path", &0, &mut writer).unwrap();
+        encoder.encode_one(QPackType::StreamEncoder, ":authority", "www.example.com", 1, &mut writer).unwrap();
+        encoder.encode_one(QPackType::StreamEncoder, ":path", "/sample/path", 0, &mut writer).unwrap();
         assert_eq!(hex::encode(writer.filled()), "3fbd01c00f7777772e6578616d706c652e636f6dc10c2f73616d706c652f70617468");
 
         writer.reset();
         let base = 0;
         encoder.set_base(base);
         encoder.encode_head(&mut writer).unwrap();
-        encoder.encode_one(QPackType::Stream, ":authority", "www.example.com", &4, &mut writer).unwrap();
-        encoder.encode_one(QPackType::Stream, ":path", "/sample/path", &4, &mut writer).unwrap();
+        encoder.encode_one(QPackType::Stream, ":authority", "www.example.com", 4, &mut writer).unwrap();
+        encoder.encode_one(QPackType::Stream, ":path", "/sample/path", 4, &mut writer).unwrap();
         assert_eq!(hex::encode(writer.filled()), "03811011");
 
         writer.reset();
-        encoder.encode_one(QPackType::StreamEncoder, "custom-key", "custom-value", &1, &mut writer).unwrap();
+        encoder.encode_one(QPackType::StreamEncoder, "custom-key", "custom-value", 1, &mut writer).unwrap();
         assert_eq!(hex::encode(writer.filled()), "4a637573746f6d2d6b65790c637573746f6d2d76616c7565");
         encoder.table.dynamic_table_mut().set_increment(3);
 
@@ -152,9 +152,9 @@ mod tests {
         let base = 4;
         encoder.set_base(base);
         encoder.encode_head(&mut writer).unwrap();
-        encoder.encode_one(QPackType::Stream, ":authority", "www.example.com", &8, &mut writer).unwrap();
-        encoder.encode_one(QPackType::Stream, ":path", "/", &8, &mut writer).unwrap();
-        encoder.encode_one(QPackType::Stream, "custom-key", "custom-value", &1, &mut writer).unwrap();
+        encoder.encode_one(QPackType::Stream, ":authority", "www.example.com", 8, &mut writer).unwrap();
+        encoder.encode_one(QPackType::Stream, ":path", "/", 8, &mut writer).unwrap();
+        encoder.encode_one(QPackType::Stream, "custom-key", "custom-value", 1, &mut writer).unwrap();
         assert_eq!(hex::encode(writer.filled()), "050080c181");
     }
 }

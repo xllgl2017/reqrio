@@ -4,15 +4,17 @@ mod read;
 
 use crate::error::HlsResult;
 use crate::stream::http3;
-use connect::{QUICConnState, QUICConnect};
-use read::QUICPacketRead;
-use write::QUICPacketWrite;
+pub use connect::QUICConnect;
+use connect::QUICConnState;
 use crate::Timeout;
+pub(crate) use write::QUICPacketWrite2;
+use read::QUICPacketRead;
 use reqtls::quic::*;
 use reqtls::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Range;
+use write::QUICPacketWrite;
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub(crate) enum QId {
@@ -40,7 +42,7 @@ pub struct QUICStream<S> {
     sent_num: HashMap<u64, Range<usize>>,
 
     addr: SocketAddr,
-    seq: u64,
+    // seq: u64,
     dcid: Buf<'static>,
     token: Buf<'static>,
 
@@ -76,7 +78,7 @@ impl<S> QUICStream<S> {
                 conn: QUICConnection::new(session, key_log, config.verify),
                 sent_num: HashMap::new(),
                 addr: remote_addr,
-                seq: 1,
+                // seq: 1,
                 dcid: Buf::Vec(rand::random::<[u8; 8]>().to_vec()),
                 token: Buf::default(),
                 handshake_finish: false,
@@ -93,6 +95,7 @@ impl<S> QUICStream<S> {
             })),
             config: Config::Client(config),
             sent_hello: false,
+            buffer: Buffer::with_capacity(1500),
             #[cfg(feature = "aync")]
             timeout_reset: false,
         }
@@ -106,7 +109,7 @@ impl<S> QUICStream<S> {
             conn: &mut self.conn,
             socket: &mut self.socket,
             chunk_size: 0,
-            seq: &mut self.seq,
+            // seq: &mut self.seq,
             sent_num: &mut self.sent_num,
             addr: &self.addr,
             #[cfg(feature = "aync")]
@@ -115,7 +118,8 @@ impl<S> QUICStream<S> {
             timeout_reset: false,
         };
         if !writer.conn.recv_nums().need_ack() && !must { return writer; }
-        let mut ranges = writer.conn.recv_nums_mut().ranges(*writer.seq);
+        let seq = writer.conn.seq();
+        let mut ranges = writer.conn.recv_nums_mut().ranges(seq);
         let Some(max_range) = ranges.pop() else { return writer };
         ranges.reverse();
         let mut ack_range = Vec::with_capacity(ranges.len());
@@ -130,11 +134,11 @@ impl<S> QUICStream<S> {
         let frame = QUICFrame::Ack {
             largest_acknowledged: max_range.end,
             ack_delay: 200,
-            ack_range_count: ack_range.len(),
+            ack_range_count: ack_range.len() as u64,
             first_ack_range: max_range.end - max_range.start,
             ack_range,
         };
-        writer.packet = QUICPacket::new_ack(flag, self.dcid.as_ref(), *writer.seq, frame.len());
+        writer.packet = QUICPacket::new_ack(flag, self.dcid.as_ref(), seq, frame.len());
         writer.frames.push(frame);
         writer
     }
@@ -161,13 +165,12 @@ impl<S> QUICStream<S> {
             self.crypto_offset += chunk.len();
         }
         QUICPacketWrite {
-            packet: QUICPacket::new_long(typ, self.seq, pd_len, self.dcid.as_ref(), &self.token),
+            packet: QUICPacket::new_long(typ, self.conn.seq(), pd_len, self.dcid.as_ref(), &self.token),
             frames,
             uw_buffer: &mut self.uw_buffer,
             conn: &mut self.conn,
             socket: &mut self.socket,
             chunk_size: self.crypto_offset - start,
-            seq: &mut self.seq,
             sent_num: &mut self.sent_num,
             addr: &self.addr,
             #[cfg(feature = "aync")]
@@ -220,6 +223,7 @@ impl<S> QUICStream<S> {
             self.buffer_size = bid + 1;
             (bid, Writer::with_capacity(1500))
         } else { self.idle_buffer.remove(0) };
+        debug_assert!(idle_buffer.is_empty());
         let len = self.conn.read_message(&mut packet, &mut reader, idle_buffer.unfilled()).unwrap();
         idle_buffer.add_len(len);
         assert_eq!(packet.len(), reader.position());
@@ -287,9 +291,9 @@ impl<S> QUICStream<S> {
         Ok(())
     }
 
-    pub(crate) fn handle_queues<F>(&mut self, off: Range<usize>, streams: &mut HashMap<u64, http3::StreamParam>, mut worker: F) -> HlsResult<()>
+    pub(crate) fn handle_queues<F>(&mut self, off: Range<usize>, streams: &mut HashMap<u64, http3::H3StreamParam>, mut worker: F) -> HlsResult<()>
     where
-        F: FnMut(&mut HashMap<u64, http3::StreamParam>, &u64, &mut Vec<Queue>, &HashMap<u64, (Writer, usize)>) -> HlsResult<Option<u64>>,
+        F: FnMut(&mut HashMap<u64, http3::H3StreamParam>, &u64, &mut Vec<Queue>, &HashMap<u64, (Writer, usize)>) -> HlsResult<Option<u64>>,
     {
         self.handle_packet(off)?;
         let mut keys = Vec::with_capacity(self.buffer_queues.len());
@@ -329,13 +333,12 @@ impl<S> QUICStream<S> {
     pub fn write_stream<'a>(&'a mut self, frames: Vec<QUICFrame<'a>>) -> QUICPacketWrite<'a, S> {
         let pd_len = frames.iter().map(|s| s.len()).sum::<usize>();
         QUICPacketWrite {
-            packet: QUICPacket::new_short(PacketType::ShortHeader, self.seq, pd_len, self.dcid.as_ref()),
+            packet: QUICPacket::new_short(PacketType::ShortHeader, self.conn.seq(), pd_len, self.dcid.as_ref()),
             frames,
             uw_buffer: &mut self.uw_buffer,
             conn: &mut self.conn,
             socket: &mut self.socket,
             chunk_size: 0,
-            seq: &mut self.seq,
             sent_num: &mut self.sent_num,
             addr: &self.addr,
             #[cfg(feature = "aync")]
@@ -343,6 +346,51 @@ impl<S> QUICStream<S> {
             #[cfg(feature = "aync")]
             timeout_reset: false,
         }
+    }
+
+    pub fn alloc_buffer(&mut self) -> Buffer {
+        self.idle_buffer.pop().map(|x| x.1).unwrap_or_else(||
+            Buffer::with_capacity(1500))
+    }
+
+    pub fn write_packet(&mut self, buffer: Buffer) -> QUICPacketWrite2<'_, S> {
+        let bid = self.buffer_size;
+        self.buffer_size += 1;
+        QUICPacketWrite2 {
+            buffer,
+            flag: QUICFlag::new_short(PacketType::ShortHeader),
+            stream: self,
+            bid,
+            #[cfg(feature = "aync")]
+            encrypted: false,
+        }
+    }
+
+    pub fn make_message(&mut self, buffer: &mut Buffer, flag: QUICFlag) -> Result<(), RlsError> {
+        self.conn.make_message2(buffer, self.dcid.as_slice(), flag)
+    }
+}
+
+#[cfg(all(feature = "aync", feature = "quic"))]
+impl QUICStream<tokio::net::UdpSocket> {
+    pub fn poll_send(&mut self, cx: &mut std::task::Context, buffer: &mut Buffer) -> std::task::Poll<HlsResult<()>> {
+        match self.socket.poll_send_to(cx, buffer.filled(), self.addr)? {
+            std::task::Poll::Ready(ready) => {
+                buffer.used_empty(ready);
+                std::task::Poll::Ready(Ok(()))
+            }
+            std::task::Poll::Pending => std::task::Poll::Pending,
+        }
+    }
+}
+
+impl QUICStream<std::net::UdpSocket> {
+    pub fn send(&mut self, buffer: &mut Buffer) -> HlsResult<()> {
+        while !buffer.is_empty() {
+            let len = self.socket.send_to(buffer.filled(), self.addr)?;
+            buffer.used_empty(len);
+        }
+        Ok(())
     }
 }
 

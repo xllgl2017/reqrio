@@ -1,68 +1,170 @@
+use crate::body::RawBodyReader;
 use crate::error::HlsResult;
 use crate::pack::{PackError, QPackDecode, QPackEncode, QPackType};
-use crate::packet::{H3Frame, H3Setting, H3Stream, HeaderParam};
-use crate::request::RequestBuffer;
+use crate::packet::{H3Frame, H3Setting, H3Stream};
+use crate::reader::ReadExt;
 use crate::stream::quic::QUICStream;
 use crate::stream::quic::Queue;
-use crate::stream::{ConnParam, StreamMessage};
+use crate::stream::{SendParam, StreamMessage};
 use crate::*;
-use reqtls::quic::{self, QUICFrame, QUICFrameFlag};
+use reqtls::quic::{self, QUICFrameFlag};
 use std::collections::HashMap;
 
-pub struct StreamParam {
-    typ: H3Stream,
-    fin: bool,
-    last_offset: usize,
-    buffer: Writer,
+pub struct H3StreamParam {
+    pub(crate) typ: H3Stream,
+    pub(crate) send_offset: usize,
+    pub(crate) recv_fin: bool,
+    pub(crate) recv_offset: usize,
+    pub(crate) buffer: Writer,
 }
 
-
-pub struct HTTP3StreamS {
-    quic: QUICStream<std::net::UdpSocket>,
-    stream_ids: HashMap<u64, StreamParam>,
+pub struct HTTP3Stream<S> {
+    stream: QUICStream<S>,
+    stream_ids: HashMap<u64, H3StreamParam>,
     encoder: QPackEncode,
     decoder: QPackDecode,
-    write_buffer: Writer,
     max_stream: u64,
     sid: u64,
 }
 
-impl HTTP3StreamS {
-    pub fn connect(socket: std::net::UdpSocket, mut conn: ConnParam) -> HlsResult<HTTP3StreamS> {
-        let addr = conn.url.addr().socket_addr(false)?;
-        let timeout = conn.timeout.clone();
-        let mut quic = QUICStream::connect(socket, addr, ClientConfig::from(&mut conn), timeout).wait().unwrap();
-        let mut write_buffer = Writer::with_capacity(4096);
-        write_buffer.write_u8(0)?;
-        for frame in &conn.fingerprint.h3().frames {
-            frame.write_to(&mut write_buffer)?;
-        }
-        let setting_frame = QUICFrame::Stream {
-            flag: QUICFrameFlag::new(0),
-            sid: 2,
-            offset: 0,
-            payload: Buf::new_ref(write_buffer.filled()),
-            buf_pos: 0..0,
-        };
-        quic.write_stream(vec![setting_frame]).wait()?;
-        write_buffer.reset();
-        Ok(HTTP3StreamS {
-            quic,
-            stream_ids: Default::default(),
+impl<S> HTTP3Stream<S> {
+    pub fn new(stream: QUICStream<S>, offset: usize) -> HTTP3Stream<S> {
+        let mut stream_ids = HashMap::with_capacity(30);
+        stream_ids.insert(2, H3StreamParam {
+            typ: H3Stream::Control,
+            send_offset: offset,
+            recv_fin: false,
+            recv_offset: 0,
+            buffer: Buffer::none(),
+        });
+        HTTP3Stream {
+            stream,
+            stream_ids,
             encoder: QPackEncode::new(65536),
             decoder: QPackDecode::new(65536),
-            write_buffer,
             max_stream: 100,
             sid: 0,
-        })
+        }
+    }
+    pub fn shutdown_sync(&mut self) -> HlsResult<()> {
+        Ok(())
     }
 
+    fn build_frame_head(typ: u64, off: usize, mut len: usize, sid: u64, flag: QUICFrameFlag, writer: &mut Writer) -> std::io::Result<usize> {
+        //----------H3 Frame
+        len += quic::write_variant_front(len as u64, writer)?;
+        len += quic::write_variant_front(typ, writer)?;
+        // ----------QUIC Frame
+        quic::write_variant_front(len as u64, writer)?;
+        if flag.offset() {
+            quic::write_variant_front(off as u64, writer)?;
+        }
+        quic::write_variant_front(sid, writer)?;
+        quic::write_variant_front(flag.encode(), writer)?;
+        Ok(off + len)
+    }
 
+    fn encode_hdr(&mut self, body_len: usize, param: &SendParam, index: &mut usize) -> std::io::Result<Buffer> {
+        let stream_param = self.stream_ids.entry(self.sid).or_insert_with(|| H3StreamParam {
+            typ: H3Stream::BidirectionalStream,
+            send_offset: 0,
+            recv_fin: false,
+            recv_offset: 0,
+            buffer: Buffer::with_capacity(8192),
+        });
+        let mut writer = self.stream.alloc_buffer();
+        writer.reset_offset(100..100);
+        if *index == 0 {
+            self.encoder.encode_head(&mut writer)?;
+            self.encoder.encode_one(QPackType::Stream, ":method", param.method.spec(), self.sid, &mut writer)?;
+            if param.url.addr().port() == 443 {
+                self.encoder.encode_one(QPackType::Stream, ":authority", param.url.sni(), self.sid, &mut writer)?;
+            } else {
+                let authority = format!("{}:{}", param.url.sni(), param.url.addr().port());
+                self.encoder.encode_one(QPackType::Stream, ":authority", authority, self.sid, &mut writer)?;
+            }
+            self.encoder.encode_one(QPackType::Stream, ":scheme", param.url.scheme().spec(), self.sid, &mut writer)?;
+            if param.url.uri().path().is_empty() {
+                self.encoder.encode_one(QPackType::Stream, ":path", "/", self.sid, &mut writer)?;
+            } else {
+                self.encoder.encode_one(QPackType::Stream, ":path", param.url.uri().to_string(), self.sid, &mut writer)?;
+            }
+        }
+        let mut flag = QUICFrameFlag::new(stream_param.send_offset).with_fin(body_len == 0);
+        for (i, key) in param.header.iter().enumerate() {
+            if i < *index { continue; }
+            if writer.len() > 1300 {
+                flag = flag.with_fin(false);
+                break;
+            }
+            *index = i;
+            match key.name() {
+                "host" | "Host" | "Transfer-Encoding" | "transfer-encoding" |
+                "Upgrade" | "upgrade" | "connection" | "Connection" => continue,
+                "content-length" | "Content-Length" => {
+                    if body_len == 0 && param.method == Method::GET { continue; }
+                    self.encoder.encode_one(QPackType::Stream, key.name(), body_len.to_string(), self.sid, &mut writer)?;
+                }
+                "content-type" | "Content-Type" => {
+                    if matches!(param.body.context_type(), ContentType::Null) { continue; }
+                    self.encoder.encode_one(QPackType::Stream, key.name(), param.body.context_type().spec(), self.sid, &mut writer)?;
+                }
+                "cookie" | "Cookie" => {
+                    let cookies = key.cookies().unwrap_or(&[]);
+                    if cookies.is_empty() { continue; }
+                    for cookie in cookies.iter() {
+                        self.encoder.encode_one(QPackType::Stream, key.name(), cookie.as_req(), self.sid, &mut writer)?;
+                    }
+                }
+                _ => {
+                    if key.value().is_empty() && key.is_reserved() { continue; }
+                    match key.value() {
+                        HeaderValue::String(v) => self.encoder.encode_one(QPackType::Stream, key.name(), v, self.sid, &mut writer)?,
+                        _ => self.encoder.encode_one(QPackType::Stream, key.name(), key.value().to_string(), self.sid, &mut writer)?
+                    }
+                }
+            };
+        }
+        stream_param.send_offset = HTTP3Stream::<S>::build_frame_head(
+            H3Frame::HEADERS, stream_param.send_offset, writer.len(), self.sid, flag, &mut writer)?;
+        if stream_param.send_offset == 0 && let Some(priority) = param.header.get_str("priority") {
+            let param = self.stream_ids.get_mut(&2).unwrap();
+            let mut len = writer.write_slice_front(priority.as_bytes())?;
+            len += quic::write_variant_front(self.sid, &mut writer)?;
+            let flag = QUICFrameFlag::new(param.send_offset);
+            param.send_offset = HTTP3Stream::<S>::build_frame_head(H3Frame::PRIORITY_UPDATE, param.send_offset, len, 2, flag, &mut writer)?;
+        }
+        Ok(writer)
+    }
+
+    fn encode_body(&mut self, reader: &mut RawBodyReader) -> std::io::Result<Buffer> {
+        let stream_param = self.stream_ids.entry(self.sid).or_insert_with(|| H3StreamParam {
+            typ: H3Stream::BidirectionalStream,
+            send_offset: 0,
+            recv_fin: false,
+            recv_offset: 0,
+            buffer: Buffer::with_capacity(8192),
+        });
+        let mut buffer = self.stream.alloc_buffer();
+        buffer.reset_offset(100..100);
+
+        let mut writer = Writer::from_ptr(buffer.unfilled_ptr(), buffer.unfilled_len() - 150);
+        reader.read(&mut writer)?;
+        let flag = QUICFrameFlag::new(stream_param.send_offset).with_fin(reader.wrote());
+        buffer.add_len(writer.len());
+
+
+        stream_param.send_offset = HTTP3Stream::<S>::build_frame_head(H3Frame::HEADERS, stream_param.send_offset, writer.len(), self.sid, flag, &mut buffer)?;
+        Ok(buffer)
+    }
+}
+
+impl HTTP3Stream<std::net::UdpSocket> {
     pub fn recv(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         let mut res = vec![];
-        let off = self.quic.read_next_packet().wait()?;
-        self.quic.handle_queues(off, &mut self.stream_ids, HTTP3StreamS::handle_stream)?;
-        HTTP3StreamS::handle_frame(RecvParam {
+        let off = self.stream.read_next_packet().wait()?;
+        self.stream.handle_queues(off, &mut self.stream_ids, HTTP3Stream::<std::net::UdpSocket>::handle_stream)?;
+        HTTP3Stream::<std::net::UdpSocket>::handle_frame(RecvParam1 {
             stream_ids: &mut self.stream_ids,
             decoder: &mut self.decoder,
             encoder: &mut self.encoder,
@@ -70,105 +172,41 @@ impl HTTP3StreamS {
             max_stream: &mut self.max_stream,
             responses,
         })?;
-        self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader), !res.is_empty()).wait()?;
+        self.stream.send_ack(QUICFlag::new_short(PacketType::ShortHeader), !res.is_empty()).wait()?;
         Ok(res)
     }
-    fn send_inner<'a>(&'a mut self, header: &Header, body: &Body<'_>, mut param: HeaderParam<'a>) -> HlsResult<u64> {
-        param.q_sid = &self.sid;
-        param.qpack_encoder = Some(&mut self.encoder);
-        let mut request = RequestBuffer::new(header, body, param)?;
-        let priority = header.get_str("priority");
-        let mut offset = 0;
-        self.write_buffer.reset();
-        loop {
-            let (chunk_size, frames) = HTTP3StreamS::build_send_frame(SendParam {
-                buffer: &mut self.write_buffer,
-                priority,
-                offset,
-                sid: self.sid,
-            }, &mut request)?;
-            if frames.is_empty() { break; }
-            self.quic.write_stream(frames).wait()?;
-            self.write_buffer.used_empty(chunk_size);
-            offset += chunk_size;
+
+    pub fn send(&mut self, param: SendParam) -> HlsResult<u64> {
+        let mut body_reader = param.body.as_reader()?;
+        let mut index = 0;
+        while index + 1 < param.header.len() {
+            let buffer = self.encode_hdr(body_reader.len(), &param, &mut index)?;
+            self.stream.write_packet(buffer).wait()?;
         }
-        Ok(self.sid)
-    }
-
-
-    pub fn send(&mut self, header: &Header, body: &Body<'_>, param: HeaderParam<'_>) -> HlsResult<u64> {
-        let sid = self.send_inner(header, body, param)?;
+        while body_reader.len() != 0 && !body_reader.wrote() {
+            let buffer = self.encode_body(&mut body_reader)?;
+            self.stream.write_packet(buffer).wait()?;
+        }
+        let sid = self.sid;
         self.sid += 4;
         Ok(sid)
     }
 
-    pub fn shutdown_sync(&mut self) -> HlsResult<()> {
-        Ok(())
-    }
-}
-
-impl H3Handle for HTTP3StreamS {}
-
-struct SendParam<'a> {
-    buffer: &'a mut Writer,
-    priority: Option<&'a str>,
-    offset: usize,
-    sid: u64,
-}
-
-struct RecvParam<'a> {
-    stream_ids: &'a mut HashMap<u64, StreamParam>,
-    decoder: &'a mut QPackDecode,
-    encoder: &'a mut QPackEncode,
-    res: &'a mut Vec<u64>,
-    max_stream: &'a mut u64,
-    responses: &'a mut HashMap<u64, StreamMessage>,
-}
-
-trait H3Handle {
-    fn build_send_frame<'a>(param: SendParam<'a>, request: &mut impl reader::ReadExt) -> HlsResult<(usize, Vec<QUICFrame<'a>>)> {
-        reader::ReadExt::read(request, param.buffer)?;
-        let filled = param.buffer.filled();
-        let chunk_size = if filled.len() >= 1100 { 1100 } else { filled.len() };
-        if chunk_size == 0 { return Ok((0, vec![])); }
-        let chunk = &filled[..chunk_size];
-        let stream = QUICFrame::Stream {
-            flag: QUICFrameFlag::new(param.offset).with_fin(request.wrote() && filled.len() == chunk_size),
-            sid: param.sid,
-            offset: param.offset,
-            payload: Buf::new_ref(chunk),
-            buf_pos: 0..0,
-        };
-        let streams = if param.offset == 0 && let Some(priority) = param.priority {
-            let frame = H3Frame::PriorityUpdate {
-                stream_id: param.sid,
-                value: priority,
-            };
-            vec![QUICFrame::Stream {
-                flag: QUICFrameFlag::new(44),
-                sid: 2,
-                offset: 44 + (param.sid as usize / 4) * 12,
-                payload: Buf::Vec(frame.encode(44)?),
-                buf_pos: 0..0,
-            }, stream]
-        } else { vec![stream] };
-        Ok((chunk_size, streams))
-    }
-
-    fn handle_stream(stream_ids: &mut HashMap<u64, StreamParam>, sid: &u64, queues: &mut Vec<Queue>, buffers: &HashMap<u64, (Writer, usize)>) -> HlsResult<Option<u64>> {
-        let param = stream_ids.entry(*sid).or_insert_with(|| StreamParam {
+    fn handle_stream(stream_ids: &mut HashMap<u64, H3StreamParam>, sid: &u64, queues: &mut Vec<Queue>, buffers: &HashMap<u64, (Writer, usize)>) -> HlsResult<Option<u64>> {
+        let param = stream_ids.entry(*sid).or_insert_with(|| H3StreamParam {
             typ: H3Stream::BidirectionalStream,
-            fin: false,
-            last_offset: 0,
+            send_offset: 0,
+            recv_fin: false,
+            recv_offset: 0,
             buffer: Writer::with_capacity(if sid & 0b10 == 0b10 { 1500 } else { 8192 }),
         });
-        let pos = queues.iter().position(|x| x.offset == param.last_offset);
+        let pos = queues.iter().position(|x| x.offset == param.recv_offset);
         let Some(pos) = pos else { return Ok(None) };
         let queue = queues.remove(pos);
-        param.fin = param.fin || queue.fin;
+        param.recv_fin = param.recv_fin || queue.fin;
         let (task_buffer, _) = &buffers[&queue.bid];
         param.buffer.check_move(queue.pos.len())?;
-        param.last_offset += queue.pos.len();
+        param.recv_offset += queue.pos.len();
         if param.buffer.unfilled_len() < queue.pos.len() {
             #[cfg(all(debug_assertions, feature = "log"))]
             warn!("[HTTP3] resize buffer = {}",param.buffer.capacity()*2);
@@ -177,23 +215,23 @@ trait H3Handle {
         param.buffer.write_slice(task_buffer.slice(queue.pos))?;
         let mut reader = Reader::from_slice(param.buffer.filled());
         if sid & 0b10 == 0b10 && queue.offset == 0 {
-            param.typ = quic::read_variant(&mut reader)?.into();
+            param.typ = H3Stream::from(quic::read_variant(&mut reader)? as usize);
             param.buffer.used_empty(reader.position());
         }
         Ok(Some(queue.bid))
     }
 
-    fn handle_frame(recv: RecvParam) -> HlsResult<()> {
+    fn handle_frame(recv: RecvParam1) -> HlsResult<()> {
         let mut items = recv.stream_ids.iter_mut();
         let mut handle_enc = false;
         while let Some((sid, param)) = items.next() {
             if param.buffer.is_empty() {
-                if param.fin { recv.res.push(*sid) };
+                if param.recv_fin { recv.res.push(*sid) };
                 continue;
             }
             let mut reader = Reader::from_slice(param.buffer.filled());
             #[cfg(all(debug_assertions, feature = "log"))]
-            debug!("[HTTP3] recv quic: typ={:?}; sid={}; fin={}; off={}",param.typ, sid,  param.fin, param.last_offset);
+            debug!("[HTTP3] recv quic: typ={:?}; sid={}; fin={}; off={}",param.typ, sid,  param.recv_fin, param.recv_offset);
             let mut pos = reader.position();
             while reader.unread_len() > 0 {
                 let frame = match param.typ.handle_stream(&mut reader, recv.decoder) {
@@ -218,7 +256,7 @@ trait H3Handle {
                     H3Frame::PriorityUpdate { .. } => {}
                     H3Frame::Headers(hdr) => {
                         let Some(response) = recv.responses.get_mut(sid) else { continue };
-                        let read_size = match recv.decoder.decode_into(hdr.as_ref(), response, QPackType::Stream, sid) {
+                        let read_size = match recv.decoder.decode_into(hdr.as_ref(), response, QPackType::Stream, *sid) {
                             Ok(size) => size,
                             Err(HlsError::HPack(PackError::BlockedStream(_))) => break,
                             Err(e) => return Err(e)
@@ -235,7 +273,7 @@ trait H3Handle {
                 pos = reader.position();
             }
             param.buffer.used_empty(pos);
-            if param.fin && param.buffer.is_empty() { recv.res.push(*sid); }
+            if param.recv_fin && param.buffer.is_empty() { recv.res.push(*sid); }
             if param.typ == H3Stream::QPackEncoder && !handle_enc {
                 items = recv.stream_ids.iter_mut();
                 handle_enc = true;
@@ -248,55 +286,13 @@ trait H3Handle {
     }
 }
 
-
 #[cfg(feature = "aync")]
-pub struct HTTP3StreamA {
-    quic: QUICStream<tokio::net::UdpSocket>,
-    stream_ids: HashMap<u64, StreamParam>,
-    encoder: QPackEncode,
-    decoder: QPackDecode,
-    write_buffer: Writer,
-    max_stream: u64,
-    sid: u64,
-}
-
-#[cfg(feature = "aync")]
-impl HTTP3StreamA {
-    pub async fn connect(socket: tokio::net::UdpSocket, mut conn: ConnParam<'_>) -> HlsResult<HTTP3StreamA> {
-        let addr = conn.url.addr().socket_addr(false)?;
-        let timeout = conn.timeout.clone();
-        let mut quic = QUICStream::connect(socket, addr, ClientConfig::from(&mut conn), timeout).await.unwrap();
-        let mut write_buffer = Writer::with_capacity(4096);
-        write_buffer.write_u8(0)?;
-        for frame in &conn.fingerprint.h3().frames {
-            frame.write_to(&mut write_buffer)?;
-        }
-        let setting_frame = QUICFrame::Stream {
-            flag: QUICFrameFlag::new(0),
-            sid: 2,
-            offset: 0,
-            payload: Buf::new_ref(write_buffer.filled()),
-            buf_pos: 0..0,
-        };
-        quic.write_stream(vec![setting_frame]).await?;
-        write_buffer.reset();
-        Ok(HTTP3StreamA {
-            quic,
-            stream_ids: Default::default(),
-            encoder: QPackEncode::new(65536),
-            decoder: QPackDecode::new(65536),
-            write_buffer,
-            max_stream: 100,
-            sid: 0,
-        })
-    }
-
-
+impl HTTP3Stream<tokio::net::UdpSocket> {
     pub async fn recv(&mut self, responses: &mut HashMap<u64, StreamMessage>) -> HlsResult<Vec<u64>> {
         let mut res = vec![];
-        let off = self.quic.read_next_packet().await?;
-        self.quic.handle_queues(off, &mut self.stream_ids, HTTP3StreamA::handle_stream)?;
-        HTTP3StreamA::handle_frame(RecvParam {
+        let off = self.stream.read_next_packet().await?;
+        self.stream.handle_queues(off, &mut self.stream_ids, HTTP3Stream::<std::net::UdpSocket>::handle_stream)?;
+        HTTP3Stream::<std::net::UdpSocket>::handle_frame(RecvParam1 {
             stream_ids: &mut self.stream_ids,
             decoder: &mut self.decoder,
             encoder: &mut self.encoder,
@@ -304,39 +300,57 @@ impl HTTP3StreamA {
             max_stream: &mut self.max_stream,
             responses,
         })?;
-        self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader), !res.is_empty()).await?;
+        self.stream.send_ack(QUICFlag::new_short(PacketType::ShortHeader), !res.is_empty()).await?;
         Ok(res)
     }
-    async fn send_inner<'a>(&'a mut self, header: &Header, body: &Body<'_>, mut param: HeaderParam<'a>) -> HlsResult<u64> {
-        param.q_sid = &self.sid;
-        param.qpack_encoder = Some(&mut self.encoder);
-        let mut request = RequestBuffer::new(header, body, param)?;
-        let priority = header.get_str("priority");
-        let mut offset = 0;
-        self.write_buffer.reset();
-        // self.quic.send_ack(QUICFlag::new_short(PacketType::ShortHeader), false).await?;
-        loop {
-            let (chunk_size, frames) = HTTP3StreamA::build_send_frame(SendParam {
-                buffer: &mut self.write_buffer,
-                priority,
-                offset,
-                sid: self.sid,
-            }, &mut request)?;
-            if frames.is_empty() { break; }
-            self.quic.write_stream(frames).await?;
-            self.write_buffer.used_empty(chunk_size);
-            offset += chunk_size;
+
+    pub async fn send(&mut self, param: SendParam<'_>) -> HlsResult<u64> {
+        let mut body_reader = param.body.as_reader()?;
+        let mut index = 0;
+        while index + 1 < param.header.len() {
+            let buffer = self.encode_hdr(body_reader.len(), &param, &mut index)?;
+            self.stream.write_packet(buffer).await?;
         }
-        Ok(self.sid)
-    }
-
-
-    pub async fn send(&mut self, header: &Header, body: &Body<'_>, param: HeaderParam<'_>) -> HlsResult<u64> {
-        let sid = self.send_inner(header, body, param).await?;
+        while body_reader.len() != 0 && !body_reader.wrote() {
+            let buffer = self.encode_body(&mut body_reader)?;
+            self.stream.write_packet(buffer).await?;
+        }
+        let sid = self.sid;
         self.sid += 4;
         Ok(sid)
     }
 }
 
-#[cfg(feature = "aync")]
-impl H3Handle for HTTP3StreamA {}
+struct RecvParam1<'a> {
+    stream_ids: &'a mut HashMap<u64, H3StreamParam>,
+    decoder: &'a mut QPackDecode,
+    encoder: &'a mut QPackEncode,
+    res: &'a mut Vec<u64>,
+    max_stream: &'a mut u64,
+    responses: &'a mut HashMap<u64, StreamMessage>,
+}
+
+#[cfg(test)]
+mod tests {
+    use reqtls::quic::QUICFrameFlag;
+    use reqtls::Writer;
+    use crate::packet::H3Frame;
+    use super::HTTP3Stream;
+
+    #[test]
+    fn test_frame_head_encode() {
+        let mut writer = Writer::with_capacity(256);
+        writer.reset_offset(100..100);
+        writer.write_slice((0..50).collect::<Vec<_>>().as_slice()).unwrap();
+        let offset = HTTP3Stream::<std::net::UdpSocket>::build_frame_head(
+            H3Frame::HEADERS,
+            0,
+            writer.len(),
+            0,
+            QUICFrameFlag::new(0).with_fin(true),
+            &mut writer,
+        ).unwrap();
+        assert_eq!(offset, 52);
+        assert_eq!(&writer.filled()[..10], [11, 0, 52, 1, 50, 0, 1, 2, 3, 4]);
+    }
+}

@@ -47,6 +47,7 @@ pub struct QUICConnect<'a, S> {
     pub(crate) state: QUICConnState<S>,
     pub(crate) config: Config<'a>,
     pub(crate) sent_hello: bool,
+    pub(crate) buffer: Buffer,
     #[cfg(feature = "aync")]
     pub(crate) timeout_reset: bool,
 }
@@ -56,7 +57,7 @@ impl<'a, S> QUICConnect<'a, S> {
         let state = self.state.deref_mut();
         state.tw_buffer.reset();
         state.conn.make_initial_cipher(&state.dcid, force)?;
-        let config = self.config.client_mut().ok_or("missing client config")?;
+        let config = self.config.client_mut().ok_or(HandShakeError::MissingClientConfig)?;
         state.build_client_hello(config)?;
         state.tw_buffer.used_empty(5);
         Ok(())
@@ -107,6 +108,30 @@ impl<'a, S> QUICConnect<'a, S> {
             }
         }
         self.state.tr_buffer.used_empty(read_len);
+        Ok(())
+    }
+
+    pub fn build_crypto(&mut self) -> Result<(), BufferError> {
+        self.buffer.reset_offset(100..100);
+        if self.state.crypto_offset == 0 {
+            //ping
+            self.buffer.write_u8(1)?;
+        }
+        let mut chunk_size = 0;
+        for chunk in self.state.tw_buffer.filled().chunks(350) {
+            if self.buffer.len() + chunk.len() > 1210 { break; }
+            self.buffer.write_u8(6)?;
+            quic::write_variant(self.state.crypto_offset as u64, &mut self.buffer)?;
+            quic::write_variant(chunk.len() as u64, &mut self.buffer)?;
+            self.buffer.write_slice(chunk)?;
+            chunk_size += chunk.len();
+        }
+        self.state.tw_buffer.used_empty(chunk_size);
+        let num_len = quic::variant_len(self.state.conn.seq());
+        let padding_size = if self.buffer.len() + num_len + 16 < 1232 {
+            1232 - self.buffer.len() - num_len - 16
+        } else { 0 };
+        self.buffer.write_zero(padding_size)?;
         Ok(())
     }
 }

@@ -10,7 +10,7 @@ pub struct SendParam<'a> {
     pub method: Method,
     pub url: &'a Url,
     pub header: &'a Header,
-    pub body: &'a Body<'a>,
+    pub body: Body<'a>,
     pub priority: bool,
     pub weight: u8,
 }
@@ -62,7 +62,8 @@ impl StreamMessage {
     pub fn make_coding(&mut self) -> HlsResult<()> {
         let chunked = self.header.get_str("transfer-encoding").unwrap_or("").trim();
         let encoding = self.header.content_encoding().unwrap_or("").trim();
-        self.remain = self.header.content_length().unwrap_or(if self.alpn == ALPN::HTTP11 { 0 } else { usize::MAX });
+        let default = if self.alpn == ALPN::HTTP11 && chunked.is_empty() { 0 } else { usize::MAX };
+        self.remain = self.header.content_length().unwrap_or(default);
         #[cfg(feature = "log")]
         debug!("[Response] make coding: chunk={}; encoding={}", chunked=="chunked", encoding);
         match (chunked, encoding) {

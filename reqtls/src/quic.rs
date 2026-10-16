@@ -8,19 +8,19 @@ use std::mem;
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
-pub fn read_variant(reader: &mut Reader) -> Result<usize, BufferError> {
+pub fn read_variant(reader: &mut Reader) -> Result<u64, BufferError> {
     if reader.unread_len() == 0 { return Err(BufferError::Insufficient); }
     let flag = reader.current()?;
     match flag >> 6 {
-        0b00 => Ok(reader.read_u8()? as usize),
-        0b01 => Ok((reader.read_u16()? & 0x3FFF) as usize),
-        0b10 => Ok((reader.read_u32()? & 0x3FFF_FFFF) as usize),
-        0b11 => Ok((reader.read_u64()? & 0x3FFF_FFFF_FFFF_FFFF) as usize),
+        0b00 => Ok(reader.read_u8()? as u64),
+        0b01 => Ok((reader.read_u16()? & 0x3FFF) as u64),
+        0b10 => Ok((reader.read_u32()? & 0x3FFF_FFFF) as u64),
+        0b11 => Ok(reader.read_u64()? & 0x3FFF_FFFF_FFFF_FFFF),
         _ => Err(BufferError::InvalidQUICVariant)
     }
 }
 
-pub fn variant_len(val: usize) -> usize {
+pub fn variant_len(val: u64) -> usize {
     match val {
         ..0x40 => 1,
         0x40..0x4000 => 2,
@@ -31,12 +31,23 @@ pub fn variant_len(val: usize) -> usize {
 }
 
 
-pub fn write_variant(val: usize, writer: &mut Writer) -> Result<(), BufferError> {
+pub fn write_variant(val: u64, writer: &mut Writer) -> Result<(), BufferError> {
     match val {
         ..0x40 => writer.write_u8(val as u8),
         0x40..0x4000 => writer.write_u16(val as u16 | 0x4000),
         0x4000..0x4000_0000 => writer.write_u32(val as u32 | 0x8000_0000),
-        0x4000_0000..0x4000_0000_0000_0000 => writer.write_u64(val as u64 | 0xc000_0000_0000_0000),
+        0x4000_0000..0x4000_0000_0000_0000 => writer.write_u64(val | 0xc000_0000_0000_0000),
+        _ => Err(BufferError::InvalidQUICVariant)
+    }
+}
+
+///从[place]-i的位置开始写入val
+pub fn write_variant_front(val: u64, writer: &mut Writer) -> Result<usize, BufferError> {
+    match val {
+        ..0x40 => Ok(writer.write_u8_front(val as u8)),
+        0x40..0x4000 => Ok(writer.write_u16_front(val as u16 | 0x4000)),
+        0x4000..0x4000_0000 => Ok(writer.writer_u32_front(val as u32 | 0x8000_0000)),
+        0x4000_0000..0x4000_0000_0000_0000 => Ok(writer.writer_u64_front(val | 0xc000_0000_0000_0000)),
         _ => Err(BufferError::InvalidQUICVariant)
     }
 }
@@ -151,7 +162,6 @@ impl QUICRange {
 
     pub fn remove(&mut self, num: u64) {
         self.ranges.retain(|x| !x.ack_nums.contains(&num));
-        println!("remove:{} {}", num, self.ranges.len());
     }
 
     pub fn need_ack(&self) -> bool {

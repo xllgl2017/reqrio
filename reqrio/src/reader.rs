@@ -88,16 +88,6 @@ pub enum StrCow<'a> {
     Owned(String),
 }
 
-#[cfg(feature = "quic")]
-impl<'a> StrCow<'a> {
-    pub fn len(&self) -> usize {
-        match self {
-            StrCow::Borrowed(b) => b.len(),
-            StrCow::Owned(o) => o.len(),
-        }
-    }
-}
-
 impl<'a> AsRef<[u8]> for StrCow<'a> {
     fn as_ref(&self) -> &[u8] {
         match self {

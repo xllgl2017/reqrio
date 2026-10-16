@@ -1,20 +1,11 @@
 use super::content_type::ContentType;
 use super::cookie::Cookie;
 use crate::cookie::CookieManager;
-#[cfg(feature = "quic")]
-use crate::error::HlsResult;
 use crate::json::JsonValue;
-#[cfg(feature = "quic")]
-use crate::packet::http::header::reader::H3HeaderReader;
-#[cfg(feature = "quic")]
-use crate::reader::StrCow;
 use crate::*;
 pub use error::HeaderError;
 pub use key::HeaderItem;
 pub use method::Method;
-#[cfg(feature = "quic")]
-pub use reader::HeaderReader;
-pub use reader::HeaderParam;
 pub use status::HttpStatus;
 use std::borrow::Cow;
 use std::fmt::Display;
@@ -26,7 +17,6 @@ mod value;
 mod key;
 mod method;
 mod status;
-mod reader;
 mod error;
 
 #[derive(Clone)]
@@ -365,10 +355,6 @@ impl Header {
 
     pub fn alpn(&self) -> &ALPN { &self.alpn }
 
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
     pub fn content_encoding(&self) -> Option<&str> {
         self.get("content-encoding")?.as_string()
     }
@@ -423,63 +409,6 @@ impl Header {
         }
     }
 
-    #[cfg(feature = "quic")]
-    fn gen_frame_keys<'a>(&'a self, param: &HeaderParam<'a>, ct: &'a ContentType) -> Vec<(StrCow<'a>, StrCow<'a>)> {
-        let mut keys = vec![];
-        keys.push((StrCow::Borrowed(":method"), StrCow::Borrowed(param.method.spec())));
-        if param.url.addr().port() == 443 || param.url.addr().port() == 80 {
-            keys.push((StrCow::Borrowed(":authority"), StrCow::Borrowed(param.url.sni())));
-        } else {
-            keys.push((StrCow::Borrowed(":authority"), StrCow::Owned(format!("{}:{}", param.url.sni(), param.url.addr().port()))));
-        }
-        keys.push((StrCow::Borrowed(":scheme"), StrCow::Borrowed(param.url.scheme().spec())));
-        let uri = if param.url.uri().is_empty() { StrCow::Borrowed("/") } else { StrCow::Owned(param.url.uri().to_string()) };
-        for key in self.inner.iter() {
-            // println!("{} {} {} {}", key.name(), param.body_len, param.method, 0);
-            if H3HeaderReader::skip_h2_key(key, ct, param.body_len, param.method) { continue; }
-            let name = key.name().to_lowercase();
-            if name == "content-type" {
-                match ct.spec() {
-                    Cow::Borrowed(b) => keys.push((StrCow::Owned(name), StrCow::Borrowed(b))),
-                    Cow::Owned(o) => keys.push((StrCow::Owned(name), StrCow::Owned(o))),
-                }
-                continue;
-            } else if name == "content-length" {
-                keys.push((StrCow::Owned(name), StrCow::Owned(param.body_len.to_string())));
-                continue;
-            }
-            match key.value() {
-                HeaderValue::Cookies(cookies) => for cookie in cookies.as_req(param.url.sni(), uri.as_ref()) {
-                    keys.push((StrCow::Owned(name.clone()), StrCow::Owned(cookie.as_req())));
-                }
-                _ => keys.push((StrCow::Owned(name), StrCow::Owned(key.value().to_string()))),
-            }
-        }
-        keys.insert(3, (StrCow::Borrowed(":path"), uri));
-        keys
-    }
-
-    #[cfg(feature = "quic")]
-    fn as_h3_reader<'a>(&'a self, param: HeaderParam<'a>, ct: &'a ContentType) -> HlsResult<H3HeaderReader<'a>> {
-        Ok(H3HeaderReader {
-            keys: self.gen_frame_keys(&param, ct),
-            encoder: param.qpack_encoder.ok_or("missing qpack encoder")?,
-            // priority: self.keys.iter().find(|x| x.name() == "priority")
-            //     .and_then(|x| x.value().as_string()).unwrap_or(""),
-            wrote: false,
-            sid: param.q_sid,
-        })
-    }
-
-    #[cfg(feature = "quic")]
-    pub(crate) fn as_reader<'a>(&'a self, param: HeaderParam<'a>, ct: &'a ContentType) -> HlsResult<HeaderReader<'a>> {
-        Ok(match &self.alpn {
-            #[cfg(feature = "quic")]
-            h3 if h3 == ALPN::HTTP30 => HeaderReader::H3(self.as_h3_reader(param, ct)?),
-            _ => unreachable!()
-        })
-    }
-
     pub(crate) fn add_item(&mut self, key: HeaderItem) {
         let header = self.inner.iter_mut().find(|x| x.name().eq_ignore_ascii_case(key.name()));
         match header {
@@ -521,6 +450,7 @@ impl Display for Header {
         for (i, key) in self.inner.iter().enumerate() {
             if key.value().is_empty() && key.is_reserved() { continue; }
             match key.name() {
+                "encoded-head" | "update-table-size" => write!(f, "[{}: {}]", key.name(), key.value())?,
                 "set-cookie" | "Set-Cookie" => for (i, cookie) in key.cookies().unwrap_or(&[]).iter().enumerate() {
                     write!(f, "{}: {}", key.name(), cookie.as_res())?;
                     if key.cookies().map(|x| x.len()).unwrap_or(0) != i + 1 { write!(f, "\r\n")?; }

@@ -28,12 +28,12 @@ impl H3Setting {
     }
 
     pub fn len(&self) -> usize {
-        quic::variant_len(self.flag as usize) + quic::variant_len(self.value as usize)
+        quic::variant_len(self.flag) + quic::variant_len(self.value)
     }
 
     pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
-        quic::write_variant(self.flag as usize, writer)?;
-        quic::write_variant(self.value as usize, writer)
+        quic::write_variant(self.flag, writer)?;
+        quic::write_variant(self.value, writer)
     }
 
     pub fn flag(&self) -> u64 {
@@ -61,14 +61,14 @@ pub enum H3Frame<'a> {
     },
 }
 impl<'a> H3Frame<'a> {
-    const DATA: u64 = 0x0;
-    const HEADERS: u64 = 0x1;
+    pub const DATA: u64 = 0x0;
+    pub const HEADERS: u64 = 0x1;
     const SETTINGS: u64 = 0x4;
-    const PRIORITY_UPDATE: u64 = 0xf0700;
+    pub const PRIORITY_UPDATE: u64 = 0xf0700;
 
     pub fn from_reader(reader: &mut Reader<'a>) -> Result<H3Frame<'a>, BufferError> {
-        let typ = quic::read_variant(reader)? as u64;
-        let len = quic::read_variant(reader)?;
+        let typ = quic::read_variant(reader)?;
+        let len = quic::read_variant(reader)? as usize;
         if reader.unread_len() < len { return Err(BufferError::Insufficient); }
         let mut reader = reader.read_reader(len)?;
         match typ {
@@ -101,34 +101,34 @@ impl<'a> H3Frame<'a> {
     pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         match self {
             H3Frame::Data(data) => {
-                quic::write_variant(H3Frame::DATA as usize, writer)?;
-                quic::write_variant(data.len(), writer)?;
+                writer.write_u8(H3Frame::DATA as u8)?;
+                quic::write_variant(data.len() as u64, writer)?;
                 writer.write_slice(data.as_ref())
             }
             H3Frame::Settings(settings) => {
-                quic::write_variant(H3Frame::SETTINGS as usize, writer)?;
+                writer.write_u8(H3Frame::SETTINGS as u8)?;
                 let len = settings.iter().map(|x| x.len()).sum::<usize>();
-                quic::write_variant(len, writer)?;
+                quic::write_variant(len as u64, writer)?;
                 for setting in settings {
                     setting.write_to(writer)?;
                 }
                 Ok(())
             }
             H3Frame::PriorityUpdate { stream_id, value } => {
-                quic::write_variant(H3Frame::PRIORITY_UPDATE as usize, writer)?;
-                let len = quic::variant_len(*stream_id as usize) + value.len();
-                quic::write_variant(len, writer)?;
-                quic::write_variant(*stream_id as usize, writer)?;
+                quic::write_variant(H3Frame::PRIORITY_UPDATE, writer)?;
+                let len = quic::variant_len(*stream_id) + value.len();
+                quic::write_variant(len as u64, writer)?;
+                quic::write_variant(*stream_id, writer)?;
                 writer.write_slice(value.as_ref())
             }
             H3Frame::Headers(hdr) => {
-                quic::write_variant(H3Frame::HEADERS as usize, writer)?;
-                quic::write_variant(hdr.len(), writer)?;
+                writer.write_u8(H3Frame::HEADERS as u8)?;
+                quic::write_variant(hdr.len() as u64, writer)?;
                 writer.write_slice(hdr.as_ref())
             }
             H3Frame::Reserved { typ, payload } => {
-                quic::write_variant(*typ as usize, writer)?;
-                quic::write_variant(payload.len(), writer)?;
+                quic::write_variant(*typ, writer)?;
+                quic::write_variant(payload.len() as u64, writer)?;
                 writer.write_slice(payload.as_ref())
             }
         }
@@ -184,12 +184,12 @@ impl H3Stream {
     pub fn handle_stream<'a>(&self, reader: &mut Reader<'a>, decoder: &mut QPackDecode) -> Result<H3Frame<'a>, HlsError> {
         match self {
             H3Stream::QPackEncoder => {
-                let _item = decoder.decode_next(QPackType::StreamEncoder, &0, reader)?;
+                let _item = decoder.decode_next(QPackType::StreamEncoder, 0, reader)?;
                 // println!("{:?}", item);
                 Ok(H3Frame::Reserved { typ: 0, payload: Buf::default() })
             }
             H3Stream::QPackDecoder => {
-                decoder.decode_next(QPackType::StreamDecoder, &0, reader)?;
+                decoder.decode_next(QPackType::StreamDecoder, 0, reader)?;
                 Ok(H3Frame::Reserved { typ: 0, payload: Buf::default() })
             }
             H3Stream::BidirectionalStream | H3Stream::Control => Ok(H3Frame::from_reader(reader)?),

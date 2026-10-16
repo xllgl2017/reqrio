@@ -4,7 +4,7 @@ mod error;
 mod reader;
 
 use crate::error::RlsResult;
-use crate::ffi::{c_struct_free, CPointer};
+use crate::ffi::{CPointer, c_struct_free};
 pub use decode::TlsDecodeBuffer;
 pub use encode::CipherEncodeBuffer;
 pub use error::BufferError;
@@ -15,7 +15,7 @@ use std::fmt::{Debug, Formatter};
 use std::ops::Range;
 use std::os::raw::{c_char, c_int};
 use std::ptr::null_mut;
-use std::slice;
+use std::{ptr, slice};
 
 #[allow(non_camel_case_types)]
 pub type u24 = u32;
@@ -146,6 +146,10 @@ impl Writer {
         unsafe { slice::from_raw_parts(self.ptr.add(range.start), range.len()) }
     }
 
+    pub fn slice_mut(&mut self, range: Range<usize>) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.ptr.add(range.start), range.len()) }
+    }
+
     pub fn used_empty(&mut self, size: usize) -> bool {
         unsafe { Writer_used_empty(self, size) }
     }
@@ -185,15 +189,60 @@ impl Writer {
         })
     }
 
+    #[inline]
+    pub const fn unfilled_len(&self) -> usize {
+        self.capacity - self.end
+    }
+
+    #[inline]
+    pub const fn start(&self) -> usize {
+        self.start
+    }
+
+    #[inline]
+    pub const fn end(&self) -> usize {
+        self.end
+    }
+
+    #[inline]
+    pub const fn unfilled_ptr(&mut self) -> *mut u8 {
+        unsafe { self.ptr.add(self.end) }
+    }
+
+    pub const fn unfilled(&mut self) -> &mut [u8] {
+        let ptr = self.unfilled_ptr();
+        unsafe { slice::from_raw_parts_mut(ptr, self.unfilled_len()) }
+    }
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.end - self.start
+    }
+    #[inline]
+    pub const fn add_len(&mut self, len: usize) {
+        self.end += len;
+    }
+    #[inline]
+    pub const fn offset(&self) -> Range<usize> {
+        self.start..self.end
+    }
+}
+
+impl Writer {
     pub fn write_u8(&mut self, v: u8) -> Result<(), BufferError> {
         let res = unsafe { Writer_write_u8(self, v) };
         self.check_write(res, 1)
     }
+
     #[allow(unsafe_op_in_unsafe_fn)]
     #[allow(clippy::missing_safety_doc)]
     pub unsafe fn write_u8_unchecked(&mut self, v: u8) {
         Writer_write_u8_unchecked(self, v)
     }
+
     pub fn write_u16_be(&mut self, v: u16) -> Result<(), BufferError> {
         let res = unsafe { Writer_write_u16_le(self, v) };
         self.check_write(res, 2)
@@ -307,46 +356,54 @@ impl Writer {
         }
         self.write_slice(buf)
     }
+}
 
-    #[inline]
-    pub const fn unfilled_len(&self) -> usize {
-        self.capacity - self.end
-    }
-
-    #[inline]
-    pub const fn start(&self) -> usize {
-        self.start
-    }
-
-    #[inline]
-    pub const fn end(&self) -> usize {
-        self.end
+impl Writer {
+    pub fn write_u8_front(&mut self, v: u8) -> usize {
+        let val = self.slice_mut(self.start - 1..self.start);
+        val[0] = v;
+        self.start -= 1;
+        1
     }
 
-    #[inline]
-    pub const fn unfilled_ptr(&mut self) -> *mut u8 {
-        unsafe { self.ptr.add(self.end) }
+    pub fn write_u16_front(&mut self, v: u16) -> usize {
+        let val = self.slice_mut(self.start - 2..self.start);
+        val.copy_from_slice(&v.to_be_bytes());
+        self.start -= 2;
+        2
     }
 
-    pub const fn unfilled(&mut self) -> &mut [u8] {
-        let ptr = self.unfilled_ptr();
-        unsafe { slice::from_raw_parts_mut(ptr, self.unfilled_len()) }
+    pub fn writer_u32_front(&mut self, v: u32) -> usize {
+        let val = self.slice_mut(self.start - 4..self.start);
+        val.copy_from_slice(&v.to_be_bytes());
+        self.start -= 4;
+        4
     }
-    #[inline]
-    pub const fn is_empty(&self) -> bool {
-        self.start == self.end
+
+    pub fn writer_u64_front(&mut self, v: u64) -> usize {
+        let val = self.slice_mut(self.start - 8..self.start);
+        val.copy_from_slice(&v.to_be_bytes());
+        self.start -= 8;
+        8
     }
-    #[inline]
-    pub const fn len(&self) -> usize {
-        self.end - self.start
+
+    pub fn write_slice_front(&mut self, v: &[u8]) -> Result<usize, BufferError> {
+        self.start -= v.len();
+        self.write_slice_in(self.start, v)
     }
-    #[inline]
-    pub const fn add_len(&mut self, len: usize) {
-        self.end += len;
-    }
-    #[inline]
-    pub const fn offset(&self) -> Range<usize> {
-        self.start..self.end
+
+    pub fn write_zero(&mut self, size: usize) -> Result<(), BufferError> {
+        if self.end + size > self.capacity {
+            return Err(BufferError::CapacityTooSmall {
+                needed: self.end + size,
+                current: self.capacity,
+                file: file!(),
+                line: line!(),
+            });
+        }
+        unsafe { ptr::write_bytes(self.ptr.add(self.end), 0, size) }
+        self.end += size;
+        Ok(())
     }
 }
 

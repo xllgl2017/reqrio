@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::str::Utf8Error;
 use crate::boring::HashError;
-use crate::{BufferError, RlsError};
+use crate::{BufferError, HandShakeError, RlsError};
 use crate::message::TrpErrKind;
 
 #[derive(Debug)]
@@ -55,6 +55,12 @@ impl From<RlsError> for QUICError {
 impl From<io::Error> for QUICError {
     fn from(value: io::Error) -> Self {
         QUICError::IOError(value)
+    }
+}
+
+impl From<HandShakeError> for QUICError {
+    fn from(value: HandShakeError) -> Self {
+        QUICError::Rls(RlsError::HandShake(value))
     }
 }
 

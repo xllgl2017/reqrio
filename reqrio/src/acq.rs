@@ -3,8 +3,8 @@ use crate::error::HlsResult;
 use crate::ext::ReqPriExt;
 use crate::ext::{ReqExt, ReqUrl};
 use crate::json::JsonValue;
-use crate::packet::HeaderParam;
-use crate::stream::{ConnParam, HTTPStream, Proxy, Stream, StreamMessage};
+// use crate::packet::HeaderParam;
+use crate::stream::{ConnParam, HTTPStream, Proxy, SendParam, Stream, StreamMessage};
 use crate::*;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -103,14 +103,11 @@ impl AcReq {
     pub async fn send<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<u64> {
         let url = url.into().build()?;
         self.set_url(url.as_ref()).await?;
-        let sid = self.stream.send_async(&self.header, &body.into(), HeaderParam {
+        let sid = self.stream.send_async(SendParam {
             method,
             url: url.as_ref(),
-            #[cfg(feature = "quic")]
-            qpack_encoder: None,
-            #[cfg(feature = "quic")]
-            q_sid: &0,
-            body_len: 0,
+            header: &self.header,
+            body: body.into(),
             priority: self.fingerprint.h2().priority,
             weight: self.fingerprint.h2().weight,
         }).await?;
@@ -209,23 +206,24 @@ impl AcReq {
 
     pub async fn re_conn(&mut self, url: Option<&Url>) -> HlsResult<()> {
         for i in 1..=self.timeout.connect_times() {
-            let param = ConnParam {
+            let connecting = self.stream.conn_async(ClientConfig {
+                alpn: &self.alpn,
+                sni: url.unwrap_or(&self.url).sni(),
+                fingerprint: self.fingerprint.tls(),
+                client_cert: &mut self.certs,
+                cert_key: &self.key,
+                verify: self.verify,
+                ca_certs: &mut self.ca_certs,
+                key_log: self.key_log.clone(),
+                session: self.tls_session.take(),
+                version: self.version,
+            }, ConnParam {
                 url: url.unwrap_or(&self.url),
                 proxy: &self.proxy,
                 timeout: &self.timeout,
-                fingerprint: &mut self.fingerprint,
-                alpn: &self.alpn,
-                verify: self.verify,
-                cert: &mut self.certs,
-                key: &mut self.key,
-                ca_cert: &self.ca_certs,
-                key_log: self.key_log.clone(),
                 ech: false,
-                //仅第一次尝试恢复会话，若连接失败就建立新的会话
-                session: self.tls_session.take(),
-                version: self.version,
-            };
-            let res = tokio::time::timeout(self.timeout.connect(), self.stream.conn_async(param)).await;
+            }, &self.fingerprint);
+            let res = tokio::time::timeout(self.timeout.connect(), connecting).await;
             match res {
                 Err(_) => if i >= self.timeout.handle_times() { return Err(HlsError::Time(TimeError::ConnectTimeout)) }
                 Ok(Err(e)) => if i >= self.timeout.handle_times() { return Err(e) }

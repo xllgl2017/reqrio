@@ -1,18 +1,24 @@
 use crate::error::HlsResult;
+use crate::fingerprint::H3Finger;
 use crate::stream::http1::*;
 use crate::stream::http2::*;
+#[cfg(feature = "quic")]
+use crate::stream::http3::HTTP3Stream;
+use crate::stream::quic::QUICConnect;
 use crate::stream::write::BufWriting;
 use crate::stream::{HTTPStream, Stream};
 use crate::*;
+#[cfg(feature = "quic")]
+use reqtls::quic::QUICFrameFlag;
 #[cfg(feature = "aync")]
 use std::future::Future;
 use std::io::{Read, Write};
+use std::mem;
 use std::ops::{Deref, DerefMut};
 #[cfg(feature = "aync")]
 use std::pin::Pin;
 #[cfg(feature = "aync")]
 use std::task::{Context, Poll};
-use std::mem;
 #[cfg(feature = "aync")]
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -272,9 +278,9 @@ impl<'a, S: AsyncWrite + Unpin> Future for ProxyConnecting<'a, S> {
     }
 }
 
-
-pub struct StreamConnect<'a, S> {
-    pub(crate) url: &'a Url,
+#[must_use = "streams do nothing unless `.wait()/.await`"]
+pub struct HTTPStreamConnect<'a, S> {
+    pub(crate) param: ConnParam<'a>,
     pub(crate) fingerprint: &'a Fingerprint,
     pub(crate) proxy_connecting: ProxyConnecting<'a, S>,
     pub(crate) tls_connecting: TlsConnecting<'a, ProxyStream<S>>,
@@ -286,21 +292,21 @@ pub struct StreamConnect<'a, S> {
     pub(crate) tls_connected: bool,
 }
 
-impl<'a> StreamConnect<'a, std::net::TcpStream> {
+impl<'a> HTTPStreamConnect<'a, std::net::TcpStream> {
     pub fn wait(mut self) -> HlsResult<(ALPN, HTTPStream)> {
         let proxy_stream = self.proxy_connecting.wait()?;
-        match self.url.scheme() {
+        match self.param.url.scheme() {
             Scheme::Http | Scheme::Ws => {
                 let stream = HTTPStream::SyncH1(HTTP1Stream::new(Stream::SyncHttp(proxy_stream)));
                 Ok((ALPN::HTTP11, stream))
             }
             Scheme::Https | Scheme::Wss => {
                 let config = self.tls_connecting.config.client_mut().ok_or("missing client config")?;
-                config.fingerprint = self.fingerprint.tls();
                 let session = config.session.as_ref().cloned().unwrap_or_default();
-                let conn = Connection::new_client(session, mem::take(&mut config.key_log), false)
+                let conn = Connection::new_client(session, config.key_log.take(), false)
                     .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
-                self.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, Timeout::longer(), proxy_stream)));
+                let tls_connector=TlsStream::new(conn, self.param.timeout.clone(), proxy_stream);
+                self.tls_connecting.state = ConnState::Connecting(Box::new(tls_connector));
                 let mut tls_stream = self.tls_connecting.wait()?;
                 let alpn = tls_stream.alpn().clone();
                 let stream = match &alpn {
@@ -323,7 +329,7 @@ impl<'a> StreamConnect<'a, std::net::TcpStream> {
 }
 
 #[cfg(feature = "aync")]
-impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
+impl<'a> Future for HTTPStreamConnect<'a, tokio::net::TcpStream> {
     type Output = HlsResult<(ALPN, HTTPStream)>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let connector = self.get_mut();
@@ -332,19 +338,19 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
                 Poll::Ready(proxy_stream) => proxy_stream,
                 Poll::Pending => return Poll::Pending,
             };
-            match connector.url.scheme() {
+            match connector.param.url.scheme() {
                 Scheme::Http | Scheme::Ws => {
                     let stream = HTTPStream::AsyncH1(HTTP1Stream::new(Stream::AsyncHttp(proxy_stream)));
                     return Poll::Ready(Ok((ALPN::HTTP11, stream)));
                 }
                 Scheme::Https | Scheme::Wss => {
                     let config = connector.tls_connecting.config.client_mut().ok_or("missing client config")?;
-                    config.fingerprint = connector.fingerprint.tls();
                     let session = config.session.as_ref().cloned().unwrap_or_default();
                     let conn = Connection::new_client(session, mem::take(&mut config.key_log), false)
                         .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
-                    let timeout = proxy_stream.timeout.clone();
-                    connector.tls_connecting.state = ConnState::Connecting(Box::new(TlsStream::new(conn, timeout, proxy_stream)));
+                    let tls_connector = TlsStream::new(conn, connector.param.timeout.clone(), proxy_stream);
+                    connector.tls_connecting.state = ConnState::Connecting(Box::new(tls_connector));
+
                     connector.proxy_connected = true;
                 }
                 _ => return Poll::Ready(Err("stream not supported".into()))
@@ -374,6 +380,81 @@ impl<'a> Future for StreamConnect<'a, tokio::net::TcpStream> {
                 Poll::Ready(Ok((ALPN::HTTP20, HTTPStream::AsyncH2(HTTP2Stream::new(buffer, stream)))))
             }
             Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+#[cfg(feature = "quic")]
+#[must_use = "streams do nothing unless `.wait()/.await`"]
+pub struct QUICStreamConnect<'a, S> {
+    pub(crate) conn: Option<QUICConnect<'a, S>>,
+    pub(crate) h3_finger: &'a H3Finger,
+    #[cfg(feature = "aync")]
+    pub(crate) stream: Option<QUICStream<S>>,
+    #[cfg(feature = "aync")]
+    pub(crate) buffer: Option<Buffer>,
+    #[cfg(feature = "aync")]
+    pub(crate) offset: usize,
+    #[cfg(feature = "aync")]
+    pub(crate) connected: bool,
+}
+
+impl<'a, S> QUICStreamConnect<'a, S> {
+    fn build_settings(&self, writer: &mut Writer) -> Result<(), BufferError> {
+        writer.reset_offset(100..100);
+        writer.write_u8(0)?;
+        for frame in &self.h3_finger.frames {
+            frame.write_to(writer)?;
+        }
+        quic::write_variant_front(writer.len() as u64, writer)?;
+        quic::write_variant_front(2, writer)?;
+        let flag = QUICFrameFlag::new(0);
+        quic::write_variant_front(flag.encode(), writer)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "quic")]
+impl<'a> QUICStreamConnect<'a, std::net::UdpSocket> {
+    pub fn wait(mut self) -> HlsResult<HTTPStream> {
+        let mut stream = self.conn.take().ok_or("invalid connection")?.wait()?;
+        let mut writer = stream.alloc_buffer();
+        self.build_settings(&mut writer)?;
+        let offset = writer.len();
+        stream.write_packet(writer).wait()?;
+        Ok(HTTPStream::SyncH3(HTTP3Stream::new(stream, offset)))
+    }
+}
+
+#[cfg(all(feature = "quic", feature = "aync"))]
+impl<'a> Future for QUICStreamConnect<'a, tokio::net::UdpSocket> {
+    type Output = HlsResult<HTTPStream>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let connector = self.get_mut();
+        if !connector.connected {
+            let stream = connector.conn.as_mut().ok_or("invalid connection")?;
+            match Pin::new(stream).poll(cx)? {
+                Poll::Ready(mut stream) => {
+                    let mut writer = stream.alloc_buffer();
+                    connector.build_settings(&mut writer)?;
+                    connector.offset = writer.len();
+                    stream.make_message(&mut writer, QUICFlag::new_short(PacketType::ShortHeader))?;
+                    if stream.poll_send(cx, &mut writer)?.is_pending() {
+                        connector.stream = Some(stream);
+                        connector.buffer = Some(writer);
+                        return Poll::Pending;
+                    }
+                    Poll::Ready(Ok(HTTPStream::AsyncH3(HTTP3Stream::new(stream, connector.offset))))
+                }
+                Poll::Pending => Poll::Pending,
+            }
+        } else {
+            let buffer = connector.buffer.as_mut().ok_or("invalid connection")?;
+            let stream = connector.stream.as_mut().ok_or("invalid connection")?;
+            if stream.poll_send(cx, buffer)?.is_pending() { return Poll::Pending; };
+            let stream = connector.stream.take().ok_or("invalid connection")?;
+            Poll::Ready(Ok(HTTPStream::AsyncH3(HTTP3Stream::new(stream, connector.offset))))
         }
     }
 }

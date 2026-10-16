@@ -164,6 +164,11 @@ impl QUICFlag {
         self.num_len as usize
     }
 
+    pub fn with_num_len(mut self, num_len: usize) -> Self {
+        self.num_len = num_len as u8;
+        self
+    }
+
     pub fn packet_type(&self) -> PacketType {
         self.packet_type
     }
@@ -212,7 +217,7 @@ impl<'a> Default for QUICPacket<'a> {
 impl<'a> QUICPacket<'a> {
     pub fn new_long(pty: PacketType, num: u64, pd_len: usize, dcid: &'a [u8], token: &'a Buf<'a>) -> Self {
         debug_assert!(matches!(pty, PacketType::Initial|PacketType::Handshake));
-        let num_len = crate::quic::variant_len(num as usize);
+        let num_len = crate::quic::variant_len(num);
         let (len, padding) = if pd_len + num_len + 16 >= 1232 {
             (pd_len + num_len + 16, 0)
         } else { (1232, 1232 - pd_len - num_len - 16) };
@@ -238,7 +243,7 @@ impl<'a> QUICPacket<'a> {
 
     pub fn new_short(pty: PacketType, num: u64, pd_len: usize, dcid: &'a [u8]) -> Self {
         debug_assert!(matches!(pty, PacketType::ShortHeader));
-        let num_len = crate::quic::variant_len(num as usize);
+        let num_len = crate::quic::variant_len(num);
         QUICPacket {
             flag: QUICFlag {
                 long_header: false,
@@ -259,7 +264,7 @@ impl<'a> QUICPacket<'a> {
     }
 
     pub fn new_ack(flag: QUICFlag, dc_id: &'a [u8], num: u64, pd_len: usize) -> Self {
-        let num_len = crate::quic::variant_len(num as usize);
+        let num_len = crate::quic::variant_len(num);
         let len = pd_len + num_len + 16;
         QUICPacket {
             flag: QUICFlag {
@@ -318,10 +323,10 @@ impl<'a> QUICPacket<'a> {
             self.hdr_raw.write_u8(self.sc_id.len() as u8)?;
             self.hdr_raw.write_slice(self.sc_id.as_ref())?;
             if self.flag.packet_type == PacketType::Initial {
-                crate::quic::write_variant(self.token.len(), &mut self.hdr_raw)?;
+                crate::quic::write_variant(self.token.len() as u64, &mut self.hdr_raw)?;
                 self.hdr_raw.write_slice(self.token.as_ref())?;
             }
-            crate::quic::write_variant(self.len, &mut self.hdr_raw)?;
+            crate::quic::write_variant(self.len as u64, &mut self.hdr_raw)?;
         } else {
             self.hdr_raw.write_u8(self.flag.encode())?;
             self.hdr_raw.write_slice(self.dc_id.as_ref())?;
@@ -355,13 +360,13 @@ impl<'a> QUICPacket<'a> {
             };
             match flag.packet_type {
                 PacketType::Initial => {
-                    let tk_len = crate::quic::read_variant(reader)?;
+                    let tk_len = crate::quic::read_variant(reader)? as usize;
                     packet.token = Buf::new_ref(reader.read_slice(tk_len)?);
-                    packet.len = crate::quic::read_variant(reader)?;
+                    packet.len = crate::quic::read_variant(reader)? as usize;
                     packet.pn_offset = reader.position() - pos;
                 }
                 PacketType::Handshake => {
-                    packet.len = crate::quic::read_variant(reader)?;
+                    packet.len = crate::quic::read_variant(reader)? as usize;
                     packet.pn_offset = reader.position() - pos;
                 }
                 PacketType::Retry => {
@@ -369,7 +374,7 @@ impl<'a> QUICPacket<'a> {
                     packet.tag = Buf::new_ref(reader.read_slice(16)?)
                 }
                 PacketType::ShortHeader => {
-                    packet.len = crate::quic::read_variant(reader)?;
+                    packet.len = crate::quic::read_variant(reader)? as usize;
                     packet.pn_offset = reader.position() - pos;
                 }
             }

@@ -9,8 +9,6 @@ use crate::{Application, ContentType, Text};
 pub use ext::{BodyData, BodyExt};
 pub use multi_form::{FileForm, FormError, HttpFile};
 pub use reader::RawBodyReader;
-#[cfg(feature = "quic")]
-pub use reader::H3BodyReader;
 use reqrio_json::JsonValue;
 use reqtls::{hash, rand};
 #[cfg(feature = "serde")]
@@ -216,30 +214,4 @@ impl<'a> Body<'a> {
     }
 
     pub fn context_type(&self) -> &ContentType { &self.ct }
-}
-
-#[cfg(feature = "quic")]
-pub(crate) enum BodyReader<'a> {
-    HTTP3(H3BodyReader<'a>),
-}
-
-#[cfg(feature = "quic")]
-impl<'a> ReadExt for BodyReader<'a> {
-    fn wrote(&self) -> bool {
-        match self {
-            BodyReader::HTTP3(h3) => h3.wrote(),
-        }
-    }
-
-    fn len(&self) -> usize {
-        match self {
-            BodyReader::HTTP3(h3) => h3.len(),
-        }
-    }
-
-    fn read(&mut self, buf: &mut Writer) -> HlsResult<usize> {
-        match self {
-            BodyReader::HTTP3(h3) => h3.read(buf),
-        }
-    }
 }

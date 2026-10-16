@@ -67,38 +67,3 @@ impl Display for Response {
         Ok(())
     }
 }
-
-// #[cfg(feature = "serde")]
-// use serde::{Deserialize, Deserializer};
-// use serde::de::{Error, MapAccess, Unexpected};
-// #[cfg(feature = "serde")]
-// use serde::de::Visitor;
-// 
-// #[cfg(feature = "serde")]
-// impl<'de> Deserialize<'de> for Response {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         struct RespVisitor;
-//         impl<'de> Visitor<'de> for RespVisitor {
-//             type Value = Response;
-// 
-//             fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-//                 write!(formatter, "{}", 1)
-//             }
-// 
-//             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-//             where
-//                 A: MapAccess<'de>,
-//             {
-//                 let mut resp = Response::default();
-//                 while let Some(key) = map.next_key::<reqrio_json::JsonValue>()? {
-//                     resp.sid = map.next_value::<u64>()?;
-//                 }
-//                 Err(Error::invalid_type(Unexpected::Map, &self))
-//             }
-//         }
-//         deserializer.deserialize_struct("Response", &["sid1"], RespVisitor)
-//     }
-// }

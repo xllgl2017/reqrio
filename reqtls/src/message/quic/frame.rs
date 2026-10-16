@@ -1,6 +1,6 @@
-use std::ops::Range;
-use crate::{Buf, BufferError, Reader, Writer};
 use crate::quic::{self, QUICError};
+use crate::{Buf, BufferError, Reader, Writer};
+use std::ops::Range;
 
 #[repr(u16)]
 #[allow(non_camel_case_types)]
@@ -60,7 +60,7 @@ pub struct QUICFrameFlag {
 }
 
 impl QUICFrameFlag {
-    pub fn new(offset: usize) -> QUICFrameFlag {
+    pub const fn new(offset: usize) -> QUICFrameFlag {
         QUICFrameFlag {
             fin: false,
             len: true,
@@ -68,16 +68,16 @@ impl QUICFrameFlag {
         }
     }
 
-    pub fn with_fin(mut self, fin: bool) -> Self {
+    pub const fn with_fin(mut self, fin: bool) -> Self {
         self.fin = fin;
         self
     }
 
-    pub fn fin(&self) -> bool {
-        self.fin
-    }
+    pub const fn fin(&self) -> bool { self.fin }
 
-    pub fn encode(&self) -> u8 {
+    pub const fn offset(&self) -> bool { self.offset }
+
+    pub const fn encode(&self) -> u64 {
         let mut v = 8;
         if self.fin {
             v |= 0b1;
@@ -116,12 +116,12 @@ impl AckRange {
     pub fn is_empty(&self) -> bool { false }
 
     pub fn len(&self) -> usize {
-        quic::variant_len(self.gap as usize) + quic::variant_len(self.range as usize)
+        quic::variant_len(self.gap) + quic::variant_len(self.range)
     }
 
     pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
-        quic::write_variant(self.gap as usize, writer)?;
-        quic::write_variant(self.range as usize, writer)
+        quic::write_variant(self.gap, writer)?;
+        quic::write_variant(self.range, writer)
     }
 }
 
@@ -186,7 +186,7 @@ pub enum QUICFrame<'a> {
     Ack {
         largest_acknowledged: u64,
         ack_delay: u64,
-        ack_range_count: usize,
+        ack_range_count: u64,
         first_ack_range: u64,
         ack_range: Vec<AckRange>,
     },
@@ -194,7 +194,7 @@ pub enum QUICFrame<'a> {
     ResetStream,
     StopSending {
         sid: u64,
-        error_code: usize,
+        error_code: u64,
     },
     Crypto {
         offset: usize,
@@ -212,7 +212,7 @@ pub enum QUICFrame<'a> {
     MaxData,
     MaxStreamData {
         sid: u64,
-        data: usize,
+        data: u64,
     },
     MaxStreamsBidi(u64),
     MaxStreamsUni,
@@ -231,7 +231,7 @@ pub enum QUICFrame<'a> {
     PathResponse,
     ConnectionCloseTrp {
         err_code: TrpErrKind,
-        frame_typ: usize,
+        frame_typ: u64,
         reason: &'a str,
     },
     ConnectionCloseApp,
@@ -240,7 +240,7 @@ pub enum QUICFrame<'a> {
 
 impl<'a> QUICFrame<'a> {
     pub fn from_reader(reader: &mut Reader<'a>) -> Result<QUICFrame<'a>, QUICError> {
-        let typ: QUICFrameType = (quic::read_variant(reader)? as u64).into();
+        let typ: QUICFrameType = quic::read_variant(reader)?.into();
         match typ {
             QUICFrameType::Padding => {
                 let len = reader.find(|&x| x != 0).unwrap_or(reader.unread_len());
@@ -249,15 +249,15 @@ impl<'a> QUICFrame<'a> {
             }
             QUICFrameType::Ping => Ok(QUICFrame::Ping),
             QUICFrameType::Ack => {
-                let largest_acknowledged = quic::read_variant(reader)? as u64;
-                let ack_delay = quic::read_variant(reader)? as u64;
+                let largest_acknowledged = quic::read_variant(reader)?;
+                let ack_delay = quic::read_variant(reader)?;
                 let ack_range_count = quic::read_variant(reader)?;
-                let first_ack_range = quic::read_variant(reader)? as u64;
-                let mut ack_range = Vec::with_capacity(ack_range_count);
+                let first_ack_range = quic::read_variant(reader)?;
+                let mut ack_range = Vec::with_capacity(ack_range_count as usize);
                 for _ in 0..ack_range_count {
                     ack_range.push(AckRange {
-                        gap: quic::read_variant(reader)? as u64,
-                        range: quic::read_variant(reader)? as u64,
+                        gap: quic::read_variant(reader)?,
+                        range: quic::read_variant(reader)?,
                     })
                 }
                 Ok(QUICFrame::Ack {
@@ -269,12 +269,12 @@ impl<'a> QUICFrame<'a> {
                 })
             }
             QUICFrameType::StopSending => Ok(QUICFrame::StopSending {
-                sid: quic::read_variant(reader)? as u64,
+                sid: quic::read_variant(reader)?,
                 error_code: quic::read_variant(reader)?,
             }),
             QUICFrameType::Crypto => {
-                let offset = quic::read_variant(reader)?;
-                let len = quic::read_variant(reader)?;
+                let offset = quic::read_variant(reader)? as usize;
+                let len = quic::read_variant(reader)? as usize;
                 let pos = reader.position()..reader.position() + len;
                 Ok(QUICFrame::Crypto {
                     offset,
@@ -283,28 +283,28 @@ impl<'a> QUICFrame<'a> {
                 })
             }
             QUICFrameType::NewToken => {
-                let len = quic::read_variant(reader)?;
+                let len = quic::read_variant(reader)? as usize;
                 Ok(QUICFrame::NewToken(Buf::new_ref(reader.read_slice(len)?)))
             }
             QUICFrameType::Stream(typ) => {
                 let flag: QUICFrameFlag = typ.into();
                 let sid = quic::read_variant(reader)?;
-                let offset = if flag.offset { quic::read_variant(reader)? } else { 0 };
-                let len = if flag.len { quic::read_variant(reader)? } else { reader.unread_len() };
+                let offset = if flag.offset { quic::read_variant(reader)? as usize } else { 0 };
+                let len = if flag.len { quic::read_variant(reader)? as usize } else { reader.unread_len() };
                 let pos = reader.position()..reader.position() + len;
                 Ok(QUICFrame::Stream {
                     flag,
-                    sid: sid as u64,
+                    sid,
                     // len,
                     offset,
                     payload: Buf::new_ref(reader.read_slice(len)?),
                     buf_pos: pos,
                 })
             }
-            QUICFrameType::MaxStreamsBidi => Ok(QUICFrame::MaxStreamsBidi(quic::read_variant(reader)? as u64)),
+            QUICFrameType::MaxStreamsBidi => Ok(QUICFrame::MaxStreamsBidi(quic::read_variant(reader)?)),
             QUICFrameType::NewConnectionId => {
-                let seq = quic::read_variant(reader)? as u64;
-                let retire = quic::read_variant(reader)? as u64;
+                let seq = quic::read_variant(reader)?;
+                let retire = quic::read_variant(reader)?;
                 let len = reader.read_u8()? as usize;
                 Ok(QUICFrame::NewConnectionId {
                     seq,
@@ -316,7 +316,7 @@ impl<'a> QUICFrame<'a> {
             QUICFrameType::ConnectionCloseTrp => {
                 let err_code = quic::read_variant(reader)? as u16;
                 let frame_typ = quic::read_variant(reader)?;
-                let reason_len = quic::read_variant(reader)?;
+                let reason_len = quic::read_variant(reader)? as usize;
                 Ok(QUICFrame::ConnectionCloseTrp {
                     err_code: err_code.into(),
                     frame_typ,
@@ -328,7 +328,7 @@ impl<'a> QUICFrame<'a> {
                 println!("{:?}", &reader.inner()[reader.position()..]);
                 let sid = quic::read_variant(reader)?;
                 Ok(QUICFrame::MaxStreamData {
-                    sid: sid as u64,
+                    sid: sid,
                     data: quic::read_variant(reader)?,
                 })
             }
@@ -347,8 +347,8 @@ impl<'a> QUICFrame<'a> {
             QUICFrame::Padding(size) => *size,
             QUICFrame::Ping => 1,
             QUICFrame::Crypto { offset, value, .. } => {
-                let offset_size = quic::variant_len(*offset);
-                let value_size = quic::variant_len(value.len());
+                let offset_size = quic::variant_len(*offset as u64);
+                let value_size = quic::variant_len(value.len() as u64);
                 1 + offset_size + value_size + value.len()
             }
             QUICFrame::Ack {
@@ -358,19 +358,19 @@ impl<'a> QUICFrame<'a> {
                 first_ack_range,
                 ack_range
             } => {
-                1 + quic::variant_len(*largest_acknowledged as usize) +
-                    quic::variant_len(*ack_delay as usize) +
+                1 + quic::variant_len(*largest_acknowledged) +
+                    quic::variant_len(*ack_delay) +
                     quic::variant_len(*ack_range_count) +
-                    quic::variant_len(*first_ack_range as usize) +
+                    quic::variant_len(*first_ack_range) +
                     ack_range.iter().map(|x| x.len()).sum::<usize>()
             }
             QUICFrame::Stream { flag, sid, offset, payload, .. } => {
-                let mut res = 1 + quic::variant_len(*sid as usize);
+                let mut res = 1 + quic::variant_len(*sid);
                 if flag.offset {
-                    res += quic::variant_len(*offset);
+                    res += quic::variant_len(*offset as u64);
                 }
                 if flag.len {
-                    res += quic::variant_len(payload.len());
+                    res += quic::variant_len(payload.len() as u64);
                 }
                 res + payload.len()
             }
@@ -384,8 +384,8 @@ impl<'a> QUICFrame<'a> {
             QUICFrame::Ping => writer.write_u8(0x01),
             QUICFrame::Crypto { offset, value, .. } => {
                 writer.write_u8(0x06)?;
-                quic::write_variant(*offset, writer)?;
-                quic::write_variant(value.len(), writer)?;
+                quic::write_variant(*offset as u64, writer)?;
+                quic::write_variant(value.len() as u64, writer)?;
                 writer.write_slice(value.as_ref())
             }
             QUICFrame::Ack {
@@ -396,10 +396,10 @@ impl<'a> QUICFrame<'a> {
                 ack_range
             } => {
                 writer.write_u8(0x02)?;
-                quic::write_variant(*largest_acknowledged as usize, writer)?;
-                quic::write_variant(*ack_delay as usize, writer)?;
+                quic::write_variant(*largest_acknowledged, writer)?;
+                quic::write_variant(*ack_delay, writer)?;
                 quic::write_variant(*ack_range_count, writer)?;
-                quic::write_variant(*first_ack_range as usize, writer)?;
+                quic::write_variant(*first_ack_range, writer)?;
                 for ack in ack_range {
                     ack.write_to(writer)?;
                 }
@@ -412,13 +412,13 @@ impl<'a> QUICFrame<'a> {
                 payload,
                 ..
             } => {
-                writer.write_u8(flag.encode())?;
-                quic::write_variant(*sid as usize, writer)?;
+                quic::write_variant(flag.encode(), writer)?;
+                quic::write_variant(*sid, writer)?;
                 if flag.offset {
-                    quic::write_variant(*offset, writer)?;
+                    quic::write_variant(*offset as u64, writer)?;
                 }
                 if flag.len {
-                    quic::write_variant(payload.len(), writer)?;
+                    quic::write_variant(payload.len() as u64, writer)?;
                 }
                 writer.write_slice(payload.as_ref())
             }

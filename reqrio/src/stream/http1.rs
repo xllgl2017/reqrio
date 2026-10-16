@@ -171,7 +171,7 @@ mod tests {
         stream.encode_hdr(748, &SendParam {
             method: Method::GET,
             url: &url,
-            body: &Body::new(BodyKind::Data(HCow::Owned(JsonValue::Null)), ContentType::Application(Application::Json)),
+            body: Body::new(BodyKind::Data(HCow::Owned(JsonValue::Null)), ContentType::Application(Application::Json)),
             priority: false,
             header: &header,
             weight: 0,
