@@ -145,7 +145,7 @@ impl<'a> Body<'a> {
             ct: ty,
         }
     }
-    pub(crate) fn none() -> Body<'a> {
+    pub fn none() -> Body<'a> {
         Body {
             kind: BodyKind::Bytes(Cow::Borrowed(&[])),
             ct: ContentType::Null,
