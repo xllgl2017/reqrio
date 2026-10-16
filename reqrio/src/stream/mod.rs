@@ -28,9 +28,11 @@ use std::collections::HashMap;
 pub use tls_stream::*;
 pub use ws::*;
 pub use message::{StreamMessage, SendParam};
+#[cfg(feature = "quic")]
 use crate::fingerprint::H3Finger;
 #[cfg(feature = "quic")]
 use crate::stream::http3::HTTP3Stream;
+#[cfg(feature = "quic")]
 use crate::stream::quic::QUICConnect;
 
 pub struct ConnParam<'a> {

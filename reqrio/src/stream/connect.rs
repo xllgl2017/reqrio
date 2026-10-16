@@ -1,9 +1,11 @@
 use crate::error::HlsResult;
+#[cfg(feature = "quic")]
 use crate::fingerprint::H3Finger;
 use crate::stream::http1::*;
 use crate::stream::http2::*;
 #[cfg(feature = "quic")]
 use crate::stream::http3::HTTP3Stream;
+#[cfg(feature = "quic")]
 use crate::stream::quic::QUICConnect;
 use crate::stream::write::BufWriting;
 use crate::stream::{HTTPStream, Stream};
@@ -399,6 +401,7 @@ pub struct QUICStreamConnect<'a, S> {
     pub(crate) connected: bool,
 }
 
+#[cfg(feature = "quic")]
 impl<'a, S> QUICStreamConnect<'a, S> {
     fn build_settings(&self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.reset_offset(100..100);
