@@ -1,11 +1,11 @@
+use reqtls::coder::{StreamDecode, TZCoder};
 use super::Marker;
 use crate::*;
-use reqtls::coder::{CodingError, DeflateStream};
 
 pub struct WsPayload {
     len: usize,
     mask: [u8; 4],
-    payload: Vec<u8>,
+    payload: Buffer,
 }
 
 impl WsPayload {
@@ -15,35 +15,41 @@ impl WsPayload {
         WsPayload {
             len: 0,
             mask: rand::random::<[u8; 4]>(),
-            payload: vec![],
+            payload: Buffer::none(),
         }
     }
 
-    fn decode(&self, coder: &mut DeflateStream, reader: &mut Reader, payload: &mut Vec<u8>) -> Result<usize, CodingError> {
-        let mut out_len = 0;
-        while reader.unread_len() > 0 {
-            out_len += coder.decompress_once(reader, payload, true)?;
-        }
-        Ok(out_len)
-    }
+    // fn decode(&self, coder: &mut TZCoder, reader: &mut Reader, payload: &mut Buffer) -> HlsResult<usize> {
+    //
+    //     let mut out_len = 0;
+    //     while reader.unread_len() > 0 {
+    //         out_len += coder.decompress_once(reader, payload, true)?;
+    //     }
+    //     Ok(out_len)
+    // }
 
-    pub(crate) fn read_payload(&mut self, mut reader: Reader, masker: &Marker, coder: Option<&mut DeflateStream>, demask_buffer: &mut Writer) -> Result<(), CodingError> {
+    pub(crate) fn read_payload(&mut self, mut reader: Reader, masker: &Marker, coder: Option<&mut TZCoder>, demask_buffer: &mut Writer) -> HlsResult<()> {
         demask_buffer.reset();
         match (masker.mask, coder) {
             (true, None) => {
-                let mut payload = Vec::with_capacity(reader.inner().len());
+                let mut payload = Buffer::with_capacity(reader.inner().len());
                 for (i, b) in reader.inner().iter().enumerate() {
-                    payload.push(b ^ self.mask[i % 4])
+                    payload.write_u8(b ^ self.mask[i % 4])?
                 }
                 self.payload = payload
             }
-            (false, None) => self.payload = reader.inner().to_vec(),
+            (false, None) => {
+                self.payload = Buffer::with_capacity(reader.size());
+                self.payload.write_slice(reader.inner())?;
+            }
             (false, Some(coder)) => {
-                let mut payload = vec![0; reader.inner().len() * 2];
-                let mut out_len = self.decode(coder, &mut reader, &mut payload)?;
+                let mut payload = Buffer::with_capacity(reader.inner().len() * 2);
+                coder.decompress(&mut reader, &mut payload)?;
+                // let mut out_len = self.decode(coder, &mut reader, &mut payload)?;
                 let mut reader = Reader::from_slice(&Self::DEFLATE_END);
-                out_len += self.decode(coder, &mut reader, &mut payload)?;
-                payload.truncate(out_len);
+                coder.decompress(&mut reader, &mut payload)?;
+                // out_len += self.decode(coder, &mut reader, &mut payload)?;
+                // payload.truncate(out_len);
                 self.payload = payload;
             }
             (true, Some(coder)) => {
@@ -53,19 +59,21 @@ impl WsPayload {
                 for (i, b) in reader.inner().iter().enumerate() {
                     demask_buffer.write_u8(b ^ self.mask[i % 4])?;
                 }
-                let mut payload = vec![0; reader.inner().len() * 2];
+                let mut payload = Buffer::with_capacity(reader.inner().len() * 2);
                 let mut reader = Reader::from_slice(demask_buffer.filled());
-                let mut out_len = self.decode(coder, &mut reader, &mut payload)?;
+                coder.decompress(&mut reader, &mut payload)?;
                 let mut reader = Reader::from_slice(&Self::DEFLATE_END);
-                out_len += self.decode(coder, &mut reader, &mut payload)?;
-                payload.truncate(out_len);
+                coder.decompress(&mut reader, &mut payload)?;
+                // let mut out_len = self.decode(coder, &mut reader, &mut payload)?;
+                // out_len += self.decode(coder, &mut reader, &mut payload)?;
+                // payload.truncate(out_len);
                 self.payload = payload;
             }
         }
         Ok(())
     }
 
-    pub fn from_reader(masker: &Marker, reader: &mut Reader, coder: Option<&mut DeflateStream>, demask_buffer: &mut Writer) -> Result<WsPayload, CodingError> {
+    pub fn from_reader(masker: &Marker, reader: &mut Reader, coder: Option<&mut TZCoder>, demask_buffer: &mut Writer) -> HlsResult<WsPayload> {
         let mut res = WsPayload::new();
         res.len = match masker.len_code {
             127 => reader.read_u64()? as usize,
@@ -80,7 +88,7 @@ impl WsPayload {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.filled()
     }
 
     pub fn len(&self) -> usize {

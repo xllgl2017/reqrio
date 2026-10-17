@@ -3,7 +3,7 @@ mod handshake;
 mod quic;
 
 use crate::cipher::CipherError;
-use crate::coder::CodingError;
+use crate::coder::CodeState;
 use crate::dns::DNSError;
 use crate::hash::HashError;
 use crate::url::UrlError;
@@ -70,6 +70,7 @@ pub enum RlsError {
     BIOWriteError,
     BIOGetDataError,
     GetAiaFail,
+    TZCode(CodeState),
     HandShake(HandShakeError),
     Buffer(BufferError),
     Url(UrlError),
@@ -78,7 +79,6 @@ pub enum RlsError {
     HasherError(HashError),
     DNSError(DNSError),
     Cipher(CipherError),
-    Coding(CodingError),
     Sm(SmError),
 }
 
@@ -136,8 +136,8 @@ impl Display for RlsError {
             RlsError::HasherError(e) => write!(f, "Hasher({})", e),
             RlsError::DNSError(e) => write!(f, "DNSError({:?})", e),
             RlsError::Cipher(e) => write!(f, "Cipher({:?})", e),
-            RlsError::Coding(e) => write!(f, "Coding({:?})", e),
             RlsError::Sm(sm) => write!(f, "Sm({:?})", sm),
+            RlsError::TZCode(state) => write!(f, "TZCode({:?})", state),
         }
     }
 }
@@ -271,15 +271,15 @@ impl From<CipherError> for RlsError {
     }
 }
 
-impl From<CodingError> for RlsError {
-    fn from(value: CodingError) -> Self {
-        RlsError::Coding(value)
-    }
-}
-
 impl From<SmError> for RlsError {
     fn from(value: SmError) -> Self {
         RlsError::Sm(value)
+    }
+}
+
+impl From<CodeState> for RlsError {
+    fn from(value: CodeState) -> Self {
+        RlsError::TZCode(value)
     }
 }
 

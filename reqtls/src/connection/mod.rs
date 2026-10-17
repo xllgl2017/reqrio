@@ -219,7 +219,7 @@ impl Connection {
         match cc.algorithm() {
             CompressionMethod::BROTLI => {
                 let data = coder::br_decompress(cc.compressed_data())?;
-                let mut reader = Reader::from_slice(&data);
+                let mut reader = Reader::from_slice(data.filled());
                 let certs = Certificates::from_reader(self.version, &mut reader, true)?;
                 self.set_by_certificate(certs, ext_cas, sni)?;
                 Ok(())

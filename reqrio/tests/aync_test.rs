@@ -1,3 +1,4 @@
+#![cfg(feature = "aync")]
 use std::fs;
 use reqrio::*;
 

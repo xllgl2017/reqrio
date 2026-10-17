@@ -1,48 +1,12 @@
-use std::slice;
-use crate::{BufferError, Reader, Writer};
-use crate::coder::CodingError;
+use crate::{Reader, RlsError, Writer};
+use crate::error::RlsResult;
 
 pub trait StreamDecode {
-    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError>;
-    fn flush(&mut self, out: &mut Writer) -> Result<(), CodingError>;
-    fn finish(&self) -> bool;
+    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> RlsResult<bool>;
+    fn flush(&mut self, out: &mut Writer) -> RlsResult<bool>;
 }
 
 pub trait StreamEncode {
-    fn compress(&mut self, data: &[u8], out: &mut [u8]) -> Result<usize, CodingError>;
-    fn finalize(&mut self, out: &mut [u8]) -> Result<usize, CodingError>;
-}
-
-impl StreamDecode for () {
-    fn decompress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<(), CodingError> {
-        let unread = unsafe { slice::from_raw_parts(reader.unread_ptr(), reader.unread_len()) };
-        out.extend_from_slice(unread)?;
-        reader.add_len(reader.unread_len());
-        Ok(())
-    }
-
-    fn flush(&mut self, _: &mut Writer) -> Result<(), CodingError> { Ok(()) }
-
-    fn finish(&self) -> bool {
-        false
-    }
-}
-
-impl StreamEncode for () {
-    fn compress(&mut self, data: &[u8], out: &mut [u8]) -> Result<usize, CodingError> {
-        if out.len() < data.len() {
-            return Err(BufferError::CapacityTooSmall {
-                current: out.len(),
-                file: file!(),
-                needed: data.len(),
-                line: line!(),
-            }.into());
-        }
-        out[..data.len()].copy_from_slice(data);
-        Ok(data.len())
-    }
-
-    fn finalize(&mut self, _: &mut [u8]) -> Result<usize, CodingError> {
-        Ok(0)
-    }
+    fn compress(&mut self, reader: &mut Reader<'_>, out: &mut Writer) -> Result<bool, RlsError>;
+    fn flush(&mut self, out: &mut Writer) -> Result<bool, RlsError>;
 }

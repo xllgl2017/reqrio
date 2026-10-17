@@ -1,5 +1,5 @@
 pub use payload::WsPayload;
-use reqtls::coder::DeflateStream;
+use reqtls::coder::TZCoder;
 use reqtls::Reader;
 pub use typ::{WsFrameType, WsOpcode};
 
@@ -80,7 +80,7 @@ impl WsFrame {
         len
     }
 
-    pub fn from_reader(reader: &mut Reader, coder: Option<&mut DeflateStream>, demask_buffer: &mut Writer) -> HlsResult<WsFrame> {
+    pub fn from_reader(reader: &mut Reader, coder: Option<&mut TZCoder>, demask_buffer: &mut Writer) -> HlsResult<WsFrame> {
         let typ: WsFrameType = reader.read_u8()?.into();
         let masker = Marker::from_u8(reader.read_u8()?);
         let payload = WsPayload::from_reader(&masker, reader, coder, demask_buffer)?;

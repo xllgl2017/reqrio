@@ -15,7 +15,6 @@ use std::sync::PoisonError;
 #[cfg(feature = "aync")]
 use tokio::time::error::Elapsed;
 use reqtls::cipher::CipherError;
-use reqtls::coder::CodingError;
 #[cfg(feature = "quic")]
 use reqtls::quic::QUICError;
 use crate::body::FormError;
@@ -194,13 +193,6 @@ impl From<TimeError> for HlsError {
         HlsError::Time(value)
     }
 }
-
-impl From<CodingError> for HlsError {
-    fn from(value: CodingError) -> Self {
-        HlsError::Rls(RlsError::Coding(value))
-    }
-}
-
 impl From<UrlError> for HlsError {
     fn from(value: UrlError) -> Self {
         HlsError::Rls(RlsError::Url(value))

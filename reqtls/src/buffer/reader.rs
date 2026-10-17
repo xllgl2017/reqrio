@@ -127,7 +127,7 @@ impl<'a> Reader<'a> {
     pub const fn unread_ptr(&self) -> *const u8 {
         unsafe { self.ptr.add(self.pos) }
     }
-    
+
     pub fn read_ptr(&mut self, size: usize) -> Result<*const u8, BufferError> {
         let ptr = unsafe { Reader_read_slice(self, size) };
         if ptr.is_null() {
@@ -160,20 +160,14 @@ impl<'a> Reader<'a> {
         self.inner()[self.pos..].iter().position(predicate)
     }
 
-    pub fn read_to(&mut self, end: &[u8]) -> Result<&'a [u8], BufferError> {
-        let filled = &self.inner()[self.pos..];
-        let pos = filled.windows(end.len()).position(|window| window == end);
-        match pos {
-            None => Err(BufferError::Insufficient),
-            Some(pos) => {
-                let res = &filled[..pos];
-                self.add_len(pos);
-                Ok(res)
-            }
-        }
+    pub fn read_to(&mut self, end: &[u8]) -> Option<&'a [u8]> {
+        let unread = &self.inner()[self.pos..];
+        let pos = unread.windows(end.len()).position(|window| window == end)?;
+        self.pos += pos;
+        Some(&unread[..pos])
     }
 
-    pub fn current(&mut self) -> Result<u8, BufferError> {
+    pub fn current(&self) -> Result<u8, BufferError> {
         if self.pos >= self.size {
             return Err(BufferError::IndexOutBound {
                 index: self.pos,
@@ -184,7 +178,6 @@ impl<'a> Reader<'a> {
         Ok(unsafe { self.ptr.add(self.pos).read_unaligned() })
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -68,28 +68,26 @@ impl StreamMessage {
         debug!("[Response] make coding: chunk={}; encoding={}", chunked=="chunked", encoding);
         match (chunked, encoding) {
             ("chunked", "gzip") => {
-                let gzip = DeflateStream::new_decompress(DeflateStream::GZIP)?;
-                let coding = ChunkDecoder::new(gzip);
+                let coding = ChunkDecoder::new(CodeType::Gzip)?;
                 self.coder = Some(Box::new(coding))
             }
             ("chunked", "deflate") => {
-                let deflate = DeflateStream::new_decompress(DeflateStream::DEFLATE)?;
-                let coding = ChunkDecoder::new(deflate);
+                let coding = ChunkDecoder::new(CodeType::Deflate)?;
                 self.coder = Some(Box::new(coding))
             }
             ("chunked", "br") => {
-                let coding = ChunkDecoder::new(BrotliDecoder::new()?);
+                let coding = ChunkDecoder::new(CodeType::Brotli)?;
                 self.coder = Some(Box::new(coding))
             }
             ("chunked", "zstd") => {
-                let coding = ChunkDecoder::new(ZstdDecoder::new()?);
+                let coding = ChunkDecoder::new(CodeType::Zstd)?;
                 self.coder = Some(Box::new(coding))
             }
-            ("chunked", "") => self.coder = Some(Box::new(ChunkDecoder::new(()))),
-            (_, "gzip") => self.coder = Some(Box::new(DeflateStream::new_decompress(DeflateStream::GZIP)?)),
-            (_, "deflate") => self.coder = Some(Box::new(DeflateStream::new_decompress(DeflateStream::DEFLATE)?)),
-            (_, "br") => self.coder = Some(Box::new(BrotliDecoder::new()?)),
-            (_, "zstd") => self.coder = Some(Box::new(ZstdDecoder::new()?)),
+            ("chunked", "") => self.coder = Some(Box::new(ChunkDecoder::new(CodeType::Null)?)),
+            (_, "gzip") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Gzip)?)),
+            (_, "deflate") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Deflate)?)),
+            (_, "br") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Brotli)?)),
+            (_, "zstd") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Zstd)?)),
             (_, _) => {}
         }
         Ok(())
@@ -106,26 +104,10 @@ impl StreamMessage {
             }
             Some(ref mut coder) => {
                 let mut reader = Reader::from_slice(buf);
-                loop {
-                    let res = if reader.unread_len() == 0 && reader.position() != 0 {
-                        coder.flush(&mut self.body)
-                    } else {
-                        let mut res = coder.decompress(&mut reader, &mut self.body);
-                        if coder.finish() { res = coder.flush(&mut self.body); }
-                        res
-                    };
-                    match res {
-                        Ok(_) => if reader.unread_len() == 0 { break },
-                        Err(CodingError::Buffer(BufferError::CapacityTooSmall { .. })) => {
-                            self.body.resize(self.body.capacity() * 2)?;
-                        }
-                        Err(e) => return Err(e.into()),
-                    }
-                };
-                debug_assert_eq!(buf.len(), reader.position(), "{} {}", coder.finish(), self.header);
+                let finish = coder.decompress(&mut reader, &mut self.body)?;
+                debug_assert_eq!(buf.len(), reader.position(), "{} {}", finish, self.header);
                 self.remain -= reader.position();
-
-                Ok((coder.finish() || self.remain == 0, reader.position()))
+                Ok((finish || self.remain == 0, reader.position()))
             }
         }
     }

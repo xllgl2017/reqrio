@@ -2,7 +2,7 @@
 use std::pin::Pin;
 #[cfg(feature = "aync")]
 use std::task::{Context, Poll};
-use reqtls::coder::DeflateStream;
+use reqtls::coder::{CodeType, TZCoder};
 use crate::error::HlsResult;
 use crate::stream::write::StreamShutdown;
 use crate::stream::Stream;
@@ -14,7 +14,7 @@ pub struct WebSocket {
     read_buffer: Writer,
     write_buffer: Writer,
     demask_buffer: Writer,
-    coder: Option<DeflateStream>,
+    coder: Option<TZCoder>,
     mask: bool,
 }
 
@@ -60,7 +60,7 @@ impl WebSocket {
         }
         let compressed = resp.header().get_str("Sec-WebSocket-Extensions").map(|x| x.contains("permessage-deflate")).unwrap_or(false);
         let coder = if compressed {
-            Some(DeflateStream::new_decompress(DeflateStream::DEFLATE)?)
+            Some(TZCoder::new_decompress(CodeType::Deflate)?)
         } else { None };
         Ok(Self {
             stream,
@@ -80,7 +80,7 @@ impl WebSocket {
 
 pub struct WsRead<'a> {
     stream: &'a mut Stream,
-    coder: &'a mut Option<DeflateStream>,
+    coder: &'a mut Option<TZCoder>,
     demask_buffer: &'a mut Writer,
     read_buffer: &'a mut Writer,
 }
