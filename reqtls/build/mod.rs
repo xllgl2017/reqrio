@@ -75,15 +75,15 @@ fn check_lib(tdr: &Path, typ: &LibType, ver: &str) -> Result<bool, Box<dyn Error
     let checksum = tdr.join("reqrio").join("checksum");
     let checksum = fs::read_to_string(checksum).unwrap_or("".to_string());
     if checksum != format!("{:?} {}", typ, ver) { return Ok(false); };
-    let mut has_crypto = false;
-    let mut has_zap = false;
+    let mut has_bcz = false;
+    // let mut has_zap = false;
     for dir in fs::read_dir(tdr.join("reqrio"))? {
         let path = dir?.path();
         let filename = path.file_name().map(|x| x.display().to_string()).unwrap_or("".to_string());
-        if filename.ends_with("bcrypto.dll") || filename.ends_with("bcrypto.so") ||
-            filename.ends_with("bcrypto.dylib") ||
-            filename.ends_with("bcrypto.lib") || filename.ends_with("bcrypto.a") {
-            has_crypto = true;
+        if filename.ends_with("bcz.dll") || filename.ends_with("bcz.so") ||
+            filename.ends_with("bcz.dylib") ||
+            filename.ends_with("bcz.lib") || filename.ends_with("bcz.a") {
+            has_bcz = true;
             let dep = tdr.join("deps").join(&filename);
             if !dep.exists() { fs::copy(&path, &dep)?; }
             println!("cargo:rerun-if-changed={}", dep.display());
@@ -91,19 +91,19 @@ fn check_lib(tdr: &Path, typ: &LibType, ver: &str) -> Result<bool, Box<dyn Error
             if !td.exists() { fs::copy(&path, &td)?; }
             println!("cargo:rerun-if-changed={}", td.display());
         }
-        if filename.ends_with("zap.dll") || filename.ends_with("zap.so") ||
-            filename.ends_with("zap.dylib") ||
-            filename.ends_with("zap.lib") || filename.ends_with("zap.a") {
-            has_zap = true;
-            let dep = tdr.join("deps").join(&filename);
-            if !dep.exists() { fs::copy(&path, &dep)?; }
-            println!("cargo:rerun-if-changed={}", dep.display());
-            let td = tdr.join(&filename);
-            if !td.exists() { fs::copy(&path, &td)?; }
-            println!("cargo:rerun-if-changed={}", td.display());
-        }
+        // if filename.ends_with("zap.dll") || filename.ends_with("zap.so") ||
+        //     filename.ends_with("zap.dylib") ||
+        //     filename.ends_with("zap.lib") || filename.ends_with("zap.a") {
+        //     has_zap = true;
+        //     let dep = tdr.join("deps").join(&filename);
+        //     if !dep.exists() { fs::copy(&path, &dep)?; }
+        //     println!("cargo:rerun-if-changed={}", dep.display());
+        //     let td = tdr.join(&filename);
+        //     if !td.exists() { fs::copy(&path, &td)?; }
+        //     println!("cargo:rerun-if-changed={}", td.display());
+        // }
     }
-    Ok(has_crypto && has_zap)
+    Ok(has_bcz)
 }
 
 
@@ -119,8 +119,7 @@ fn main() {
     let target_dir = target_dir.ancestors().nth(3).unwrap();
     println!("cargo:rerun-if-changed={}", target_dir.join("reqrio").display());
     println!("cargo:rustc-link-search={}", target_dir.join("reqrio").display());
-    println!("cargo:rustc-link-lib={}=bcrypto", typ.link());
-    println!("cargo:rustc-link-lib={}=zap", typ.link());
+    println!("cargo:rustc-link-lib={}=bcz", typ.link());
     if env == "gnu" {
         println!("cargo:rustc-link-lib=dylib=stdc++");
     }

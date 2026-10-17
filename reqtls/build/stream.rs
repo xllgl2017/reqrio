@@ -154,7 +154,7 @@ impl TkStream {
         let hash = FILE_HASHES.iter().find(|x| x.target == target);
         let Some(hash) = hash else { return Ok(false) };
         let dylib = !cfg!(feature = "static_link");
-        if dylib && (filename == "bcrypto.lib" || filename == "zap.lib") { return Ok(true); }
+        if dylib && (filename == "bcz.lib") { return Ok(true); }
         let file_hash = if cfg!(target_os = "windows") {
             let res = Command::new("powershell").args(["-NoProfile", "-Command"])
                 .arg(format!("certutil -hashfile {} SHA256 | Select-Object -Index 1", path.display()))
