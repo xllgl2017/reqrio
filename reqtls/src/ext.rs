@@ -188,7 +188,7 @@ pub trait StreamHandle {
                 param.conn.set_by_session_ticket(ticket)
             }
             MessageParsed::Finished(_) => {
-                param.conn.verify_finish(message.encoded.as_ref(), true)?;
+                param.conn.verify_finish(message.encoded.as_ref(), !param.conn.server())?;
                 *param.handshake_finish = true;
                 if !(param.conn.version() == Version::TLS_1_3 && param.conn.server()) {
                     if !param.conn.derived.quic { param.write_buffer.write_slice(&Self::CHANGE_CIPHER_SPEC)?; }
