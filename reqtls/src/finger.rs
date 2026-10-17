@@ -95,6 +95,8 @@ pub enum TlsFinger<'a> {
         ///extension
         extensions: Vec<Extension>,
     },
+    // Builtin(&'static str),
+    // Idx(usize),
 }
 
 #[repr(C)]
