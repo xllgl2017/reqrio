@@ -1,9 +1,11 @@
+use std::borrow::Cow;
 use crate::export::{check_run, handle_err1};
 use crate::*;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
 use std::slice;
+use crate::packet::H2PayloadValue;
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
@@ -81,7 +83,7 @@ pub extern "system" fn Fingerprint_add_ext_curve(fingerprint: *mut Fingerprint, 
             Some(Extension::KeyShare(values)) => values.push(KeyEntry::new(curve)),
             _ => match ext_typ {
                 ExtensionType::SupportedGroup => fingerprint.tls_mut().add_extension(Extension::SupportedGroups(vec![curve])),
-                ExtensionType::KeyShare => fingerprint.tls_mut().add_extension(Extension::KeyShare(vec![])),
+                ExtensionType::KeyShare => fingerprint.tls_mut().add_extension(Extension::KeyShare(vec![KeyEntry::new(curve)])),
                 _ => unreachable!()
             },
         }
@@ -167,7 +169,8 @@ pub extern "system" fn Fingerprint_add_ext_ec_point(fingerprint: *mut Fingerprin
 pub extern "system" fn Fingerprint_add_h2_setting(fingerprint: *mut Fingerprint, flag: u16, value: u32) {
     let fingerprint = unsafe { fingerprint.as_mut() };
     if let Some(fingerprint) = fingerprint {
-        fingerprint.h2_mut().add_setting(match flag {
+        let frame = fingerprint.h2_mut().frames.iter_mut().find(|x| x.frame_type() == H2FrameType::Settings);
+        let setting = match flag {
             1 => H2Setting::HeaderTableSize(value),
             2 => H2Setting::EnablePush(value),
             3 => H2Setting::MaxConcurrentStreams(value),
@@ -175,7 +178,14 @@ pub extern "system" fn Fingerprint_add_h2_setting(fingerprint: *mut Fingerprint,
             5 => H2Setting::MaxFrameSize(value),
             6 => H2Setting::MaxHeaderListSize(value),
             _ => H2Setting::Reserved { flag, value }
-        });
+        };
+        match frame {
+            None => fingerprint.h2_mut().frames.push(H2Frame::new_setting(Cow::Owned(vec![setting]))),
+            Some(frame) => match frame.payload.value {
+                H2PayloadValue::Settings(Cow::Owned(ref mut settings)) => settings.push(setting),
+                _ => unreachable!()
+            }
+        }
     }
 }
 
@@ -184,7 +194,14 @@ pub extern "system" fn Fingerprint_add_h2_setting(fingerprint: *mut Fingerprint,
 pub extern "system" fn Fingerprint_set_h2_window_size(fingerprint: *mut Fingerprint, size: u32) {
     let fingerprint = unsafe { fingerprint.as_mut() };
     if let Some(fingerprint) = fingerprint {
-        fingerprint.h2_mut().set_window_size(size);
+        let frame = fingerprint.h2_mut().frames.iter_mut().find(|x| x.frame_type() == H2FrameType::WindowUpdate);
+        match frame {
+            None => fingerprint.h2_mut().frames.push(H2Frame::new_window_update(size)),
+            Some(frame) => match frame.payload.value {
+                H2PayloadValue::U32(ref mut wu) => *wu = size,
+                _ => unreachable!()
+            }
+        }
     }
 }
 
@@ -324,24 +341,27 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
             suites: custom["suites"].members().map(|x| x.as_u16().unwrap_or(0).into()).collect(),
             extensions,
         };
-        let mut h2 = H2Finger {
-            settings: vec![],
-            window_size: custom["window_size"].as_u32().or(Err("missing window_size"))?,
-            weight: custom["weight"].as_u8().unwrap_or(0),
-            priority: custom["priority"].as_bool().unwrap_or(false),
-        };
+        let mut frames = Vec::with_capacity(2);
+        frames.push(H2Frame::new_window_update(custom["window_size"].as_u32().or(Err("missing window_size"))?));
+        let mut settings = Vec::with_capacity(4);
         for (key, value) in custom["settings"].entries() {
             match key {
-                "HeaderTableSize" => h2.settings.push(H2Setting::HeaderTableSize(value.as_u32()?)),
-                "EnablePush" => h2.settings.push(H2Setting::EnablePush(value.as_u32()?)),
-                "MaxConcurrentStreams" => h2.settings.push(H2Setting::MaxConcurrentStreams(value.as_u32()?)),
-                "InitialWindowSize" => h2.settings.push(H2Setting::InitialWindowSize(value.as_u32()?)),
-                "MaxFrameSize" => h2.settings.push(H2Setting::MaxFrameSize(value.as_u32()?)),
-                "MaxHeaderListSize" => h2.settings.push(H2Setting::MaxHeaderListSize(value.as_u32()?)),
-                "Reserved" => h2.settings.push(H2Setting::Reserved { flag: value["flag"].as_u16()?, value: value["value"].as_u32()? }),
+                "HeaderTableSize" => settings.push(H2Setting::HeaderTableSize(value.as_u32()?)),
+                "EnablePush" => settings.push(H2Setting::EnablePush(value.as_u32()?)),
+                "MaxConcurrentStreams" => settings.push(H2Setting::MaxConcurrentStreams(value.as_u32()?)),
+                "InitialWindowSize" => settings.push(H2Setting::InitialWindowSize(value.as_u32()?)),
+                "MaxFrameSize" => settings.push(H2Setting::MaxFrameSize(value.as_u32()?)),
+                "MaxHeaderListSize" => settings.push(H2Setting::MaxHeaderListSize(value.as_u32()?)),
+                "Reserved" => settings.push(H2Setting::Reserved { flag: value["flag"].as_u16()?, value: value["value"].as_u32()? }),
                 _ => return Err("unknown setting type".into()),
             }
         }
+        frames.push(H2Frame::new_setting(Cow::Owned(settings)));
+        let h2 = H2Finger {
+            frames,
+            weight: custom["weight"].as_u8().unwrap_or(0),
+            priority: custom["priority"].as_bool().unwrap_or(false),
+        };
         let finger = Fingerprint::new_h2(tls, h2, token)?;
         Ok(Box::into_raw(Box::new(finger)))
     }, |e| handle_err1(e, err, null_mut()))

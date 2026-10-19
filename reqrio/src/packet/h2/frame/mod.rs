@@ -1,21 +1,24 @@
 use crate::error::HlsResult;
+use std::borrow::Cow;
 pub use flag::H2FrameFlag;
-use reqtls::{u24, Buf, BufferError, Reader, Writer};
+use reqtls::{Buf, BufferError, Reader, Writer, u24};
 pub use setting::H2Setting;
 pub use typo::H2FrameType;
-use crate::reader::HCow;
+
 
 mod setting;
 mod typo;
 mod flag;
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum H2PayloadValue<'a> {
     Data(Buf<'a>),
     U32(u32),
-    Settings(HCow<'a, Vec<H2Setting>>),
+    Settings(Cow<'a, [H2Setting]>),
 }
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H2Payload<'a> {
     pub(crate) padding: usize,
     pub(crate) stream_dependency: u32,
@@ -62,14 +65,14 @@ impl<'a> H2Payload<'a> {
                     while let Ok(setting) = H2Setting::from_reader(&mut reader) {
                         res.push(setting);
                     }
-                    H2PayloadValue::Settings(HCow::Owned(res))
+                    H2PayloadValue::Settings(Cow::Owned(res))
                 }
                 _ => unreachable!("{}", typ)
             },
         })
     }
 
-    pub fn write_to(self, flag: H2FrameFlag, writer: &mut Writer) -> Result<(), BufferError> {
+    pub fn write_to(&self, flag: H2FrameFlag, writer: &mut Writer) -> Result<(), BufferError> {
         if flag.padding() {
             writer.write_u8(self.padding as u8)?;
             writer.write_slice(&vec![0; self.padding])?;
@@ -79,9 +82,9 @@ impl<'a> H2Payload<'a> {
             writer.write_u8(self.weight)?;
         }
         match self.value {
-            H2PayloadValue::Data(buf) => writer.write_slice(buf.as_slice()),
+            H2PayloadValue::Data(ref buf) => writer.write_slice(buf.as_slice()),
             H2PayloadValue::U32(val) => writer.write_u32(val),
-            H2PayloadValue::Settings(settings) => {
+            H2PayloadValue::Settings(ref settings) => {
                 for setting in settings.iter() {
                     setting.write_to(writer)?;
                 }
@@ -92,6 +95,7 @@ impl<'a> H2Payload<'a> {
 }
 
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H2Frame<'a> {
     #[allow(dead_code)]
     len: u24,
@@ -112,7 +116,7 @@ impl<'a> H2Frame<'a> {
         }
     }
 
-    pub fn new_setting(settings: HCow<'a, Vec<H2Setting>>) -> H2Frame<'a> {
+    pub fn new_setting(settings: Cow<'a, [H2Setting]>) -> H2Frame<'a> {
         let mut frame = H2Frame::new(0, H2FrameType::Settings);
         frame.payload.value = H2PayloadValue::Settings(settings);
         frame
@@ -137,7 +141,7 @@ impl<'a> H2Frame<'a> {
         })
     }
 
-    pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
+    pub fn write_to(&self, writer: &mut Writer) -> Result<(), BufferError> {
         let start = writer.end();
         writer.write_u24(0)?;
         writer.write_u8(self.typ.into_inner())?;

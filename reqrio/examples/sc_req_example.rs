@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use reqrio::*;
 
 fn build_finger() -> Fingerprint {
@@ -63,13 +64,15 @@ fn build_finger() -> Fingerprint {
         ],
     };
     let h2 = H2Finger {
-        settings: vec![
-            H2Setting::EnablePush(0),
-            H2Setting::HeaderTableSize(4096),
-            H2Setting::InitialWindowSize(8192),
-            H2Setting::MaxHeaderListSize(242144)
+        frames: vec![
+            H2Frame::new_setting(Cow::Owned(vec![
+                H2Setting::EnablePush(0),
+                H2Setting::HeaderTableSize(4096),
+                H2Setting::InitialWindowSize(8192),
+                H2Setting::MaxHeaderListSize(242144)
+            ])),
+            H2Frame::new_window_update(2147418112)
         ],
-        window_size: 2147418112,
         weight: 234,
         priority: true,
     };

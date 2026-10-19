@@ -1,15 +1,13 @@
+use std::borrow::Cow;
 use std::fmt::Debug;
 use crate::*;
 #[cfg(feature = "quic")]
 use crate::packet::{H3Frame, H3Setting};
-use crate::reader::HCow;
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H2Finger {
-    ///SETTING
-    pub settings: Vec<H2Setting>,
-    ///WINDOW UPDATE: window size increment
-    pub window_size: u32,
+    ///setting frame
+    pub frames: Vec<H2Frame<'static>>,
     ///weight
     pub weight: u8,
     ///priority
@@ -19,13 +17,15 @@ pub struct H2Finger {
 impl Default for H2Finger {
     fn default() -> Self {
         H2Finger {
-            settings: vec![
-                H2Setting::HeaderTableSize(65536),
-                H2Setting::EnablePush(0),
-                H2Setting::InitialWindowSize(6291456),
-                H2Setting::MaxHeaderListSize(242144)
+            frames: vec![
+                H2Frame::new_setting(Cow::Owned(vec![
+                    H2Setting::HeaderTableSize(65536),
+                    H2Setting::EnablePush(0),
+                    H2Setting::InitialWindowSize(6291456),
+                    H2Setting::MaxHeaderListSize(242144)
+                ])),
+                H2Frame::new_window_update(2147418112)
             ],
-            window_size: 2147418112,
             weight: 147,
             priority: true,
         }
@@ -33,30 +33,31 @@ impl Default for H2Finger {
 }
 
 impl H2Finger {
-    pub fn build_setting(&self) -> H2Frame<'_> {
-        H2Frame::new_setting(HCow::Borrowed(&self.settings))
+    pub fn build_setting(&self, writer: &mut Writer) -> Result<(), BufferError> {
+        for frame in self.frames.iter() {
+            frame.write_to(writer)?;
+        }
+        Ok(())
     }
 
-    pub fn build_window_update(&self) -> H2Frame<'_> {
-        H2Frame::new_window_update(self.window_size)
-    }
-
-    pub fn add_setting(&mut self, setting: H2Setting) {
-        self.settings.push(setting);
-    }
-
-    pub fn set_window_size(&mut self, window_size: u32) {
-        self.window_size = window_size;
+    pub fn add_frame(&mut self, frame: H2Frame<'static>) {
+        self.frames.push(frame)
     }
 
     pub fn set_priority(&mut self, priority: bool, weight: u8) {
         self.priority = priority;
         self.weight = weight;
     }
+
+    pub fn with_priority(mut self, priority: bool, weight: u8) -> Self {
+        self.set_priority(priority, weight);
+        self
+    }
 }
 
-#[cfg(feature = "quic")]
+
 ///h3帧，仅用于握手后`setting stream`
+#[cfg(feature = "quic")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H3Finger {
     pub frames: Vec<H3Frame<'static>>,
@@ -93,6 +94,10 @@ pub struct Fingerprint {
 }
 
 impl Fingerprint {
+    // pub fn from_builtin(name: &'static str) -> HlsResult<Fingerprint> {
+    //
+    // }
+
     pub fn new_custom(token: impl AsRef<str>) -> Fingerprint {
         Fingerprint {
             tls: TlsFinger::Custom {
@@ -102,8 +107,7 @@ impl Fingerprint {
                 extensions: vec![],
             },
             h2: H2Finger {
-                settings: vec![],
-                window_size: 0,
+                frames: vec![],
                 weight: 0,
                 priority: false,
             },

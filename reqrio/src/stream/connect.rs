@@ -315,8 +315,7 @@ impl<'a> HTTPStreamConnect<'a, std::net::TcpStream> {
                     h2 if h2 == ALPN::HTTP20 => {
                         let mut buffer = self.tls_connecting.app_buf;
                         buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
-                        self.fingerprint.h2().build_setting().write_to(&mut buffer)?;
-                        self.fingerprint.h2().build_window_update().write_to(&mut buffer)?;
+                        self.fingerprint.h2().build_setting(&mut buffer)?;
                         tls_stream.write_all(buffer.filled())?;
                         buffer.reset();
                         HTTPStream::SyncH2(HTTP2Stream::new(buffer, Stream::SyncHttps(tls_stream)))
@@ -368,8 +367,7 @@ impl<'a> Future for HTTPStreamConnect<'a, tokio::net::TcpStream> {
                     connector.stream = Stream::AsyncHttps(tls_stream);
                     let buffer = &mut connector.tls_connecting.app_buf;
                     buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
-                    connector.fingerprint.h2().build_setting().write_to(buffer)?;
-                    connector.fingerprint.h2().build_window_update().write_to(buffer)?;
+                    connector.fingerprint.h2().build_setting(buffer)?;
                 }
                 Poll::Pending => return Poll::Pending,
             }

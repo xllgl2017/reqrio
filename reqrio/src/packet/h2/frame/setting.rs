@@ -2,15 +2,14 @@ use crate::error::HlsResult;
 use std::fmt::{Debug, Formatter};
 use reqtls::{BufferError, Reader, Writer};
 
-#[derive(PartialEq, Copy, Clone)]
-#[repr(u16)]
+#[derive(PartialEq, Clone)]
 pub enum H2Setting {
-    HeaderTableSize(u32) = 0x1,
-    EnablePush(u32) = 0x2,
-    MaxConcurrentStreams(u32) = 0x3,
-    InitialWindowSize(u32) = 0x4,
-    MaxFrameSize(u32) = 0x5,
-    MaxHeaderListSize(u32) = 0x6,
+    HeaderTableSize(u32),
+    EnablePush(u32),
+    MaxConcurrentStreams(u32),
+    InitialWindowSize(u32),
+    MaxFrameSize(u32),
+    MaxHeaderListSize(u32),
     Reserved { flag: u16, value: u32 },
 }
 

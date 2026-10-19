@@ -95,8 +95,8 @@ pub enum TlsFinger<'a> {
         ///extension
         extensions: Vec<Extension>,
     },
-    // Builtin(&'static str),
-    // Idx(usize),
+    Builtin(&'static str),
+    Idx(usize),
 }
 
 #[repr(C)]
@@ -178,15 +178,8 @@ impl<'a> TlsFinger<'a> {
                 };
                 unsafe { Record_build_client_hello(&mut param, *record_version, &client_hello) }
             }
+            _ => unreachable!()
         }.ok(BufferError::InvalidCEncode)
-    }
-
-    pub fn record_version(&self) -> Version {
-        match self {
-            TlsFinger::Default => Version::TLS_1_0,
-            TlsFinger::ClientHello { record_version, .. } => *record_version,
-            TlsFinger::Custom { record_version, .. } => *record_version,
-        }
     }
 
     fn random_formats() -> Vec<EcPointFormat> {
@@ -374,7 +367,8 @@ impl<'a> TlsFinger<'a> {
         match self {
             TlsFinger::Default => None,
             TlsFinger::ClientHello { .. } => None,
-            TlsFinger::Custom { extensions, .. } => extensions.iter_mut().find(|x| **x == typ)
+            TlsFinger::Custom { extensions, .. } => extensions.iter_mut().find(|x| **x == typ),
+            _ => unreachable!()
         }
     }
 }
@@ -433,7 +427,6 @@ mod tests {
             _rsv: false,
         }).unwrap();
         assert!(RecordLayer::from_bytes(writer.filled(), KeyExchangeAlg::NULL, false).is_ok());
-        // println!("{:#?}", RecordLayer::from_bytes(writer.filled(), KeyExchangeAlg::NULL, false).unwrap());
     }
 
     #[test]
@@ -527,7 +520,5 @@ mod tests {
             conn: &mut connection,
         }).unwrap();
         assert!(RecordLayer::from_bytes(writer.filled(), KeyExchangeAlg::NULL, false).is_ok());
-        // println!("{} {:?}", writer.len(), writer.filled());
-        // println!("{:#?}", RecordLayer::from_bytes(writer.filled(), KeyExchangeAlg::NULL, false).unwrap());
     }
 }
