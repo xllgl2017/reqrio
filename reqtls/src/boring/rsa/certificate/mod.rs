@@ -4,15 +4,14 @@ mod siger;
 mod cert_type;
 
 use super::bindings::*;
-use crate::boring::bindings::*;
 use crate::boring::BoringResExt;
+use crate::boring::bindings::*;
 use crate::error::RlsResult;
 use crate::ffi::CPointer;
 use crate::{BufferError, RlsError};
 pub use cert_type::CertType;
 #[cfg(feature = "cert_signer")]
 pub use siger::{BasicConstraint, CertExtend, CertSigner, DnType, KeyIdentifier, KeyUsage, SubjectAltName};
-use std::ffi::CString;
 use std::os::raw::{c_int, c_long};
 use std::path::Path;
 use std::ptr::null_mut;
@@ -113,11 +112,10 @@ impl Certificate {
         Ok((pubkey, key_usage))
     }
 
-    pub fn verify_sni(&self, sni: impl Into<Vec<u8>>) -> RlsResult<()> {
-        let sni = sni.into();
-        let sni_len = sni.len();
-        let c_sni = CString::new(sni)?;
-        unsafe { X509_check_host(self.x509.as_ptr(), c_sni.as_ptr(), sni_len, 0, null_mut()) }.ok(RlsError::CertSniInvalid)
+    pub fn verify_sni(&self, sni: &str) -> RlsResult<()> {
+        unsafe {
+            X509_check_host(self.x509.as_ptr(), sni.as_ptr().cast(), sni.len(), 0, null_mut())
+        }.ok(RlsError::CertSniInvalid)
     }
 
     pub fn x509(&self) -> &CPointer<X509> { &self.x509 }
