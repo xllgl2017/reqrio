@@ -1,5 +1,4 @@
 use crate::error::HlsResult;
-use std::borrow::Cow;
 pub use flag::H2FrameFlag;
 use reqtls::{Buf, BufferError, Reader, Writer, u24};
 pub use setting::H2Setting;
@@ -14,7 +13,7 @@ mod flag;
 pub enum H2PayloadValue<'a> {
     Data(Buf<'a>),
     U32(u32),
-    Settings(Cow<'a, [H2Setting]>),
+    Settings(Vec<H2Setting>),
 }
 
 
@@ -65,7 +64,7 @@ impl<'a> H2Payload<'a> {
                     while let Ok(setting) = H2Setting::from_reader(&mut reader) {
                         res.push(setting);
                     }
-                    H2PayloadValue::Settings(Cow::Owned(res))
+                    H2PayloadValue::Settings(res)
                 }
                 _ => unreachable!("{}", typ)
             },
@@ -116,7 +115,7 @@ impl<'a> H2Frame<'a> {
         }
     }
 
-    pub fn new_setting(settings: Cow<'a, [H2Setting]>) -> H2Frame<'a> {
+    pub fn new_setting(settings: Vec<H2Setting>) -> H2Frame<'a> {
         let mut frame = H2Frame::new(0, H2FrameType::Settings);
         frame.payload.value = H2PayloadValue::Settings(settings);
         frame

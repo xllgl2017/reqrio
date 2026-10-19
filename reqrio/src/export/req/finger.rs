@@ -180,9 +180,9 @@ pub extern "system" fn Fingerprint_add_h2_setting(fingerprint: *mut Fingerprint,
             _ => H2Setting::Reserved { flag, value }
         };
         match frame {
-            None => fingerprint.h2_mut().frames.push(H2Frame::new_setting(Cow::Owned(vec![setting]))),
+            None => fingerprint.h2_mut().frames.push(H2Frame::new_setting(vec![setting])),
             Some(frame) => match frame.payload.value {
-                H2PayloadValue::Settings(Cow::Owned(ref mut settings)) => settings.push(setting),
+                H2PayloadValue::Settings(ref mut settings) => settings.push(setting),
                 _ => unreachable!()
             }
         }
@@ -356,7 +356,7 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
                 _ => return Err("unknown setting type".into()),
             }
         }
-        frames.push(H2Frame::new_setting(Cow::Owned(settings)));
+        frames.push(H2Frame::new_setting(settings));
         let h2 = H2Finger {
             frames,
             weight: custom["weight"].as_u8().unwrap_or(0),

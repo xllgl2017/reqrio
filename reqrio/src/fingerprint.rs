@@ -1,10 +1,9 @@
-use std::borrow::Cow;
+#[cfg(feature = "quic")]
+use crate::packet::{H3Frame, H3Setting};
+use crate::*;
 use std::ffi::CString;
 use std::fmt::Debug;
 use std::os::raw::c_char;
-use crate::*;
-#[cfg(feature = "quic")]
-use crate::packet::{H3Frame, H3Setting};
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H2Finger {
@@ -20,12 +19,12 @@ impl Default for H2Finger {
     fn default() -> Self {
         H2Finger {
             frames: vec![
-                H2Frame::new_setting(Cow::Owned(vec![
+                H2Frame::new_setting(vec![
                     H2Setting::HeaderTableSize(65536),
                     H2Setting::EnablePush(0),
                     H2Setting::InitialWindowSize(6291456),
                     H2Setting::MaxHeaderListSize(242144)
-                ])),
+                ]),
                 H2Frame::new_window_update(2147418112)
             ],
             weight: 147,
