@@ -203,8 +203,14 @@ mod aead_tests {
     use crate::boring::AeadCtx;
     use crate::boring::evp::aead::AeadDir;
     use crate::buffer::{CipherEncodeBuffer, TlsDecodeBuffer};
-    use crate::{CipherSuite, RecordType, Version, Writer};
+    use crate::{CipherSuite, RecordType, Version};
+    use std::ffi::CString;
+    use std::os::raw::c_char;
     use std::{env, fs, mem};
+
+    unsafe extern "C" {
+        fn is_subscription(token: *const c_char) -> bool;
+    }
 
     fn test_aead(suite: &'static CipherSuite, key: &[u8], size: usize, en: &[u8]) {
         let ctx = AeadCtx::new_with_key(*suite.aead(), AeadDir::Open, key).unwrap();
@@ -234,7 +240,7 @@ mod aead_tests {
         let token = fs::read_to_string("../TOKEN").unwrap_or_else(|_| {
             env::var("REQRIO_TOKEN").unwrap_or("".to_string())
         });
-        Writer::check_subscription(token).unwrap();
+        unsafe { is_subscription(CString::from_vec_unchecked(token.into_bytes()).as_ptr()) };
         let key = [1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8];
         test_aead(
             &CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,

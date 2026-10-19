@@ -41,7 +41,7 @@ impl Extend {
         }
     }
 
-    pub fn from_extension(extend: &Extension) -> Extend {
+    pub const fn from_extension(extend: &Extension) -> Extend {
         match extend {
             Extension::KeyShare(entries) => Extend::new(ExtensionType::KeyShare, entries.len() as u16, entries.as_slice()),
             Extension::StatusRequest(status_request) => Extend::new(ExtensionType::StatusRequest, 1, status_request),
@@ -53,18 +53,18 @@ impl Extend {
             Extension::ApplicationSettingOld(alps) => Extend::new_slice(ExtensionType::ApplicationSettingOld, alps.as_slice()),
             Extension::EcPointFormats(formats) => Extend::new_slice(ExtensionType::EcPointFormats, formats.as_slice()),
             Extension::CompressionCertificate(methods) => Extend::new_slice(ExtensionType::CompressionCertificate, methods.as_slice()),
-            Extension::RenegotiationInfo(info) => Extend::new_slice(ExtensionType::RenegotiationInfo, info.as_ref()),
+            Extension::RenegotiationInfo(info) => Extend::new_slice(ExtensionType::RenegotiationInfo, info.as_slice()),
             Extension::SignedCertificateTimestamp => Extend::new_null(ExtensionType::SignedCertificateTimestamp),
             Extension::SignatureAlgorithms(algorithms) => Extend::new_slice(ExtensionType::SignatureAlgorithms, algorithms.as_slice()),
             Extension::PskKeyExchangeModes(modes) => Extend::new_slice(ExtensionType::PskKeyExchangeMode, modes.as_slice()),
-            Extension::SessionTicket(ticket) => Extend::new_slice(ExtensionType::SessionTicket, ticket.as_ref()),
-            Extension::EncryptedClientHello(encrypted_client_hello) => Extend::new_slice(ExtensionType::EncryptedClientHello, encrypted_client_hello.as_ref()),
+            Extension::SessionTicket(ticket) => Extend::new_slice(ExtensionType::SessionTicket, ticket.as_slice()),
+            Extension::EncryptedClientHello(encrypted_client_hello) => Extend::new_slice(ExtensionType::EncryptedClientHello, encrypted_client_hello.as_slice()),
             #[cfg(feature = "quic")]
             Extension::QuicTrpParameters(parameters) => Extend::new_slice(ExtensionType::QuicTrpParameters, parameters.as_slice()),
             Extension::ExtendedMasterSecret => Extend::new_null(ExtensionType::ExtendedMasterSecret),
             Extension::EncryptTheMac => Extend::new_null(ExtensionType::EncryptTheMac),
             Extension::Padding(size) => Extend { typ: ExtensionType::Padding, len: *size as u16, value: &StatusRequest::OCSP as *const StatusRequest as *const c_void },
-            Extension::Reserved { typ, value } => Extend::new_slice(*typ, value.as_ref()),
+            Extension::Reserved { typ, value } => Extend::new_slice(*typ, value.as_slice()),
         }
     }
 }

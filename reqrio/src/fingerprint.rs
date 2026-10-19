@@ -1,5 +1,7 @@
 use std::borrow::Cow;
+use std::ffi::CString;
 use std::fmt::Debug;
+use std::os::raw::c_char;
 use crate::*;
 #[cfg(feature = "quic")]
 use crate::packet::{H3Frame, H3Setting};
@@ -90,15 +92,11 @@ pub struct Fingerprint {
     h2: H2Finger,
     #[cfg(feature = "quic")]
     h3: H3Finger,
-    legal_subscript: i32,
 }
 
 impl Fingerprint {
-    // pub fn from_builtin(name: &'static str) -> HlsResult<Fingerprint> {
-    //
-    // }
-
     pub fn new_custom(token: impl AsRef<str>) -> Fingerprint {
+        Fingerprint::check_subscription(token);
         Fingerprint {
             tls: TlsFinger::Custom {
                 record_version: Version::TLS_1_0,
@@ -115,34 +113,33 @@ impl Fingerprint {
             h3: H3Finger {
                 frames: vec![]
             },
-            legal_subscript: Writer::check_subscription(token).unwrap_or(-2),
         }
     }
 
     pub fn new_h2(tls: TlsFinger<'static>, h2: H2Finger, token: impl AsRef<str>) -> HlsResult<Self> {
+        Fingerprint::check_subscription(token);
         Ok(Fingerprint {
             tls,
             h2,
             #[cfg(feature = "quic")]
             h3: H3Finger::default(),
-            legal_subscript: Writer::check_subscription(token)?,
         })
     }
 
     #[cfg(feature = "quic")]
     pub fn new_h3(tls: TlsFinger<'static>, h3: H3Finger, token: impl AsRef<str>) -> HlsResult<Self> {
+        Fingerprint::check_subscription(token);
         Ok(Fingerprint {
             tls,
             h2: H2Finger::default(),
             h3,
-            legal_subscript: Writer::check_subscription(token)?,
         })
     }
 
     pub fn new_tls(tls: TlsFinger<'static>, token: impl AsRef<str>) -> HlsResult<Self> {
+        Fingerprint::check_subscription(token);
         Ok(Fingerprint {
             tls,
-            legal_subscript: Writer::check_subscription(token)?,
             ..Default::default()
         })
     }
@@ -153,10 +150,6 @@ impl Fingerprint {
 
     pub fn h2_mut(&mut self) -> &mut H2Finger {
         &mut self.h2
-    }
-
-    pub fn legal_subscript(&self) -> i32 {
-        self.legal_subscript
     }
 
     pub fn tls(&self) -> &TlsFinger<'_> { &self.tls }
@@ -176,45 +169,58 @@ impl Fingerprint {
 
 impl Fingerprint {
     pub fn random(token: impl AsRef<str>) -> Fingerprint {
+        Fingerprint::check_subscription(token);
         Fingerprint {
             tls: TlsFinger::random(),
-            legal_subscript: Writer::check_subscription(token).unwrap_or(-2),
             ..Default::default()
         }
     }
 
     ///client hello bytes prefix: [1, 0, .]
     pub fn from_client_hello(record_version: Version, ch: Vec<u8>, token: impl AsRef<str>) -> HlsResult<Fingerprint> {
+        Fingerprint::check_subscription(token);
         Ok(Fingerprint {
             tls: TlsFinger::ClientHello { record_version, bytes: Buf::Vec(ch) },
-            legal_subscript: Writer::check_subscription(token)?,
             ..Default::default()
         })
     }
 
     ///record hex prefix: 220303
     pub fn from_record_hex(hex_str: impl AsRef<str>, token: impl AsRef<str>) -> HlsResult<Fingerprint> {
+        Fingerprint::check_subscription(token);
         Ok(Fingerprint {
             tls: TlsFinger::from_record_hex(hex_str)?,
-            legal_subscript: Writer::check_subscription(token)?,
             ..Default::default()
         })
     }
 
     pub fn from_ja3(ja3: impl AsRef<str>, token: impl AsRef<str>) -> HlsResult<Fingerprint> {
+        Fingerprint::check_subscription(token);
         Ok(Fingerprint {
             tls: TlsFinger::from_ja3(ja3)?,
-            legal_subscript: Writer::check_subscription(token)?,
             ..Default::default()
         })
     }
 
     pub fn from_ja4(ja4: impl AsRef<str>, token: impl AsRef<str>) -> HlsResult<Fingerprint> {
+        Fingerprint::check_subscription(token);
         Ok(Fingerprint {
             tls: TlsFinger::from_ja4(ja4)?,
-            legal_subscript: Writer::check_subscription(token)?,
             ..Default::default()
         })
+    }
+
+    pub fn check_subscription(token: impl AsRef<str>) {
+        unsafe extern "C" {
+            fn is_subscription(token: *const c_char) -> bool;
+        }
+        let is_subscribed = unsafe {
+            let token = CString::from_vec_unchecked(token.as_ref().to_string().into_bytes());
+            is_subscription(token.as_ptr())
+        };
+        if !is_subscribed {
+            println!("\x1b[01;33m[Fingerprint] WARN \x1b[0m You have not subscribed yet, so this call will be ignored.");
+        }
     }
 }
 
@@ -225,7 +231,6 @@ impl Default for Fingerprint {
             h2: H2Finger::default(),
             #[cfg(feature = "quic")]
             h3: H3Finger::default(),
-            legal_subscript: -2,
         }
     }
 }

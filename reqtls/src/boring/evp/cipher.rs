@@ -283,8 +283,13 @@ pub fn de_hex<T: Into<Vec<u8>>>(typ: CipherType, key: T, iv: Option<T>, data: im
 
 #[cfg(test)]
 mod tests {
+    use crate::{Cipher, CipherType};
+    use std::ffi::CString;
+    use std::os::raw::c_char;
     use std::{env, fs};
-    use crate::{Writer, Cipher, CipherType};
+    unsafe extern "C" {
+        fn is_subscription(token: *const c_char) -> bool;
+    }
 
     fn test_one_cipher<T: Into<Vec<u8>>>(typ: CipherType, key: T, iv: Option<T>, data: &[u8], en: &[u8]) {
         let cipher = Cipher::new(typ).with_secret_key(key, iv);
@@ -300,7 +305,7 @@ mod tests {
         let token = fs::read_to_string("../TOKEN").unwrap_or_else(|_| {
             env::var("REQRIO_TOKEN").unwrap_or("".to_string())
         });
-        Writer::check_subscription(token).unwrap();
+        unsafe { is_subscription(CString::from_vec_unchecked(token.into_bytes()).as_ptr()) };
         let k16 = "1234567812345678";
         let k24 = "123456781234567812345678";
         let k32 = "12345678123456781234567812345678";

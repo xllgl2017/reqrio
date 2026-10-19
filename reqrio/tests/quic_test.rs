@@ -8,7 +8,7 @@ static TOKEN: LazyLock<String> = LazyLock::new(|| fs::read_to_string("../TOKEN")
 #[test]
 #[cfg(not(feature = "staticlink"))]
 fn test_quic() {
-    Buffer::check_subscription(TOKEN.as_str()).unwrap();
+    Fingerprint::check_subscription(TOKEN.as_str());
     let mut req = ScReq::new().with_alpn(ALPN::HTTP30);
     let resp = req.get("https://www.bing.com", None).unwrap();
     assert_eq!(resp.status(), HttpStatus::OK)
@@ -17,7 +17,7 @@ fn test_quic() {
 #[cfg(all(feature = "aync", not(feature = "staticlink")))]
 #[tokio::test]
 async fn test_quic_async() {
-    Buffer::check_subscription(TOKEN.as_str()).unwrap();
+    Fingerprint::check_subscription(TOKEN.as_str());
     let mut req = AcReq::new().with_alpn(ALPN::HTTP30);
     let resp = req.get("https://www.bing.com", None).await.unwrap();
     assert_eq!(resp.status(), HttpStatus::OK)

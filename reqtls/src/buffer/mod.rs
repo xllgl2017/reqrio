@@ -3,17 +3,15 @@ mod decode;
 mod error;
 mod reader;
 
-use crate::error::RlsResult;
 use crate::ffi::{CPointer, c_struct_free};
 pub use decode::TlsDecodeBuffer;
 pub use encode::CipherEncodeBuffer;
 pub use error::BufferError;
 pub use reader::Reader;
 use std::cmp::max;
-use std::ffi::CString;
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::{c_int};
 use std::ptr::null_mut;
 use std::{ptr, slice};
 
@@ -40,7 +38,6 @@ unsafe extern "C" {
     fn Writer_write_slice_unchecked(buffer: *mut Writer, ptr: *const u8, len: usize);
     fn Writer_write_slice_in(buffer: *mut Writer, place: usize, ptr: *const u8, len: usize) -> i32;
     fn Writer_move_to(buffer: *mut Writer, from: usize, to: usize, pos: usize);
-    pub fn is_subscription(token: *const c_char) -> bool;
 }
 
 c_struct_free!(Writer, Writer_free);
@@ -339,14 +336,6 @@ impl Writer {
         let res = unsafe { Writer_write_slice_in(self, place, v.as_ptr(), v.len()) };
         self.check_write(res, v.len())?;
         Ok(v.len())
-    }
-
-    pub fn check_subscription(token: impl AsRef<str>) -> RlsResult<i32> {
-        let is_subscribed = unsafe { is_subscription(CString::new(token.as_ref())?.as_ptr()) };
-        if !is_subscribed {
-            println!("\x1b[01;33m[Fingerprint] WARN \x1b[0m You have not subscribed yet, so this call will be ignored.");
-        }
-        Ok(if is_subscribed { 0 } else { -2 })
     }
 
     pub fn extend_from_slice(&mut self, buf: &[u8]) -> Result<(), BufferError> {
