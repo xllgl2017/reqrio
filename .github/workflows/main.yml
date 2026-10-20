@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact: x86_64-linux-gnu
             outdir: debug
             file: libreqrio.so
@@ -47,7 +47,7 @@ jobs:
           cache-on-failure: true
       - name: build and test
         run: |
-          cargo test --features aync,serde,staticlink,quic,reqtls/cert_signer -- --test-threads=1
+          cargo test --features aync,serde,staticlink,quic,reqtls/cert_signer
           cargo build --package reqrio --features export,staticlink,quic,reqtls/cert_signer
       - name: Copy dylib to bindings
         run: cp target/${{ matrix.outdir }}/${{ matrix.file }} bindings/python/reqrio/
