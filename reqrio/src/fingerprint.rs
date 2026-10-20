@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 unsafe extern "C" {
     fn Finger_build_h2(finger: *const Finger, writer: *mut Writer) -> c_int;
+    #[cfg(feature = "quic")]
     fn Finger_build_h3(finger: *const Finger, writer: *mut Writer) -> c_int;
     fn get_compute_id() -> *const u8;
     fn Finger_get_builtin(
@@ -90,6 +91,7 @@ pub struct H3Finger {
     pub adv: Option<Arc<Finger>>,
 }
 
+#[cfg(feature = "quic")]
 impl H3Finger {
     pub fn build_settings(&self, writer: &mut Writer) -> Result<(), BufferError> {
         if let Some(ref adv) = self.adv {
@@ -175,6 +177,7 @@ impl Fingerprint {
         Ok((res, Fingerprint {
             tls: TlsFinger::Adv(finger.clone()),
             h2: Default::default(),
+            #[cfg(feature = "quic")]
             h3: Default::default(),
         }))
     }
