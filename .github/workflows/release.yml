@@ -21,56 +21,56 @@ jobs:
   # ----------------------------------------------------------------------------
   # 发布前检查：Linux + Windows 上跑测试与 FFI 测试，任一失败则中止整个发布流程
   # ----------------------------------------------------------------------------
-#  prerelease-check:
-#    name: prerelease-check (${{ matrix.os }})
-#    strategy:
-#      fail-fast: true
-#      matrix:
-#        os: [ ubuntu-latest, windows-latest ]
-#    runs-on: ${{ matrix.os }}
-#    env:
-#      REQRIO_TOKEN: ${{ secrets.REQRIO_TOKEN }}
-#    steps:
-#      - uses: actions/checkout@v4
-#        with:
-#          submodules: recursive
-#      - uses: Swatinem/rust-cache@v2
-#        with:
-#          key: |
-#            ${{ runner.os }}-cargo-${{ github.ref }}-${{ hashFiles('**/Cargo.lock') }}
-#            ${{ runner.os }}-cargo-${{ github.ref }}-
-#            ${{ runner.os }}-cargo-
-#          cache-on-failure: true
-#          prefix-key: |
-#            ${{ runner.os }}-cargo-
-#
-#      - name: cargo test
-#        run: |
-#          cargo test --features aync,serde --release
-#
-#      - name: cargo build (export cdylib)
-#        run: cargo build --package reqrio --release --features export
-#
-#      - name: Copy native lib (Linux)
-#        if: runner.os == 'Linux'
-#        run: cp target/release/libreqrio.so bindings/python/reqrio/
-#
-#      - name: Copy native lib (Windows)
-#        if: runner.os == 'Windows'
-#        run: copy target\release\reqrio.dll bindings\python\reqrio\
-#
-#      - name: Set PYTHONPATH (Linux)
-#        if: runner.os == 'Linux'
-#        run: echo "PYTHONPATH=${{ github.workspace }}/bindings/python" >> $GITHUB_ENV
-#
-#      - name: Set PYTHONPATH (Windows)
-#        if: runner.os == 'Windows'
-#        run: echo "PYTHONPATH=${{ github.workspace }}\bindings\python" >> $env:GITHUB_ENV
-#
-#      - name: Run Python FFI test
-#        run: |
-#          python bindings/python/tests/test_session.py
-#          python bindings/python/tests/test_cipher.py
+  #  prerelease-check:
+  #    name: prerelease-check (${{ matrix.os }})
+  #    strategy:
+  #      fail-fast: true
+  #      matrix:
+  #        os: [ ubuntu-latest, windows-latest ]
+  #    runs-on: ${{ matrix.os }}
+  #    env:
+  #      REQRIO_TOKEN: ${{ secrets.REQRIO_TOKEN }}
+  #    steps:
+  #      - uses: actions/checkout@v4
+  #        with:
+  #          submodules: recursive
+  #      - uses: Swatinem/rust-cache@v2
+  #        with:
+  #          key: |
+  #            ${{ runner.os }}-cargo-${{ github.ref }}-${{ hashFiles('**/Cargo.lock') }}
+  #            ${{ runner.os }}-cargo-${{ github.ref }}-
+  #            ${{ runner.os }}-cargo-
+  #          cache-on-failure: true
+  #          prefix-key: |
+  #            ${{ runner.os }}-cargo-
+  #
+  #      - name: cargo test
+  #        run: |
+  #          cargo test --features aync,serde --release
+  #
+  #      - name: cargo build (export cdylib)
+  #        run: cargo build --package reqrio --release --features export
+  #
+  #      - name: Copy native lib (Linux)
+  #        if: runner.os == 'Linux'
+  #        run: cp target/release/libreqrio.so bindings/python/reqrio/
+  #
+  #      - name: Copy native lib (Windows)
+  #        if: runner.os == 'Windows'
+  #        run: copy target\release\reqrio.dll bindings\python\reqrio\
+  #
+  #      - name: Set PYTHONPATH (Linux)
+  #        if: runner.os == 'Linux'
+  #        run: echo "PYTHONPATH=${{ github.workspace }}/bindings/python" >> $GITHUB_ENV
+  #
+  #      - name: Set PYTHONPATH (Windows)
+  #        if: runner.os == 'Windows'
+  #        run: echo "PYTHONPATH=${{ github.workspace }}\bindings\python" >> $env:GITHUB_ENV
+  #
+  #      - name: Run Python FFI test
+  #        run: |
+  #          python bindings/python/tests/test_session.py
+  #          python bindings/python/tests/test_cipher.py
 
   # ----------------------------------------------------------------------------
   # 版本号 bump：改好所有文件版本号后提交到「临时分支」ci/release-<version>，
@@ -311,8 +311,8 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish --package reqtls
-          cargo publish --package reqrio
+          cargo publish --package reqtls || true
+          cargo publish --package reqrio || true
 
 
   # ----------------------------------------------------------------------------
