@@ -231,7 +231,7 @@ impl HTTP3Stream<std::net::UdpSocket> {
             }
             let mut reader = Reader::from_slice(param.buffer.filled());
             #[cfg(all(debug_assertions, feature = "log"))]
-            debug!("[HTTP3] recv quic: typ={:?}; sid={}; fin={}; off={}",param.typ, sid,  param.recv_fin, param.recv_offset);
+            trace!("[HTTP3] recv quic: typ={:?}; sid={}; fin={}; off={}",param.typ, sid,  param.recv_fin, param.recv_offset);
             let mut pos = reader.position();
             while reader.unread_len() > 0 {
                 let frame = match param.typ.handle_stream(&mut reader, recv.decoder) {
