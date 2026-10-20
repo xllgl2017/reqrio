@@ -361,6 +361,7 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
             frames,
             weight: custom["weight"].as_u8().unwrap_or(0),
             priority: custom["priority"].as_bool().unwrap_or(false),
+            adv: None,
         };
         let finger = Fingerprint::new_h2(tls, h2, token)?;
         Ok(Box::into_raw(Box::new(finger)))

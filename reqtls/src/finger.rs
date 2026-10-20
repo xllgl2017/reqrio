@@ -2,12 +2,14 @@ use crate::boring::BoringResExt;
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::extend::{Extension, ExtensionType, StatusRequest};
+use crate::ffi::c_struct_free;
 use crate::*;
 #[cfg(debug_assertions)]
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::os::raw::{c_int, c_void};
 use std::ptr::{null, null_mut};
-
+use std::sync::Arc;
 
 #[repr(C)]
 struct Extend {
@@ -74,6 +76,9 @@ unsafe extern "C" {
     fn Record_build(config: *const RecordParam, typ: u8) -> c_int;
     #[allow(improper_ctypes)]
     fn Record_build_client_hello(config: *mut RecordParam, record_version: Version, client_hello: *const ClientHello) -> c_int;
+    #[allow(improper_ctypes)]
+    fn Record_build_adv(config: *mut RecordParam, finger: *const Finger) -> c_int;
+    fn Finger_free(finger: *mut Finger);
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -95,8 +100,7 @@ pub enum TlsFinger<'a> {
         ///extension
         extensions: Vec<Extension>,
     },
-    Builtin(&'static str),
-    Idx(usize),
+    Adv(Arc<Finger>),
 }
 
 #[repr(C)]
@@ -178,7 +182,7 @@ impl<'a> TlsFinger<'a> {
                 };
                 unsafe { Record_build_client_hello(&mut param, *record_version, &client_hello) }
             }
-            _ => unreachable!()
+            TlsFinger::Adv(finger) => unsafe { Record_build_adv(&mut param, finger.deref()) }
         }.ok(BufferError::InvalidCEncode)
     }
 
@@ -371,6 +375,15 @@ impl<'a> TlsFinger<'a> {
             _ => unreachable!()
         }
     }
+}
+
+c_struct_free!(Finger, Finger_free);
+#[repr(C)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct Finger {
+    pub hdr_count: u8,
+    pub hdr: *mut c_void,
+    pub _rsv: [u8; 88],
 }
 
 

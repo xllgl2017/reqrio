@@ -3,7 +3,25 @@ use crate::packet::{H3Frame, H3Setting};
 use crate::*;
 use std::ffi::CString;
 use std::fmt::Debug;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_int};
+use std::ptr::null_mut;
+use std::slice;
+use std::sync::Arc;
+
+unsafe extern "C" {
+    fn Finger_build_h2(finger: *const Finger, writer: *mut Writer) -> c_int;
+    fn Finger_build_h3(finger: *const Finger, writer: *mut Writer) -> c_int;
+    fn get_compute_id() -> *const u8;
+    fn Finger_get_builtin(
+        auth: *const u8,
+        auth_len: usize,
+        name: *const u8,
+        name_len: usize,
+        finger: *mut Finger,
+    ) -> c_int;
+    fn Finger_get(idx: usize, auth: *const u8, auth_len: usize, finger: *mut Finger) -> c_int;
+}
+
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H2Finger {
@@ -13,6 +31,7 @@ pub struct H2Finger {
     pub weight: u8,
     ///priority
     pub priority: bool,
+    pub adv: Option<Arc<Finger>>,
 }
 
 impl Default for H2Finger {
@@ -29,12 +48,18 @@ impl Default for H2Finger {
             ],
             weight: 147,
             priority: true,
+            adv: None,
         }
     }
 }
 
 impl H2Finger {
-    pub fn build_setting(&self, writer: &mut Writer) -> Result<(), BufferError> {
+    pub fn build_settings(&self, writer: &mut Writer) -> Result<(), BufferError> {
+        if let Some(ref adv) = self.adv {
+            let ret = unsafe { Finger_build_h2(adv.as_ref(), writer) };
+            if ret != 1 { return Err(BufferError::InvalidCEncode); }
+            return Ok(());
+        }
         for frame in self.frames.iter() {
             frame.write_to(writer)?;
         }
@@ -62,6 +87,21 @@ impl H2Finger {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H3Finger {
     pub frames: Vec<H3Frame<'static>>,
+    pub adv: Option<Arc<Finger>>,
+}
+
+impl H3Finger {
+    pub fn build_settings(&self, writer: &mut Writer) -> Result<(), BufferError> {
+        if let Some(ref adv) = self.adv {
+            let ret = unsafe { Finger_build_h3(adv.as_ref(), writer) };
+            if ret != 1 { return Err(BufferError::InvalidCEncode); }
+            return Ok(());
+        }
+        for frame in self.frames.iter() {
+            frame.write_to(writer)?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "quic")]
@@ -80,9 +120,16 @@ impl Default for H3Finger {
                     typ: 0x11d4c4c93c,
                     payload: Buf::new_ref(&[0x54]),
                 }
-            ]
+            ],
+            adv: None,
         }
     }
+}
+
+#[repr(C)]
+struct Item<'a> {
+    name: &'a str,
+    value: &'a str,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -94,6 +141,45 @@ pub struct Fingerprint {
 }
 
 impl Fingerprint {
+    pub fn from_idx<'a>(idx: usize, auth: &str) -> HlsResult<(Vec<(&'a str, &'a str)>, Fingerprint)> {
+        let mut finger = Finger {
+            hdr_count: 0,
+            hdr: null_mut(),
+            _rsv: [0; 88],
+        };
+        let ret = unsafe { Finger_get(idx, auth.as_ptr(), auth.len(), &mut finger) };
+        if ret != 1 { return Err("not subscribed not file not exists!".into()); }
+        Fingerprint::from_dat(finger)
+    }
+
+    pub fn from_builtin<'a>(name: &'static str, auth: &str) -> HlsResult<(Vec<(&'a str, &'a str)>, Fingerprint)> {
+        let mut finger = Finger {
+            hdr_count: 0,
+            hdr: null_mut(),
+            _rsv: [0; 88],
+        };
+        let ret = unsafe { Finger_get_builtin(auth.as_ptr(), auth.len(), name.as_ptr(), name.len(), &mut finger) };
+        if ret != 1 { return Err(format!("`{}` - not in builtin or not subscribed", name).into()); }
+        Fingerprint::from_dat(finger)
+    }
+
+    fn from_dat<'a>(finger: Finger) -> HlsResult<(Vec<(&'a str, &'a str)>, Fingerprint)> {
+        let mut res = Vec::with_capacity(10);
+        unsafe {
+            let items = slice::from_raw_parts(finger.hdr as *const Item, finger.hdr_count as usize);
+            for item in items {
+                res.push((item.name, item.value))
+            }
+        }
+        let finger = Arc::new(finger);
+        Ok((res, Fingerprint {
+            tls: TlsFinger::Adv(finger.clone()),
+            h2: Default::default(),
+            h3: Default::default(),
+        }))
+    }
+
+
     pub fn new_custom(token: impl AsRef<str>) -> Fingerprint {
         Fingerprint::check_subscription(token);
         Fingerprint {
@@ -107,10 +193,12 @@ impl Fingerprint {
                 frames: vec![],
                 weight: 0,
                 priority: false,
+                adv: None,
             },
             #[cfg(feature = "quic")]
             h3: H3Finger {
-                frames: vec![]
+                frames: vec![],
+                adv: None,
             },
         }
     }
@@ -164,6 +252,11 @@ impl Fingerprint {
     pub fn h3_mut(&mut self) -> &mut H3Finger {
         &mut self.h3
     }
+
+    pub fn compute_id() -> String {
+        let id = unsafe { slice::from_raw_parts(get_compute_id(), 32) };
+        hex::encode(id)
+    }
 }
 
 impl Fingerprint {
@@ -209,7 +302,7 @@ impl Fingerprint {
         })
     }
 
-    pub fn check_subscription(token: impl AsRef<str>) {
+    pub fn check_subscription(token: impl AsRef<str>) -> bool {
         unsafe extern "C" {
             fn is_subscription(token: *const c_char) -> bool;
         }
@@ -220,6 +313,7 @@ impl Fingerprint {
         if !is_subscribed {
             println!("\x1b[01;33m[Fingerprint] WARN \x1b[0m You have not subscribed yet, so this call will be ignored.");
         }
+        is_subscribed
     }
 }
 

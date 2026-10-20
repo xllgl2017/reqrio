@@ -74,20 +74,13 @@ impl<'a> TlsDecodeBuffer<'a> {
 
     pub fn encrypted_payload(&self) -> &[u8] {
         &self.origin[self.suite.trans_iv_len..]
-
-        // let len = self.origin.len() - self.suite.trans_iv_len;
-        // unsafe { slice::from_raw_parts(self.origin.add(self.suite.trans_iv_len), len) }
     }
 
     pub fn explicit_iv(&self) -> &[u8] {
         &self.origin[..self.suite.trans_iv_len]
-        // unsafe { slice::from_raw_parts(self.origin, self.suite.trans_iv_len) }
     }
 
-    pub fn decrypted_buffer(&mut self) -> &mut [u8] {
-        self.decoded
-        // unsafe { slice::from_raw_parts_mut(self.decoded, self.origin_len - self.suite.trans_iv_len) }
-    }
+    pub fn decrypted_buffer(&mut self) -> &mut [u8] { self.decoded }
 
     pub fn nonce(&self, iv: &Iv, seq: u64) -> Vec<u8> {
         match *self.suite.aead() {

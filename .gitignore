@@ -13,3 +13,6 @@ reqtls/c.der
 reqtls/ca.der
 reqtls/s.der
 TOKEN
+AUTH
+AUTH_BUILTIN
+a0ee0f33.dat

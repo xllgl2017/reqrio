@@ -315,7 +315,7 @@ impl<'a> HTTPStreamConnect<'a, std::net::TcpStream> {
                     h2 if h2 == ALPN::HTTP20 => {
                         let mut buffer = self.tls_connecting.app_buf;
                         buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
-                        self.fingerprint.h2().build_setting(&mut buffer)?;
+                        self.fingerprint.h2().build_settings(&mut buffer)?;
                         tls_stream.write_all(buffer.filled())?;
                         buffer.reset();
                         HTTPStream::SyncH2(HTTP2Stream::new(buffer, Stream::SyncHttps(tls_stream)))
@@ -367,7 +367,7 @@ impl<'a> Future for HTTPStreamConnect<'a, tokio::net::TcpStream> {
                     connector.stream = Stream::AsyncHttps(tls_stream);
                     let buffer = &mut connector.tls_connecting.app_buf;
                     buffer.write_slice(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")?;
-                    connector.fingerprint.h2().build_setting(buffer)?;
+                    connector.fingerprint.h2().build_settings(buffer)?;
                 }
                 Poll::Pending => return Poll::Pending,
             }
@@ -404,9 +404,7 @@ impl<'a, S> QUICStreamConnect<'a, S> {
     fn build_settings(&self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.reset_offset(100..100);
         writer.write_u8(0)?;
-        for frame in &self.h3_finger.frames {
-            frame.write_to(writer)?;
-        }
+        self.h3_finger.build_settings(writer)?;
         quic::write_variant_front(writer.len() as u64, writer)?;
         quic::write_variant_front(2, writer)?;
         let flag = QUICFrameFlag::new(0);

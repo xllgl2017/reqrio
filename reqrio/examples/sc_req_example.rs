@@ -74,6 +74,7 @@ fn build_finger() -> Fingerprint {
         ],
         weight: 234,
         priority: true,
+        adv: None,
     };
     Fingerprint::new_h2(tls, h2, "<token>").unwrap()
 }

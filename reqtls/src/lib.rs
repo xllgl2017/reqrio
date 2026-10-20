@@ -304,7 +304,7 @@ pub use extend::{
     Aead, CompressCertificate, CompressionMethod, EcPointFormat, EncryptClientHello, Extension,
     ExtensionType, KeyEntry, PskMode, ServerName, StatusRequest,
 };
-pub use finger::{TlsFinger, RecordParam};
+pub use finger::{TlsFinger, RecordParam, Finger};
 pub use gm_sm::*;
 pub use hash::{HashType, Hasher, Hmac};
 pub use hex;

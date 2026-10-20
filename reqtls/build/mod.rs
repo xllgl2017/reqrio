@@ -76,7 +76,6 @@ fn check_lib(tdr: &Path, typ: &LibType, ver: &str) -> Result<bool, Box<dyn Error
     let checksum = fs::read_to_string(checksum).unwrap_or("".to_string());
     if checksum != format!("{:?} {}", typ, ver) { return Ok(false); };
     let mut has_bcz = false;
-    // let mut has_zap = false;
     for dir in fs::read_dir(tdr.join("reqrio"))? {
         let path = dir?.path();
         let filename = path.file_name().map(|x| x.display().to_string()).unwrap_or("".to_string());
@@ -91,17 +90,6 @@ fn check_lib(tdr: &Path, typ: &LibType, ver: &str) -> Result<bool, Box<dyn Error
             if !td.exists() { fs::copy(&path, &td)?; }
             println!("cargo:rerun-if-changed={}", td.display());
         }
-        // if filename.ends_with("zap.dll") || filename.ends_with("zap.so") ||
-        //     filename.ends_with("zap.dylib") ||
-        //     filename.ends_with("zap.lib") || filename.ends_with("zap.a") {
-        //     has_zap = true;
-        //     let dep = tdr.join("deps").join(&filename);
-        //     if !dep.exists() { fs::copy(&path, &dep)?; }
-        //     println!("cargo:rerun-if-changed={}", dep.display());
-        //     let td = tdr.join(&filename);
-        //     if !td.exists() { fs::copy(&path, &td)?; }
-        //     println!("cargo:rerun-if-changed={}", td.display());
-        // }
     }
     Ok(has_bcz)
 }
@@ -125,6 +113,9 @@ fn main() {
     }
     if env.is_empty() {
         println!("cargo:rustc-link-lib=c++");
+    }
+    if os=="windows" {
+        println!("cargo:rustc-link-lib=advapi32")
     }
     if check_lib(target_dir, &typ, &version).unwrap_or(false) {
         return;

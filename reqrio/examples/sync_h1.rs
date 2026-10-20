@@ -1,5 +1,15 @@
-use std::fs;
 use reqrio::*;
+use std::sync::LazyLock;
+use std::{env, fs};
+
+#[allow(unused)]
+static TOKEN: LazyLock<String> = LazyLock::new(|| fs::read_to_string("TOKEN").unwrap_or(env::var("REQRIO_TOKEN").unwrap_or("".to_string())));
+
+#[allow(unused)]
+static AUTH: LazyLock<String> = LazyLock::new(|| fs::read_to_string("AUTH").unwrap_or(env::var("REQRIO_AUTH").unwrap_or("".to_string())));
+
+#[allow(unused)]
+static AUTH_BUILTIN: LazyLock<String> = LazyLock::new(|| fs::read_to_string("AUTH_BUILTIN").unwrap_or(env::var("REQRIO_AUTH_BUILTIN").unwrap_or("".to_string())));
 
 #[cfg(feature = "log")]
 const LOGER: Logger = Logger {
@@ -17,12 +27,13 @@ fn test_log() {
     set_max_level(LevelFilter::Trace);
 }
 
+const REVERSED: [u16; 15] = [0x0a0a, 0x1a1a, 0x2a2a, 0x3a3a, 0x4a4a, 0x5a5a, 0x6a6a, 0x7a7a, 0x8a8a, 0x9a9a, 0xaaaa, 0xbaba, 0xcaca, 0xeaea, 0xfafa];
 pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
     let group = REVERSED[rand::random::<usize>() % REVERSED.len()];
     let padding = 196 + (19 - sni.len() as i32);
     let tls = TlsFinger::Custom {
-        record_version: Version::TLS_1_2,
-        message_version: Version::TLS_1_0,
+        record_version: Version::TLS_1_0,
+        message_version: Version::TLS_1_2,
         suites: vec![
             CipherSuite::from(REVERSED[rand::random::<usize>() % REVERSED.len()]),
             CipherSuite::TLS_AES_128_GCM_SHA256,
@@ -42,7 +53,10 @@ pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
             CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA,
         ],
         extensions: vec![
-            Extension::Reserved { typ: ExtensionType::new(REVERSED[rand::random::<usize>() % REVERSED.len()]), value: Buf::default() },
+            Extension::Reserved {
+                typ: ExtensionType::new(REVERSED[rand::random::<usize>() % REVERSED.len()]),
+                value: Buf::new_ref(&[])
+            },
             Extension::ServerName(vec![ServerName::HOSTNAME]),
             Extension::ExtendedMasterSecret,
             Extension::RENEGOTIATION_INFO,
@@ -55,7 +69,7 @@ pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
             Extension::EcPointFormats(vec![
                 EcPointFormat::UNCOMPRESSED
             ]),
-            Extension::SessionTicket(Buf::default()),
+            Extension::SessionTicket(Buf::new_ref(&[])),
             Extension::ApplicationLayerProtocolNegotiation(vec![
                 ALPN::HTTP20,
                 ALPN::HTTP11
@@ -88,7 +102,10 @@ pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
             Extension::ApplicationSettingOld(vec![
                 ALPN::HTTP20
             ]),
-            Extension::Reserved { typ: ExtensionType::new(REVERSED[rand::random::<usize>() % REVERSED.len()]), value: Buf::new_ref(&[0]) },
+            Extension::Reserved {
+                typ: ExtensionType::new(REVERSED[rand::random::<usize>() % REVERSED.len()]),
+                value: Buf::new_ref(&[0])
+            },
             Extension::Padding(padding as usize)
         ],
     };
@@ -99,41 +116,24 @@ pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
 fn main() {
     #[cfg(feature = "log")]
     test_log();
-
+    Fingerprint::check_subscription(TOKEN.as_str());
+    let (hdrs, fingerprint) = Fingerprint::from_idx(0, AUTH.as_str()).unwrap();
+    // let (hdrs, fingerprint) = Fingerprint::from_builtin("edge-148", AUTH_BUILTIN.as_str()).unwrap();
+    // return;
 
     let t = Time::now();
-    Writer::check_subscription(fs::read_to_string("TOKEN").unwrap()).unwrap();
-    let fingerprint = random_fingerprint("www.baidu.com").unwrap();
     let mut req = ScReq::new()
-        .with_alpn(ALPN::HTTP30)
+        .with_alpn(ALPN::HTTP20)
         .with_verify(false)
         .with_timeout(Timeout::new_same(3000, 1))
-        .with_key_log("2.log")
-        // .with_fingerprint(fingerprint)
+        // .with_key_log("2.log")
+        .with_env_key_log()
+        .with_fingerprint(fingerprint)
         // .with_proxy(Proxy::try_from("http://36.150.202.148:10951").unwrap())
         // .with_mtls(certs, key)
         // .with_proxy(Proxy::try_from("http://127.0.0.1:10280").unwrap())
         // .with_proxy(Proxy::try_from("socks5://127.0.0.1:10279").unwrap())
         ;
-
-    // let headers = json::object! {
-    //     "User-Agent": "Mozilla/5.0 (Linux; Android 15; xuanyuan Build/VKQ1.250106.001.OS2.0.5.0.VNECNXM; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.6613.88 Mobile Safari/537.36 moutaiapp/1.9.7 device-id/bc823b4ef4840826d5df6bb059410d36 BS-DVID/UkGLUFZAqT06gye-0nF1683DRwZ2yujoY3kPcrdz5Ng9JA6i5g5XWsmJpNTq7PvYDiiCRTagsZn2LANM-RoIhDQ",
-    //     "Accept": "*/*",
-    //     "Sec-Fetch-Site": "none",
-    //     "Sec-Fetch-Mode": "navigate",
-    //     "Sec-Fetch-Dest": "document",
-    //     "sec-fetch-user":"?1",
-    //     "upgrade-insecure-requests":"1",
-    //     "sec-ch-ua": "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Microsoft Edge\";v=\"120\"",
-    //     "sec-ch-ua-mobile": "?0",
-    //     "sec-ch-ua-platform": "\"Windows\"",
-    //     "Accept-Language": "zh-CN,zh;q=0.9",
-    //     "Accept-Encoding": "gzip,deflate",
-    //     "Cache-Control": "no-cache",
-    //     "Connection": "keep-alive",
-    //     "priority": "u=1, i"
-    //     // "cookie":"_EDGE_V=1; MUIDB=184C10AD397866DF1A1607B038566708; MUID=184C10AD397866DF1A1607B038566708; _UR=QS=0&TQS=0&Pn=0; BFBUSR=BFBHP=0; MUIDB=184C10AD397866DF1A1607B038566708; SRCHD=AF,AF,AF,AF,AF,AF,AF,AF,AF,AF,AF,AF,AF,AF,AF&AF=NOFORM; SRCHUID=V=2&GUID=EB7B9E5DE58F4D5690F6904732C24C7B&dmnchg=1; USRLOC=HS&ELOC=LAT=23.384721755981445|LON=113.44195556640625|N=%E7%99%BD%E4%BA%91%E5%8C%BA%EF%BC%8C%E5%B9%BF%E4%B8%9C%E7%9C%81|ELT=4|&HS=1; _RwBf=r&r&r&r&r=0&ilt=10&ihpd=5&ispd=3&rc=12&rb=0&rg=200&pc=12&mtu=0&rbb=0&clo=0&v=8&l=2026-03-15T07:00:00.0000000Z&lft=0001-01-01T00:00:00.0000000&aof=0&ard=0001-01-01T00:00:00.0000000&rwdbt=0&rwflt=0&rwaul2=0&g=&o=2&p=&c=&t=0&s=0001-01-01T00:00:00.0000000+00:00&ts=2026-03-15T14:03:35.7211444+00:00&rwred=0&wls=&wlb=&wle=&ccp=&cpt=&lka=0&lkt=0&aad=0&TH=&cid=0&gb=; SRCHUSR=DOB&DS&DS&DS&DS&DS=1&DOB=20260315; _EDGE_S=SID=357AA105805E678827ACB618817066E6; _SS=SID=357AA105805E678827ACB618817066E6; _HPVN=CS=eyJQbiI6eyJDbiI6MSwiU3QiOjAsIlFzIjowLCJQcm9kIjoiUCJ9LCJTYyI6eyJDbiI6MSwiU3QiOjAsIlFzIjowLCJQcm9kIjoiSCJ9LCJReiI6eyJDbiI6MSwiU3QiOjAsIlFzIjowLCJQcm9kIjoiVCJ9LCJBcCI6dHJ1ZSwiTXV0ZSI6dHJ1ZSwiTGFkIjoiMjAyNi0wMy0xNVQwMDowMDowMFoiLCJJb3RkIjowLCJHd2IiOjAsIlRucyI6MCwiRGZ0IjpudWxsLCJNdnMiOjAsIkZsdCI6MCwiSW1wIjozMCwiVG9ibiI6MH0=; SRCHHPGUSR=SRCHLANG&SRCHLANG&SRCHLANG&SRCHLANG&SRCHLANG&SRCHLANG&SRCHLANG&SRCHLANG&SRCHLANG&V&SRCHLANG&SRCHLANG&SRCHLANG&V&SRCHLANG&SRCHLANG=zh-Hans&PREFCOL=0&BRW=NOTP&BRH=M&CW=150&CH=769&SCW=150&SCH=769&DPR=1.0&UTC=480&HV=1773588648&HVE=CfDJ8HAK7eZCYw5BifHFeUHnkJGC6_lT8f9GeruXx8zjPXuk-5GHkofYMoFErMkT8CTKKKsSt5O2HyGmjLyCEXbEREUmwCd8ZBlYMLSDZu1wZ-EI1LDuyIiI1tkP6Usyicm601qX3aJVYqVWUBn-t6h0ZWLiftm4aS627xFj1fE5PD-85i7BWTkhqG0uvaYzuSgB2A&BZA=0&PRVCW=150&PRVCH=769&B=0&EXLTT=7&V=CfDJ8HAK7eZCYw5BifHFeUHnkJGijeRjCoaCMaAnmznMvdEg2GXY8647Wb-7wnHNpePKXRO6KRQ_0cQc-onivd35uV-p-4g0MB0V_Z1ZpW-QSJe9zbPUG-Ks-kQMjzEl6GlLo6N0ciP51vkQdR-P-lCUH58&PR=1"
-    // };
     let headers = json::object! {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "zh-CN,zh;q=0.9",
@@ -153,6 +153,10 @@ fn main() {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
     };
     req.set_headers_json(headers);
+    for (name, value) in hdrs {
+        println!("{} {}", name, value);
+        req.header_mut().insert(name, value);
+    }
     // let res1 = req.get("https://img-s-msn-com.akamaized.net", None).unwrap();
     // let url = "https://ts3.tc.mm.bing.net/th/id/ODF.dsR0yzVOEBuWxCU9cjAM4Q?w=32&h=32&qlt=96&pcl=fffffa&o=6&pid=1.2";
     // let sid1 = req.send(Method::GET, url, None).unwrap();
@@ -183,6 +187,7 @@ fn main() {
     // let res1 = req.get("https://m.sogou.com", None).unwrap();
     // let res1 = req.get("https://127.0.0.1:7878", None).unwrap();
     let res1 = req.get("https://www.bing.com", None).unwrap();
+    // let res1=req.get("https://m.so.com",None).unwrap();
     // let session = req.tls_session().cloned();
     // println!("{:#?}", session);
     // req.set_tls_session(session);
