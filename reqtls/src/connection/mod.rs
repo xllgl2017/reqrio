@@ -63,13 +63,14 @@ pub struct Connection {
     secrets: *mut c_void,
     alpn: ALPN,
     server_name: ServerName,
+    hasher: Hasher,
     pub(crate) derived: DerivedKey,
     //--------------owner----------
     exchange_pub_key: Buf<'static>,
     session_bytes: Vec<u8>,
     certificates: Vec<Certificate>,
     root_stores: &'static CertStore,
-    hasher: Hasher,
+
 }
 impl Default for Connection {
     fn default() -> Self {
@@ -99,7 +100,7 @@ impl Connection {
             mtls_enable: false,
             version: Version::TLS_1_2,
             server: false,
-            hasher: Hasher::default(),
+            hasher: Hasher::uninit(),
             sig_alg: SignatureAlgorithm::new(0),
             secrets: null_mut(),
         }
@@ -145,7 +146,7 @@ impl Connection {
         let len = self.session_bytes.len();
         self.session_bytes.copy_within(cl..len, session_hash.len() + 4);
         unsafe { self.session_bytes.set_len(session_hash.len() + 4 + len - cl); }
-        self.hasher = Hasher::default();
+        self.hasher = Hasher::uninit();
         self.update_session(client_hello)
     }
 
@@ -644,11 +645,12 @@ mod tests {
         assert_eq!(mem::offset_of!(Connection, secrets), 400);
         assert_eq!(mem::offset_of!(Connection, alpn), 408);
         assert_eq!(mem::offset_of!(Connection, server_name), 440);
-        assert_eq!(mem::offset_of!(Connection, derived), 480);
-        assert_eq!(mem::offset_of!(Connection, exchange_pub_key), 1040);
-        assert_eq!(mem::offset_of!(Connection, session_bytes), 1072);
-        assert_eq!(mem::offset_of!(Connection, certificates), 1096);
-        assert_eq!(mem::offset_of!(Connection, root_stores), 1120);
-        assert_eq!(mem::offset_of!(Connection, hasher), 1128);
+        assert_eq!(mem::offset_of!(Connection, hasher), 480);
+        assert_eq!(mem::offset_of!(Connection, derived), 576);
+        assert_eq!(mem::offset_of!(Connection, exchange_pub_key), 1136);
+        assert_eq!(mem::offset_of!(Connection, session_bytes), 1168);
+        assert_eq!(mem::offset_of!(Connection, certificates), 1192);
+        assert_eq!(mem::offset_of!(Connection, root_stores), 1216);
+
     }
 }

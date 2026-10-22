@@ -20,6 +20,7 @@ pub static ROOT_STORES: LazyLock<CertStore> = LazyLock::new(|| {
 
 pub struct CertStore {
     store_ptr: CPointer<X509_STORE>,
+    //保存指针
     stores: Vec<Certificate>,
 }
 

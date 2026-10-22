@@ -203,11 +203,13 @@ impl AlgoSigner {
         Ok(signer)
     }
 
+    #[inline]
     pub fn update(&mut self, data: impl AsRef<[u8]>) -> RlsResult<()> {
         let data = data.as_ref();
         unsafe { AlgoSigner_update(self, data.as_ptr(), data.len()) }.ok(RlsError::DigestSignError)
     }
 
+    #[inline]
     pub fn verify_final(&mut self, sign: impl AsRef<[u8]>) -> RlsResult<()> {
         let sign = sign.as_ref();
         unsafe { AlgoSigner_final(self, sign.as_ptr().cast_mut(), &mut sign.len()) }.ok(RlsError::DigestVerifyError)

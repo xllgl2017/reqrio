@@ -38,7 +38,7 @@ pub extern "C" fn Hasher_finalize(hasher: *mut Hasher, out: *mut *mut u8, out_le
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
-pub extern "C" fn Hasher_free(hasher: *mut Hasher) {
+pub extern "C" fn Hasher_drop(hasher: *mut Hasher) {
     if hasher.is_null() { return; }
     let hasher = unsafe { Box::from_raw(hasher) };
     drop(hasher);

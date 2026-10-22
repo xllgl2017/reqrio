@@ -35,7 +35,6 @@ pub(crate) struct EVP_ENCODE_CTX {
 
 
 unsafe extern "C" {
-
     pub(crate) fn HMAC(
         evp_md: *const EVP_MD,
         key: *const c_void,
@@ -45,7 +44,6 @@ unsafe extern "C" {
         out: *mut u8,
         out_len: *mut c_uint,
     ) -> *mut u8;
-
 
     pub(crate) fn EVP_ENCODE_CTX_new() -> *mut EVP_ENCODE_CTX;
 
@@ -82,7 +80,6 @@ unsafe extern "C" {
 
 
 unsafe extern "C" {
-
     pub(crate) fn OPENSSL_free(ptr: *mut c_void);
 }
 
@@ -108,7 +105,6 @@ unsafe extern "C" {
     pub(crate) fn EVP_PKEY_CTX_new(pkey: *mut EVP_PKEY, e: *mut ENGINE) -> *mut EVP_PKEY_CTX;
 
     pub(crate) fn EVP_PKEY_free(pkey: *mut EVP_PKEY);
-
 }
 
 #[repr(C)]
@@ -161,16 +157,7 @@ unsafe extern "C" {
 
     pub(crate) fn HMAC_CTX_free(ctx: *mut HMAC_CTX);
 
-    pub(crate) fn EVP_MD_CTX_new() -> *mut EVP_MD_CTX;
-
-    pub(crate) fn EVP_MD_CTX_free(ctx: *mut EVP_MD_CTX);
-
     pub(crate) fn EVP_PKEY_CTX_set_rsa_padding(ctx: *mut EVP_PKEY_CTX, padding: c_int) -> c_int;
-
-    pub(crate) fn EVP_MD_CTX_copy_ex(
-        out: *mut EVP_MD_CTX,
-        in_: *const EVP_MD_CTX,
-    ) -> c_int;
 
     pub(crate) fn HMAC_Init_ex(
         ctx: *mut HMAC_CTX,
@@ -192,20 +179,14 @@ unsafe extern "C" {
         out_len: *mut c_uint,
     ) -> c_int;
 
-    pub(crate) fn EVP_DigestInit_ex(
-        ctx: *mut EVP_MD_CTX,
-        type_: *const EVP_MD,
-        engine: *mut ENGINE,
-    ) -> c_int;
-
     pub(crate) fn EVP_DigestUpdate(
-        ctx: *mut EVP_MD_CTX,
+        ctx: *mut c_void,
         data: *const c_void,
         len: usize,
     ) -> c_int;
 
     pub(crate) fn EVP_DigestFinal_ex(
-        ctx: *mut EVP_MD_CTX,
+        ctx: *mut c_void,
         md_out: *mut u8,
         out_size: *mut c_uint,
     ) -> c_int;

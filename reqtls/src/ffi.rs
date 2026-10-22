@@ -2,6 +2,7 @@ use crate::boring::bindings::*;
 use crate::boring::rsa::bindings::*;
 use std::ptr::null_mut;
 
+#[repr(C)]
 pub struct CPointer<T: CFree<T>> {
     ptr: *mut T,
     auto_free: bool,
@@ -85,7 +86,6 @@ c_pointer_free!(u8, OPENSSL_free);
 c_pointer_free!(EVP_PKEY, EVP_PKEY_free);
 c_pointer_free!(EVP_PKEY_CTX, EVP_PKEY_CTX_free);
 c_pointer_free!(EVP_ENCODE_CTX,EVP_ENCODE_CTX_free);
-c_pointer_free!(EVP_MD_CTX, EVP_MD_CTX_free);
 c_pointer_free!(HMAC_CTX, HMAC_CTX_free);
 c_pointer_free!(RSA, RSA_free);
 c_pointer_free!(BIGNUM, BN_free);
