@@ -1,11 +1,10 @@
-use std::borrow::Cow;
 use crate::export::{check_run, handle_err1};
+use crate::packet::H2PayloadValue;
 use crate::*;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
 use std::slice;
-use crate::packet::H2PayloadValue;
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]

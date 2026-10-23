@@ -2,6 +2,7 @@
 use crate::packet::{H3Frame, H3Setting};
 use crate::*;
 use std::ffi::CString;
+#[cfg(debug_assertions)]
 use std::fmt::Debug;
 use std::os::raw::{c_char, c_int};
 use std::ptr::null_mut;
@@ -13,13 +14,7 @@ unsafe extern "C" {
     #[cfg(feature = "quic")]
     fn Finger_build_h3(finger: *const Finger, writer: *mut Writer) -> c_int;
     fn get_compute_id() -> *const u8;
-    fn Finger_get_builtin(
-        auth: *const u8,
-        auth_len: usize,
-        name: *const u8,
-        name_len: usize,
-        finger: *mut Finger,
-    ) -> c_int;
+    fn Finger_get_builtin(name: *const u8, name_len: usize, finger: *mut Finger) -> c_int;
     fn Finger_get(idx: usize, auth: *const u8, auth_len: usize, finger: *mut Finger) -> c_int;
 }
 
@@ -150,17 +145,17 @@ impl Fingerprint {
             _rsv: [0; 88],
         };
         let ret = unsafe { Finger_get(idx, auth.as_ptr(), auth.len(), &mut finger) };
-        if ret != 1 { return Err("not subscribed not file not exists!".into()); }
+        if ret != 1 { return Err("not subscribed or file not exists!".into()); }
         Fingerprint::from_dat(finger)
     }
 
-    pub fn from_builtin<'a>(name: &'static str, auth: &str) -> HlsResult<(Vec<(&'a str, &'a str)>, Fingerprint)> {
+    pub fn from_builtin<'a>(name: &'static str) -> HlsResult<(Vec<(&'a str, &'a str)>, Fingerprint)> {
         let mut finger = Finger {
             hdr_count: 0,
             hdr: null_mut(),
             _rsv: [0; 88],
         };
-        let ret = unsafe { Finger_get_builtin(auth.as_ptr(), auth.len(), name.as_ptr(), name.len(), &mut finger) };
+        let ret = unsafe { Finger_get_builtin(name.as_ptr(), name.len(), &mut finger) };
         if ret != 1 { return Err(format!("`{}` - not in builtin or not subscribed", name).into()); }
         Fingerprint::from_dat(finger)
     }
