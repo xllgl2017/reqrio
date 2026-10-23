@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
 
+#[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
 pub struct HttpStatus(u16);
 

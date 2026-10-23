@@ -136,6 +136,9 @@ impl<'a, S: AsyncRead + Unpin> Future for ChunkReading<'a, S> {
     }
 }
 
+unsafe impl<'a, S> Sync for ChunkReading<'a, S> {}
+unsafe impl<'a, S> Send for ChunkReading<'a, S> {}
+
 #[must_use = "streams do nothing unless `.wait()/.await`"]
 pub struct StreamRead<'a> {
     pub(crate) stream: &'a mut Stream,

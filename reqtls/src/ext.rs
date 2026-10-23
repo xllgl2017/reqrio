@@ -169,7 +169,6 @@ pub trait StreamHandle {
                 let reader = Reader::from_ptr(v.extensions as *const u8, v.extend_len as usize);
                 param.conn.handle_extension(reader)?;
                 param.conn.handle_client_hello(param.write_buffer, config, v)?;
-                // Self::handle_client_hello(param, config, &v)?;
                 return Ok(());
             }
             MessageParsed::ClientKeyExchange(v) => {

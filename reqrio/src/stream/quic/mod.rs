@@ -244,7 +244,7 @@ impl<S> QUICStream<S> {
             let frame = QUICFrame::from_reader(&mut reader).unwrap();
             match frame {
                 QUICFrame::Ack { largest_acknowledged, first_ack_range, ack_range: _ack_range, .. } => {
-                    #[cfg(feature = "log")]
+                    #[cfg(all(debug_assertions, feature = "log"))]
                     trace!("[QUIC ACK] largest={}; first={}; range={:?}",largest_acknowledged, first_ack_range, _ack_range);
                     let start = largest_acknowledged - first_ack_range;
                     for large in start..=largest_acknowledged {

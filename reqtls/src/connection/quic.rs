@@ -5,7 +5,7 @@ use crate::key::KeyType;
 use crate::message::{QUICFrame, QUICPacket};
 use crate::quic::{QUICNum, QUICRange};
 use crate::*;
-#[cfg(feature = "log")]
+#[cfg(all(debug_assertions, feature = "log"))]
 use log::trace;
 use std::sync::Arc;
 
@@ -46,7 +46,7 @@ impl QUICConnection {
         //清空现有的handshake bytes
         self.conn.session_bytes.clear();
         if !force { self.conn.derived.init(KeyType::Initial, &CipherSuite::TLS_AES_128_GCM_SHA256); }
-        #[cfg(feature = "log")]
+        #[cfg(all(debug_assertions, feature = "log"))]
         trace!("[QUIC] MakeCipher dcid={:?}", cid);
         self.conn.derived.make_initial_quic_secret(cid.as_ref())?;
         self.conn.derived_key_cipher(KeyType::Initial)?;
@@ -106,7 +106,7 @@ impl QUICConnection {
         let mut mask = self.recv_sample.encrypt(sample)?;
         mask.truncate(5);
         packet.decode(&mask, reader).unwrap();
-        #[cfg(feature = "log")]
+        #[cfg(all(debug_assertions, feature = "log"))]
         trace!("[QUIC Connection] num={}; typ={:?}", packet.num, packet.flag.packet_type());
         if buffer.len() < packet.payload.len() {
             return Err(BufferError::CapacityTooSmall {
