@@ -41,8 +41,6 @@ impl ALPN {
 
     pub fn is_empty(&self) -> bool { self.inner.is_empty() }
 
-    // pub fn len(&self) -> usize { 1 + self.inner.len() }
-
     #[deprecated]
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         writer.write_u8(self.inner.len() as u8)?;

@@ -33,7 +33,7 @@ async fn main() {
         let (stream, addr) = listen.accept().unwrap();
         println!("Accepted connection from {}", addr);
         let tls_stream = TlsStream::accept(stream, ServerConfig {
-            alpn: &ALPN::HTTP20,
+            alpn: &ALPN::HTTP11,
             ca: &mut Certificate::none(),
             server_cert: &mut certificates,
             cert_key: &pri_key,
