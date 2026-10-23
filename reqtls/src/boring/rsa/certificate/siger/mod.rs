@@ -124,6 +124,12 @@ impl CertSigner {
         Ok(())
     }
 
+    pub fn verify(&mut self) -> RlsResult<()> {
+        unsafe {
+            X509_verify(self.cert.x509.as_ptr(), self.root.pub_key()?.as_mut_ptr())
+        }.ok("invalid cert".into())
+    }
+
     pub fn key(&self) -> &RsaKey {
         &self.pkey
     }

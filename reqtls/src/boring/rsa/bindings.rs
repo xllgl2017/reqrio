@@ -495,6 +495,7 @@ unsafe extern "C" {
     pub(crate) fn X509_add_ext(x: *mut X509, ex: *const X509_EXTENSION, loc: c_int) -> c_int;
 
     pub(crate) fn X509_sign(x509: *mut X509, pkey: *mut EVP_PKEY, md: *const EVP_MD) -> c_int;
+    pub(crate) fn X509_verify(x509: *const X509, pkey: *mut EVP_PKEY) -> c_int;
 
     pub(crate) fn PEM_write_bio_X509(bp: *mut BIO, x: *mut X509) -> c_int;
 
