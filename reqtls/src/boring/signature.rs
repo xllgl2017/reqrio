@@ -3,6 +3,7 @@ use crate::boring::bindings::*;
 use crate::error::RlsResult;
 use crate::ffi::{CPointer, c_struct_free};
 use crate::{REVERSED, RlsError};
+#[cfg(debug_assertions)]
 use std::fmt::{Debug, Formatter};
 use std::os::raw::{c_int, c_void};
 use std::ptr::null_mut;

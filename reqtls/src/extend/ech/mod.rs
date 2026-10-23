@@ -43,9 +43,11 @@ impl EchConfig {
     }
 }
 
+#[allow(unused)]
 struct DHKem(u16);
 
 impl DHKem {
+    #[allow(unused)]
     const X25519_HDK: u16 = 0x0020;
 
     #[cfg(debug_assertions)]

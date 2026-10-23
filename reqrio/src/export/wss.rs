@@ -13,10 +13,7 @@ pub extern "system" fn ws_open(url: *const c_char, hdr: *const c_char) -> *mut W
         let resp = req.get(url, None)?;
         let ws = WebSocket::new(resp, req.into_stream()?)?;
         Ok(Box::into_raw(Box::new(ws)))
-    }().unwrap_or_else(|e| {
-        println!("{}", e);
-        null_mut()
-    })
+    }().unwrap_or(null_mut())
 }
 
 #[unsafe(no_mangle)]
@@ -33,7 +30,7 @@ pub extern "system" fn ws_open_raw(url: *const c_char, context: *const c_char) -
             stream.read(&mut buffer).wait()?;
             if resp.update_by_buffer(&mut buffer)? { break; };
         }
-        let resp  = resp.final_response();
+        let resp = resp.final_response();
         let ws = WebSocket::new_with_buffer(resp, stream, buffer)?;
         Ok(Box::into_raw(Box::new(ws)))
     }().unwrap_or(null_mut())
@@ -68,7 +65,6 @@ pub extern "system" fn ws_write(websocket: *mut WebSocket, op_code: i32, payload
 
 #[unsafe(no_mangle)]
 pub extern "system" fn ws_close(websocket: *mut WebSocket) {
-    println!("{}", websocket.is_null());
     if websocket.is_null() { return; }
     let mut websocket = unsafe { Box::from_raw(websocket) };
     let _ = websocket.shutdown().wait();

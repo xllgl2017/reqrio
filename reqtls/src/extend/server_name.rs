@@ -20,13 +20,6 @@ impl ServerName {
         }
     }
 
-    pub fn from_slice(typ: u8, value: &[u8]) -> ServerName {
-        ServerName {
-            typ,
-            value: Buf::Vec(value.to_vec()),
-        }
-    }
-    
     pub fn hostname(&self) -> Result<&str, Utf8Error> {
         str::from_utf8(self.value.as_slice())
     }
@@ -38,7 +31,7 @@ impl Debug for ServerName {
         let mut debug_struct = f.debug_struct("ServerName");
         if self.typ == 0x0 {
             debug_struct.field("type", &"Hostname");
-            debug_struct.field("value", &std::str::from_utf8(self.value.as_slice()).unwrap());
+            debug_struct.field("value", &self.hostname().unwrap());
         }
         debug_struct.finish()
     }
