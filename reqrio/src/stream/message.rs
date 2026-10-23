@@ -15,19 +15,19 @@ pub struct SendParam<'a> {
     pub weight: u8,
 }
 
-#[cfg_attr(feature = "export", repr(C))]
+#[repr(C)]
 pub struct StreamMessage {
     #[cfg(feature = "export")]
-    sid: u64,
-    pub(crate) status: HttpStatus,
-    alpn: ALPN,
-    pub(crate) body: Buffer,
-    pub(crate) header: Header,
+    pub sid: u64,
+    pub status: HttpStatus,
+    pub alpn: ALPN,
+    pub body: Buffer,
+    pub header: Header,
 
-    pub(crate) method: Method,
-    uri: Uri,
-    remain: usize,
-    coder: Option<Box<dyn StreamDecode + Send + Sync>>,
+    pub method: Method,
+    pub uri: Uri,
+    pub remain: usize,
+    pub coder: Option<Box<dyn StreamDecode + Send + Sync>>,
 }
 
 impl Default for StreamMessage {
@@ -158,7 +158,9 @@ impl StreamMessage {
             ":path" => self.uri = Uri::try_from(item.value())?,
             ":status" => self.status = HttpStatus::new(item.value().parse::<u16>()?),
             "cookie" => {
-                self.header.add_cookie(Cookie::new_cookie(item.name(), item.value()));
+                for cookie in Cookie::from_req(item.value()) {
+                    self.header.add_cookie(cookie);
+                }
                 return Ok(());
             }
             _ => {}
