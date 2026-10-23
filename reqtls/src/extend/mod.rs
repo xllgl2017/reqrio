@@ -53,6 +53,7 @@ impl ExtensionType {
     pub const PreSharedKey: ExtensionType = ExtensionType(0x29);
     pub const ApplicationSettingOld: ExtensionType = ExtensionType(0x4469);
     pub const QuicTrpParameters: ExtensionType = ExtensionType(0x0039);
+    pub const TrustAnchors: ExtensionType = ExtensionType(0xca34);
 
     pub fn spec(&self) -> &str {
         match self.0 {
