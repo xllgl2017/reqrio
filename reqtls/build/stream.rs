@@ -19,23 +19,23 @@ struct FileHash {
 const FILE_HASHES: [FileHash; 4] = [
     FileHash {
         target: "x86_64-windows-msvc",
-        bcz: "8dc7b2a81e1a81144f740ae08c9b1153c97699057c721f3f7b8e3982c5404fff",
-        dy_bcz: "303fe7e118951043ce01aa8410b399bd2a59368b7973030340565ac6a047c694",
+        bcz: "8089ea0f5097338d13337bec68b0e53113fbc8fca8a2e6d8f3be590d64e763b2",
+        dy_bcz: "ac7e33a0b29d110930a42ae06a740d751bbd08ad4e8836be60fab862d6e09a7b",
     },
     FileHash {
         target: "x86_64-windows-gnu",
-        bcz: "9026c9beb73c0eccfe455fc727d7a9a6cae0a2c7f4262b48a1d00811b2400cfe",
-        dy_bcz: "9f02398f52207485209a4687d952fa6773a7624f0ec5f1e6c8f4743f6c34bb32",
+        bcz: "f9539fce44e93181fdd32afa8668c92b085623a60e101241c14e3044598bbf7a",
+        dy_bcz: "9cf395794f26d89d5a0473e23288c00c99eb30af6187196a2734b309a8bf4d0b",
     },
     FileHash {
         target: "x86_64-linux-gnu",
-        bcz: "78cb5d925c7e73e58bf8edb7363ed14496a716171ca3a5ffcb4b8dbf17b43302",
-        dy_bcz: "94a5da7457af05b472a5a1ba750b4b645bd43bb0811919eec074f5d0c723c49f",
+        bcz: "226542db9364fed0dcb05b54369665405f4a2f7e2d8fea3c2408873cf617bd10",
+        dy_bcz: "3fe2ad7dd36743c24527e64a6f4beb36f05d3eedae70d641a1a787f60214bb63",
     },
     FileHash {
         target: "aarch64-macos-",
-        bcz: "ac57496acdfbf9af0f927ea6a5538f5c1f1a220ab07d6f374974ae65a223bb6e",
-        dy_bcz: "3d77a67344239bd0cdb72b6cb039805ff02f625afe970b999fa7ad172c75fe20",
+        bcz: "dc933e64d4fb5ba037c446acdf7aad87dbbb4e30c165952e6155ff14c47067ed",
+        dy_bcz: "270598732be493dca6f008ccbc1da584d72af66b5123c11d664061c2ba94025e",
     }
 ];
 

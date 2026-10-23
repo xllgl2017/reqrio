@@ -51,7 +51,7 @@ async fn main() {
                     return;
                 }
             };
-            let mut buffer = [0; 1024];
+            let mut buffer = [0; 2048];
             loop {
                 let len = tls_stream.read(&mut buffer).unwrap();
                 if len == 0 { break; }

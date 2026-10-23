@@ -352,12 +352,3 @@ impl tokio::io::AsyncRead for Stream {
         tokio::io::AsyncRead::poll_read(std::pin::Pin::new(stream), cx, buf)
     }
 }
-
-// pub trait RIO {
-//     fn read(&mut self, buf: &mut Buffer) -> std::io::Result<usize>;
-//     fn write(&mut self, buf: &mut Buffer) -> std::io::Result<usize>;
-//     #[cfg(feature = "aync")]
-//     fn poll_read(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut Buffer) -> std::task::Poll<std::io::Result<usize>>;
-//     #[cfg(feature = "aync")]
-//     fn poll_write(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut Buffer) -> std::task::Poll<std::io::Result<usize>>;
-// }

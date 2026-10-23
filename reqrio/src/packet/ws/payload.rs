@@ -18,16 +18,7 @@ impl WsPayload {
             payload: Buffer::none(),
         }
     }
-
-    // fn decode(&self, coder: &mut TZCoder, reader: &mut Reader, payload: &mut Buffer) -> HlsResult<usize> {
-    //
-    //     let mut out_len = 0;
-    //     while reader.unread_len() > 0 {
-    //         out_len += coder.decompress_once(reader, payload, true)?;
-    //     }
-    //     Ok(out_len)
-    // }
-
+    
     pub(crate) fn read_payload(&mut self, mut reader: Reader, masker: &Marker, coder: Option<&mut TZCoder>, demask_buffer: &mut Writer) -> HlsResult<()> {
         demask_buffer.reset();
         match (masker.mask, coder) {
@@ -45,11 +36,8 @@ impl WsPayload {
             (false, Some(coder)) => {
                 let mut payload = Buffer::with_capacity(reader.inner().len() * 2);
                 coder.decompress(&mut reader, &mut payload)?;
-                // let mut out_len = self.decode(coder, &mut reader, &mut payload)?;
                 let mut reader = Reader::from_slice(&Self::DEFLATE_END);
                 coder.decompress(&mut reader, &mut payload)?;
-                // out_len += self.decode(coder, &mut reader, &mut payload)?;
-                // payload.truncate(out_len);
                 self.payload = payload;
             }
             (true, Some(coder)) => {
@@ -64,9 +52,6 @@ impl WsPayload {
                 coder.decompress(&mut reader, &mut payload)?;
                 let mut reader = Reader::from_slice(&Self::DEFLATE_END);
                 coder.decompress(&mut reader, &mut payload)?;
-                // let mut out_len = self.decode(coder, &mut reader, &mut payload)?;
-                // out_len += self.decode(coder, &mut reader, &mut payload)?;
-                // payload.truncate(out_len);
                 self.payload = payload;
             }
         }

@@ -255,6 +255,7 @@ impl ScReq {
         Ok(())
     }
 
+    /// 发送请求，并检查http状态码，非200时会报错
     pub fn send_check<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
         let url = url.into().build()?;
         let response = self.do_http(method, url.as_ref(), body.into())?;
@@ -262,6 +263,9 @@ impl ScReq {
         Ok(response)
     }
 
+    /// #### 发送请求并检查错误，包含body的错误，返回json
+    /// 1. 发送请求，并检查http状态码，非200时会报错
+    /// 2. 根据提供的key，对对应的值进行比较，例如: {"code":200,..},传入k为code，v为200，若不相等则返回错误
     pub fn send_check_json<'a>(
         &mut self,
         method: Method,

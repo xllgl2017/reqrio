@@ -72,7 +72,7 @@ impl<'a, S: AsyncRead + Unpin> Future for BufReading<'a, S> {
 #[must_use = "streams do nothing unless `.wait()/.await`"]
 pub struct ChunkReading<'a, S> {
     pub(crate) len_size: usize,
-    pub(crate) func: Box<dyn Fn(&[u8]) -> usize>,
+    pub(crate) func: Box<dyn Fn(&[u8]) -> usize + Send + Sync>,
     pub(crate) stream: &'a mut S,
     pub(crate) buf: &'a mut Buffer,
     #[cfg(feature = "aync")]
@@ -112,7 +112,6 @@ impl<'a, S: AsyncRead + Unpin> Future for ChunkReading<'a, S> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let chunk_reading = self.get_mut();
-        // println!("{} {}", chunk_reading.buf.len(), chunk_reading.len_size);
         if chunk_reading.buf.len() < chunk_reading.len_size {
             let mut reading = BufReading {
                 stream: chunk_reading.stream,

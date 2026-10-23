@@ -53,7 +53,6 @@ impl StreamMessage {
         StreamMessage {
             #[cfg(feature = "export")]
             sid: _sid,
-            // tmp,
             body: Writer::with_capacity(8192),
             ..Default::default()
         }

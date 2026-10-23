@@ -42,7 +42,6 @@ pub struct QUICStream<S> {
     sent_num: HashMap<u64, Range<usize>>,
 
     addr: SocketAddr,
-    // seq: u64,
     dcid: Buf<'static>,
     token: Buf<'static>,
 
@@ -78,7 +77,6 @@ impl<S> QUICStream<S> {
                 conn: QUICConnection::new(session, key_log, config.verify),
                 sent_num: HashMap::new(),
                 addr: remote_addr,
-                // seq: 1,
                 dcid: Buf::Vec(rand::random::<[u8; 8]>().to_vec()),
                 token: Buf::default(),
                 handshake_finish: false,
@@ -109,7 +107,6 @@ impl<S> QUICStream<S> {
             conn: &mut self.conn,
             socket: &mut self.socket,
             chunk_size: 0,
-            // seq: &mut self.seq,
             sent_num: &mut self.sent_num,
             addr: &self.addr,
             #[cfg(feature = "aync")]
