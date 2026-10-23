@@ -31,7 +31,8 @@ JA4, and custom ClientHello functionality.
 streaming upload and download, and a low-memory design.
 
 &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;`reqrio` is an HTTP client request library written in Rust and bound to multiple
-languages via ffi. Supports HTTP/1.1 and HTTP/2.0; TLS supports TLS 1.2 and TLS 1.3.
+languages via ffi. It supports HTTP/1.1, HTTP/2.0, and HTTP/3 over QUIC when the `quic` feature is enabled;
+TLS supports TLS 1.2 and TLS 1.3.
 
 ## reqrio focuses on another type of issue:
 
@@ -80,7 +81,7 @@ languages via ffi. Supports HTTP/1.1 and HTTP/2.0; TLS supports TLS 1.2 and TLS 
 | Header Sequence Control        | ✅          | ❌       | ❌             | ❌                        | ⚠️            | ⚠️       |
 | Connection reuse (Keep-Alive)  | ✅          | ✅       | ⚠️（limited）   | ⚠️                       | ⚠️            | ⚠️       |
 | HTTP/2 support                 | ✅          | ✅       | ❌             | ⚠️                       | ⚠️            | ⚠️       |
-| HTTP/3 / QUIC                  | ⚠️（future） | ⚠️      | ❌             | ❌                        | ⚠️            | ❌        |
+| HTTP/3 / QUIC                  | ⚠️（requires `quic` feature） | ⚠️      | ❌             | ❌                        | ⚠️            | ❌        |
 | Streaming requests/responses   | ✅          | ✅       | ⚠️（weak）      | ⚠️                       | ⚠️            | ⚠️       |
 | Ultra-low latency optimization | ✅          | ❌       | ❌             | ❌                        | ⚠️            | ⚠️       |
 | High concurrency support       | ✅          | ⚠️      | ❌             | ⚠️                       | ⚠️            | ⚠️       |
@@ -192,9 +193,9 @@ reqrio adopts a layered network stack design:
 
 ### v0.4
 
-- [ ] TLS 1.3 Fingerprint
-- [ ] HTTP/3
-- [ ] QUIC
+- [x] TLS 1.3 Fingerprint / ClientHello control
+- [x] HTTP/3 support when the `quic` feature is enabled
+- [x] QUIC transport support when the `quic` feature is enabled
 
 ---
 

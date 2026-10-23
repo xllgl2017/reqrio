@@ -28,8 +28,8 @@ HTTP 请求库，主要用于需要精确控制网络行为的场景，
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`reqrio` 提供浏览器级 TLS 指纹控制能力，包括 JA3、JA4、自定义 ClientHello 等功能。
 同时支持同步与异步接口、多语言绑定、流式上传下载以及低内存占用设计。
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`reqrio`是由Rust编写HTTP客户端请求库,并通过ffi绑定到多个语言。支持HTTP/1.1、HTTP/2.0;
-TLS支持TLS 1.2, TLS 1.3
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`reqrio`是由Rust编写HTTP客户端请求库,并通过ffi绑定到多个语言。支持HTTP/1.1、HTTP/2.0，
+并在启用 `quic` 特性时支持 HTTP/3 / QUIC；TLS 支持 TLS 1.2 和 TLS 1.3。
 
 ## reqrio 更关注另一类问题：
 
@@ -73,7 +73,7 @@ TLS支持TLS 1.2, TLS 1.3
 | Header 顺序控制       | ✅      | ❌       | ❌             | ❌         | ⚠️            | ⚠️       |
 | 连接复用 (Keep-Alive) | ✅      | ✅       | ⚠️（有限）        | ⚠️        | ⚠️            | ⚠️       |
 | HTTP/2 支持         | ✅      | ✅       | ❌             | ⚠️        | ⚠️            | ⚠️       |
-| HTTP/3 / QUIC     | ⚠️（未来） | ⚠️      | ❌             | ❌         | ⚠️            | ❌        |
+| HTTP/3 / QUIC     | ⚠️（需启用 `quic` 特性） | ⚠️      | ❌             | ❌         | ⚠️            | ❌        |
 | 流式请求 / 响应         | ✅      | ✅       | ⚠️（弱）         | ⚠️        | ⚠️            | ⚠️       |
 | 超低延迟优化            | ✅      | ❌       | ❌             | ❌         | ⚠️            | ⚠️       |
 | 高并发支持             | ✅      | ⚠️      | ❌             | ⚠️        | ⚠️            | ⚠️       |
@@ -184,9 +184,9 @@ reqrio 采用分层网络栈设计：
 
 ### v0.4
 
-- [ ] TLS 1.3 指纹
-- [ ] HTTP/3
-- [ ] QUIC
+- [x] TLS 1.3 指纹 / ClientHello 控制
+- [x] HTTP/3（需启用 `quic` 特性）
+- [x] QUIC（需启用 `quic` 特性）
 
 ---
 

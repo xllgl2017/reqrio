@@ -1,19 +1,19 @@
 # reqrio-v0.4.0
 
-`v0.4.0` 将 reqrio 的传输能力扩展到 HTTP/3 和 QUIC，并补充了面向国密场景的 TLCP、SM2 支持。
+`v0.4.0` 是 reqrio 的一次重大跃迁：它将传输能力扩展到 HTTP/3 与 QUIC，并补充了面向国密场景的 TLCP / SM2 支持，同时统一了跨 HTTP/1.1、HTTP/2 和 HTTP/3 的流处理模型。该版本的重点是为高并发、复杂网络环境和国密合规场景提供更完整的底层能力。
 
 ## ✨ 新特性
 
 ### 🌊 HTTP/3 与 QUIC [#20](https://github.com/xllgl2017/reqrio/pull/20)
 
-- 新增 QUIC 传输层，实现连接、握手、加密数据包、ACK、流控和流管理。
-- 新增 HTTP/3 请求与响应处理，支持同步和异步请求流程。
-- 新增 QPACK 编解码及静态表、动态表和索引管理。
-- `ScReq` 支持通过 `quic` feature 发起 HTTP/3 请求。
-- 新增 `H3Finger`，用于配置 HTTP/3 指纹。
-- 新增对无序流、`HelloRetry`、`Retry` 数据包和 HTTP/3 响应头的处理。
+- 新增 QUIC 传输层，覆盖连接建立、握手、加密数据包、ACK、流控、丢包恢复和流管理等核心能力。
+- 新增 HTTP/3 请求与响应处理，支持同步和异步编程模型。
+- 新增 QPACK 编解码支持，并提供静态表、动态表和索引管理能力。
+- 新增 `H3Finger`，允许对 HTTP/3 连接行为做更细粒度的指纹控制。
+- 支持在 QUIC / HTTP/3 场景中处理无序流、`HelloRetry`、`Retry` 数据包，以及 HTTP/3 响应头字段。
+- `ScReq` / `AcReq` 可在启用 `quic` feature 后发起 HTTP/3 请求，并保持和现有 HTTP/1.1 / HTTP/2 接口的一致体验。
 
-> ⚠️ HTTP/3/QUIC 板块尚未问题，如需是用，请开启 `quic` feature：
+> ⚠️ HTTP/3 / QUIC 仍属于扩展能力，使用前请开启 `quic` feature：
 
 ```toml
 reqrio = { version = "0.4.0", features = ["quic"] }
@@ -21,18 +21,21 @@ reqrio = { version = "0.4.0", features = ["quic"] }
 
 ### 🔐 TLCP 与国密算法 [#23](https://github.com/xllgl2017/reqrio/issues/23) [#25](https://github.com/xllgl2017/reqrio/pull/25)
 
-- 支持 TLCP 服务端证书校验。
+- 新增 TLCP 服务端证书校验支持，提升国密环境中的 TLS 合规性与兼容性。
+- 支持 TLS 1.3 服务端握手、证书校验和 ALPN 协商，补齐服务端场景下的 TLS 1.3 能力。
 - 新增 `Sm2Key`，支持 SM2 加密、解密、签名和验签。
-- 支持 `ECC_SM4_CBC_SM3` 密码套件。
-- 完善 SM2、证书和签名相关的底层接口与错误处理。
+- 支持 `ECC_SM4_CBC_SM3` 密码套件，覆盖常见国密场景。
+- 新增 `X509_verify` 与 `TrustAnchors` 相关能力，完善证书链校验与信任锚点处理。
+- 完善 SM2、证书、签名和错误处理相关的底层接口，提升国密算法的可集成性。
+- 为国密场景提供更完整的 TLS / 证书链处理能力，使 reqrio 更适合政务、金融与合规化网络环境。
 
 ### 🧩 HTTPStream 与流式请求
 
-- 统一 HTTP/1.1、HTTP/2 和 HTTP/3 的流处理结构`HTTPStream`。
-- `HTTPStream` 支持异步和同步使用。
-- 支持连续发送多个请求, 并且不需按顺序接收，如下：
+- 统一了 HTTP/1.1、HTTP/2 和 HTTP/3 的流处理结构 `HTTPStream`。
+- `HTTPStream` 同时支持同步和异步使用，调用接口保持一致。
+- 支持多个请求并发发送并按需接收结果，不要求严格按照发送顺序读取响应。
 
-```text
+```rust
 use reqrio::*;
 
 let mut req = ScReq::new().connect("https://example.com")?;
@@ -49,20 +52,50 @@ let resp7 = req.recv(sid7)?;
 let resp2 = req.recv(sid2)?;
 println!("{} {}", resp1.header().status(), resp7.header().status());
 ```
-### 🎯 其他
 
-- 增加 `QUERY` 请求方法 [RFC10008](https://www.rfc-editor.org/rfc/rfc10008.html)
-- 支持 MacOS [#22](https://github.com/xllgl2017/reqrio/issues/22)
-- 合并同步和异步接口，使用.wait()/.await
+### 🧩 内置多个指纹
 
-## 🛠️ 修复
+内置多套浏览器和 HTTP/3 指纹模板，便于在不同场景下切换行为特征：
 
-- 修复h2响应体在缺少 `content-length` 时的问题
-- 
-- 修复`WebSocket`的`premessage-deflate`未解压问题 [#17](https://github.com/xllgl2017/reqrio/issues/17)
-- 修复流式响应 [#18](https://github.com/xllgl2017/reqrio/issues/18)
-- 修复响应不正确，在高网络延迟环境 [#24](https://github.com/xllgl2017/reqrio/issues/24)
-- 修复h2在请求体为空的post时，的`content-length`无法设置问题
+* edge-148
+* chrome-137
+* chrome-141
+* chrome-148
+* chrome-152
+* edge-148-h3
+* chrome-137-h3
+* chrome-141-h3
+* chrome-148-h3
+* chrome-152-h3
+
+> `*-h3` 仅用于 UDP / QUIC 场景，不应与 HTTP/1.1 / HTTP/2 的 TLS 指纹配置混用。
+
+### 🎯 其他增强
+
+- 增加 `QUERY` 请求方法，兼容 [RFC10008](https://www.rfc-editor.org/rfc/rfc10008.html) 语义。
+- 支持 MacOS 平台适配 [#22](https://github.com/xllgl2017/reqrio/issues/22)。
+- 统一同步与异步请求接口，调用形式更直接：`.wait()` / `.await`。
+- 增强底层请求状态管理，提升连接复用和多路复用下的稳定性。
+
+## 🛠️ 修复与稳定性提升
+
+- 修复 H2 响应体在缺少 `content-length` 时的解析问题。
+- 修复 TLS 1.2 服务端兼容性问题，确保服务端模式下握手、ALPN 和证书校验更稳定。
+- 修复 `WebSocket` 的 `permessage-deflate` 未正确解压的问题 [#17](https://github.com/xllgl2017/reqrio/issues/17)。
+- 修复流式响应处理中的边界问题 [#18](https://github.com/xllgl2017/reqrio/issues/18)。
+- 修复高网络延迟环境下返回响应不正确的问题 [#24](https://github.com/xllgl2017/reqrio/issues/24)。
+- 修复 H2 在空请求体的 POST 场景中 `content-length` 无法正确设置的问题。
+- 改进整体连接恢复、流重试和响应组装的稳定性，降低复杂网络条件下的异常率。
+
+## 🚀 适用场景
+
+`v0.4.0` 适合以下场景：
+
+- HTTP/3 / QUIC 协议研究与调试
+- TLS 指纹和浏览器行为模拟
+- 高并发数据采集与协议测试
+- 国密环境下的 TLS / 证书兼容性验证
+- 需要同时支持同步和异步网络编程模型的服务端与客户端组件
 
 ## Contact
 
@@ -365,7 +398,7 @@ Client mTLS can be enabled by configuring a client certificate and private key t
 
 ### reqtls
 
-- Export `Cipher`, `Hmac`, `Base64`, `Hasher`, url_en(de)code, hex_en(de)code, and other C-ABI formats.
+- Export `Cipher`, `Hmac`, `Base64`, `Hasher`, url_en (de)code, hex_en (de)code, and other C-ABI formats.
 
 - Support `TLS_AES_CBC/128/256/SHA/SHA256/SHA384 algorithms`.
 

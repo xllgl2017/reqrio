@@ -82,15 +82,19 @@ handshake constructor designed for browser-level ClientHello and TLS behavior bu
 ### TLS fingerprint examples
 
 ```rust
-req.set_ja3("<ja3>", "<token>");
-req.set_ja4("<ja4>", "<token>");
+use reqrio::*;
+
+let (_, fingerprint) = Fingerprint::from_builtin("chrome-152")?;
+let mut req = ScReq::new().with_fingerprint(fingerprint).with_alpn(ALPN::HTTP20);
 ```
 
-### Custom ClientHello
+You can also build a custom fingerprint from a ClientHello payload:
 
 ```rust
-let client_hello = hex_decode(fingerprint["tls_finger"].to_string()) ?;
-req.set_fingerprint(Fingerprint::from_client_hello(client_hello, "<token>")) ?;
+use reqrio::*;
+
+let client_hello = hex::decode("...")?;
+let mut req = ScReq::new().with_fingerprint(Fingerprint::from_client_hello(client_hello, "<token>")?);
 ```
 
 ---
@@ -116,7 +120,7 @@ fn main() {
     };
 
     let mut req = ScReq::new()
-        .with_alpn(ALPN::Http20)
+        .with_alpn(ALPN::HTTP20)
         .with_header_json(headers).unwrap()
         .with_timeout(Timeout::new_same(3000, 3));
 }
@@ -197,12 +201,14 @@ fn main() {
 use reqrio::*;
 
 fn main() {
-    let mut ws = WebSocket::open("wss://echo.websocket.org").unwrap();
+    let mut ws = WebSocket::open_sync("wss://echo.websocket.org").unwrap();
     ws.write_frame(WsFrame::new_text(true, "Hello")).unwrap();
     let frame = ws.read_frame().unwrap();
     println!("Received: {:?}", frame);
 }
 ```
+
+The async variant is also available as `WebSocket::open_async(url)`.
 
 ---
 
