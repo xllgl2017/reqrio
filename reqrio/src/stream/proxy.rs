@@ -181,7 +181,7 @@ impl<S> ProxyStream<S> {
 
 
 impl ProxyStream<std::net::TcpStream> {
-    pub fn shutdown(&mut self) -> HlsResult<()> {
+    pub fn shutdown(&mut self) -> io::Result<()> {
         self.stream.shutdown(Shutdown::Both)?;
         Ok(())
     }

@@ -25,6 +25,7 @@ pub use proxy::ProxyStream;
 #[cfg(feature = "quic")]
 pub use quic::QUICStream;
 use std::collections::HashMap;
+use std::io;
 pub use tls_stream::*;
 pub use ws::*;
 pub use message::{StreamMessage, SendParam};
@@ -89,19 +90,19 @@ impl HTTPStream {
         }
     }
 
-    pub fn stream_mut(&mut self) -> HlsResult<&mut Stream> {
+    pub fn stream_mut(&mut self) -> io::Result<&mut Stream> {
         match self {
-            HTTPStream::NonConnection => Err("connect first".into()),
+            HTTPStream::NonConnection => Err(io::ErrorKind::NotConnected.into()),
             HTTPStream::SyncH1(h1) => Ok(h1.stream_mut()),
             HTTPStream::SyncH2(h2) => Ok(h2.stream_mut()),
             #[cfg(feature = "quic")]
-            HTTPStream::SyncH3(_) => Err("use `QUICStreamS`".into()),
+            HTTPStream::SyncH3(_) => Err(io::Error::other("use `QUICStreamS`")),
             #[cfg(feature = "aync")]
             HTTPStream::AsyncH1(h1) => Ok(h1.stream_mut()),
             #[cfg(feature = "aync")]
             HTTPStream::AsyncH2(h2) => Ok(h2.stream_mut()),
             #[cfg(all(feature = "aync", feature = "quic"))]
-            HTTPStream::AsyncH3(_) => Err("use `HTTPStreamA`".into()),
+            HTTPStream::AsyncH3(_) => Err(io::Error::other("use `HTTPStreamA`")),
         }
     }
 

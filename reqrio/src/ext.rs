@@ -4,6 +4,7 @@ use crate::stream::{HTTPStream, Stream, StreamMessage};
 use crate::*;
 use json::JsonValue;
 use std::collections::HashMap;
+use std::slice;
 
 pub trait ReqExt: Sized {
     fn header_mut(&mut self) -> &mut Header;
@@ -12,7 +13,9 @@ pub trait ReqExt: Sized {
         self.set_timeout(timeout);
         self
     }
-    fn set_timeout(&mut self, timeout: Timeout);
+    fn set_timeout(&mut self, timeout: Timeout) {
+        *self.timeout_mut() = timeout;
+    }
     fn timeout(&self) -> &Timeout;
     fn timeout_mut(&mut self) -> &mut Timeout;
     fn set_proxy(&mut self, proxy: Proxy);
@@ -96,7 +99,28 @@ pub trait ReqExt: Sized {
     }
     fn tls_session(&self) -> Option<&TlsSession>;
 
-    fn set_fingerprint(&mut self, fingerprint: Fingerprint);
+    fn fingerprint_mut(&mut self) -> &mut Fingerprint;
+    fn set_fingerprint(&mut self, fingerprint: Fingerprint) {
+        #[repr(C)]
+        struct Item<'a> {
+            name: &'a str,
+            value: &'a str,
+        }
+        if let Some(finger) = fingerprint.adv.as_ref() {
+            let items = unsafe { slice::from_raw_parts(finger.hdr as *const Item, finger.hdr_count as usize) };
+            for item in items {
+                match (item.name, fingerprint.sec_full) {
+                    ("sec-ch-ua" |
+                    "sec-ch-ua-mobile" |
+                    "sec-ch-ua-platform" |
+                    "user-agent", _) => self.header_mut().insert(item.name, item.value),
+                    (_, true) => self.header_mut().insert(item.name, item.value),
+                    (_, false) => {}
+                }
+            }
+        }
+        *self.fingerprint_mut() = fingerprint;
+    }
     fn with_fingerprint(mut self, fingerprint: Fingerprint) -> Self {
         self.set_fingerprint(fingerprint);
         self
@@ -183,7 +207,6 @@ pub(crate) trait ReqPriExt: ReqExt {
 pub trait ReqStreamExt: ReqExt {
     fn into_stream(self) -> HlsResult<Stream>;
     fn http_stream_mut(&mut self) -> &mut HTTPStream;
-
 }
 
 pub trait UrlExt {

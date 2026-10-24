@@ -1,11 +1,11 @@
 use super::connect::{ConnState, TlsConnecting};
 use crate::Timeout;
-use crate::error::HlsResult;
 use crate::stream::read::ChunkReading;
 use crate::stream::write::BufWriting;
 use reqtls::*;
 #[cfg(feature = "aync")]
 use std::cmp::min;
+use std::io;
 use std::io::{Read, Write};
 #[cfg(feature = "aync")]
 use std::pin::Pin;
@@ -115,7 +115,7 @@ impl<S> TlsStream<S> {
 }
 
 impl<S: Write> TlsStream<S> {
-    pub fn shutdown(&mut self) -> HlsResult<()> {
+    pub fn shutdown(&mut self) -> io::Result<()> {
         self.write_buffer.reset();
         let out = self.write_buffer.unfilled();
         let record_len = self.conn.make_message(RecordType::Alert, &[1, 0], out)?;

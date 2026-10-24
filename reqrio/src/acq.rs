@@ -298,10 +298,6 @@ impl ReqExt for AcReq {
         &self.header
     }
 
-    fn set_timeout(&mut self, timeout: Timeout) {
-        self.timeout = timeout;
-    }
-
     fn timeout(&self) -> &Timeout {
         &self.timeout
     }
@@ -354,8 +350,8 @@ impl ReqExt for AcReq {
         self.stream.tls_session()
     }
 
-    fn set_fingerprint(&mut self, fingerprint: Fingerprint) {
-        self.fingerprint = fingerprint;
+    fn fingerprint_mut(&mut self) -> &mut Fingerprint {
+        &mut self.fingerprint
     }
 
     fn set_header_keys(&mut self, headers: Vec<HeaderItem>, keep_sort: bool) -> HlsResult<()> {

@@ -1,5 +1,4 @@
 use std::io;
-use crate::error::HlsResult;
 use crate::stream::Stream;
 use crate::*;
 use std::io::Write;
@@ -21,7 +20,7 @@ pub struct BufWriting<'a, S> {
 }
 
 impl<'a, S: Write> BufWriting<'a, S> {
-    pub(crate) fn wait(self) -> HlsResult<()> {
+    pub(crate) fn wait(self) -> io::Result<()> {
         while !self.buf.is_empty() {
             let len = self.stream.write(self.buf.filled())?;
             self.buf.used_empty(len);
@@ -32,7 +31,7 @@ impl<'a, S: Write> BufWriting<'a, S> {
 }
 #[cfg(feature = "aync")]
 impl<'a, S: AsyncWrite + Unpin> Future for BufWriting<'a, S> {
-    type Output = HlsResult<()>;
+    type Output = io::Result<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let writer = self.get_mut();
@@ -44,7 +43,7 @@ impl<'a, S: AsyncWrite + Unpin> Future for BufWriting<'a, S> {
             match Pin::new(&mut writer.stream).poll_write(cx, writer.buf.filled())? {
                 Poll::Ready(wrote) => {
                     writer.timeout.reset_write();
-                    if wrote == 0 { return Poll::Ready(Err(HlsError::PeerClosedConnection)); }
+                    if wrote == 0 { return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into())); }
                     if writer.buf.used_empty(wrote) { break; }
                 }
                 Poll::Pending => {
@@ -65,7 +64,7 @@ pub struct StreamWrite<'a> {
 }
 
 impl<'a> StreamWrite<'a> {
-    pub fn wait(self) -> HlsResult<()> {
+    pub fn wait(self) -> io::Result<()> {
         if !self.buf.is_empty() {
             let stream: &mut dyn Write = match self.stream {
                 Stream::NonConnection => return Err(io::ErrorKind::NotConnected.into()),
@@ -83,7 +82,7 @@ impl<'a> StreamWrite<'a> {
 
 #[cfg(feature = "aync")]
 impl<'a> Future for StreamWrite<'a> {
-    type Output = HlsResult<()>;
+    type Output = io::Result<()>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let writer = self.get_mut();
         if !writer.buf.is_empty() {
@@ -112,7 +111,7 @@ pub struct StreamShutdown<'a> {
 }
 
 impl<'a> StreamShutdown<'a> {
-    pub fn wait(self) -> HlsResult<()> {
+    pub fn wait(self) -> io::Result<()> {
         match self.stream {
             Stream::NonConnection => Err(io::ErrorKind::NotConnected.into()),
             Stream::SyncHttp(stream) => stream.shutdown(),
@@ -125,7 +124,7 @@ impl<'a> StreamShutdown<'a> {
 
 #[cfg(feature = "aync")]
 impl<'a> Future for StreamShutdown<'a> {
-    type Output = HlsResult<()>;
+    type Output = io::Result<()>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let reader = self.get_mut();
         let stream: &mut (dyn AsyncWrite + Unpin) = match reader.stream {

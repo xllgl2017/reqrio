@@ -1,3 +1,5 @@
+#[cfg(feature = "aync")]
+use std::io;
 use crate::error::HlsError;
 use crate::json::JsonValue;
 #[cfg(feature = "aync")]
@@ -115,19 +117,19 @@ impl Timeout {
     }
 
     #[cfg(feature = "aync")]
-    pub fn read_timeout(&mut self, cx: &mut Context) -> Result<(), TimeError> {
+    pub fn read_timeout(&mut self, cx: &mut Context) -> io::Result<()> {
         let Some(read_time) = self.read_time.as_mut() else { return Ok(()) };
         match read_time.as_mut().poll(cx) {
-            Poll::Ready(_) => Err(TimeError::ReadTimeout),
+            Poll::Ready(_) => Err(io::ErrorKind::TimedOut.into()),
             Poll::Pending => Ok(())
         }
     }
 
     #[cfg(feature = "aync")]
-    pub fn write_timeout(&mut self, cx: &mut Context) -> Result<(), TimeError> {
+    pub fn write_timeout(&mut self, cx: &mut Context) -> io::Result<()> {
         let Some(write_time) = self.write_time.as_mut() else { return Ok(()) };
         match write_time.as_mut().poll(cx) {
-            Poll::Ready(_) => Err(TimeError::WriteTimeout),
+            Poll::Ready(_) => Err(io::ErrorKind::TimedOut.into()),
             Poll::Pending => Ok(())
         }
     }

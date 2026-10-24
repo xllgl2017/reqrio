@@ -123,11 +123,6 @@ impl Default for H3Finger {
     }
 }
 
-#[repr(C)]
-struct Item<'a> {
-    name: &'a str,
-    value: &'a str,
-}
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Fingerprint {
@@ -135,10 +130,14 @@ pub struct Fingerprint {
     h2: H2Finger,
     #[cfg(feature = "quic")]
     h3: H3Finger,
+    ///内置指纹和vip指纹
+    pub(crate) adv: Option<Arc<Finger>>,
+    ///是否使用完整sec请求头
+    pub(crate) sec_full: bool,
 }
 
 impl Fingerprint {
-    pub fn from_idx<'a>(idx: usize, auth: &str) -> HlsResult<(Vec<(&'a str, &'a str)>, Fingerprint)> {
+    pub fn from_idx<'a>(idx: usize, auth: &str, sec_full: bool) -> HlsResult<Fingerprint> {
         let mut finger = Finger {
             hdr_count: 0,
             hdr: null_mut(),
@@ -146,10 +145,11 @@ impl Fingerprint {
         };
         let ret = unsafe { Finger_get(idx, auth.as_ptr(), auth.len(), &mut finger) };
         if ret != 1 { return Err("not subscribed or file not exists!".into()); }
-        Fingerprint::from_dat(finger)
+        Ok(Fingerprint::from_adv(finger, sec_full))
     }
 
-    pub fn from_builtin<'a>(name: &'static str) -> HlsResult<(Vec<(&'a str, &'a str)>, Fingerprint)> {
+    pub fn from_builtin<'a>(name: &'static str, token: &str, sec_full: bool) -> HlsResult<Fingerprint> {
+        Fingerprint::check_subscription(token);
         let mut finger = Finger {
             hdr_count: 0,
             hdr: null_mut(),
@@ -157,24 +157,25 @@ impl Fingerprint {
         };
         let ret = unsafe { Finger_get_builtin(name.as_ptr(), name.len(), &mut finger) };
         if ret != 1 { return Err(format!("`{}` - not in builtin or not subscribed", name).into()); }
-        Fingerprint::from_dat(finger)
+        Ok(Fingerprint::from_adv(finger, sec_full))
     }
 
-    fn from_dat<'a>(finger: Finger) -> HlsResult<(Vec<(&'a str, &'a str)>, Fingerprint)> {
-        let mut res = Vec::with_capacity(10);
-        unsafe {
-            let items = slice::from_raw_parts(finger.hdr as *const Item, finger.hdr_count as usize);
-            for item in items {
-                res.push((item.name, item.value))
-            }
-        }
+    fn from_adv(finger: Finger, sec_full: bool) -> Fingerprint {
         let finger = Arc::new(finger);
-        Ok((res, Fingerprint {
+        Fingerprint {
             tls: TlsFinger::Adv(finger.clone()),
-            h2: Default::default(),
+            h2: H2Finger {
+                adv: Some(finger.clone()),
+                ..Default::default()
+            },
             #[cfg(feature = "quic")]
-            h3: Default::default(),
-        }))
+            h3: H3Finger {
+                adv: Some(finger.clone()),
+                ..Default::default()
+            },
+            adv: Some(finger),
+            sec_full,
+        }
     }
 
 
@@ -198,6 +199,8 @@ impl Fingerprint {
                 frames: vec![],
                 adv: None,
             },
+            adv: None,
+            sec_full: false,
         }
     }
 
@@ -208,6 +211,8 @@ impl Fingerprint {
             h2,
             #[cfg(feature = "quic")]
             h3: H3Finger::default(),
+            adv: None,
+            sec_full: false,
         })
     }
 
@@ -218,6 +223,8 @@ impl Fingerprint {
             tls,
             h2: H2Finger::default(),
             h3,
+            adv: None,
+            sec_full: false,
         })
     }
 
@@ -322,6 +329,8 @@ impl Default for Fingerprint {
             h2: H2Finger::default(),
             #[cfg(feature = "quic")]
             h3: H3Finger::default(),
+            adv: None,
+            sec_full: false,
         }
     }
 }

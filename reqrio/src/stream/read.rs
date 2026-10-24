@@ -4,6 +4,7 @@ use crate::*;
 use std::io::{ErrorKind, Read};
 #[cfg(feature = "aync")]
 use std::{pin::Pin, task::{Context, Poll}};
+use std::io;
 #[cfg(feature = "aync")]
 use tokio::io::{AsyncRead, ReadBuf};
 
@@ -19,16 +20,16 @@ pub struct BufReading<'a, S> {
 }
 
 impl<'a, S: Read> BufReading<'a, S> {
-    pub(crate) fn wait(self) -> HlsResult<usize> {
+    pub(crate) fn wait(self) -> io::Result<usize> {
         if self.buf.len() >= self.want_size { return Ok(self.buf.len()); }
         debug_assert!(self.want_size > 0 && self.buf.len() < self.want_size);
         self.buf.check_move(self.want_size)?;
         while self.buf.len() < self.want_size {
             match self.stream.read(self.buf.unfilled()).map_err(|e| e.kind()) {
-                Ok(0) => return Err(HlsError::PeerClosedConnection),
+                Ok(0) => return Err(io::Error::from(ErrorKind::BrokenPipe)),
                 Ok(len) => self.buf.add_len(len),
                 Err(ErrorKind::Interrupted) => continue,
-                Err(e) => return Err(e.into()),
+                Err(e) => return Err(io::Error::from(e)),
             }
         }
         Ok(self.buf.len())
@@ -38,7 +39,7 @@ impl<'a, S: Read> BufReading<'a, S> {
 
 #[cfg(feature = "aync")]
 impl<'a, S: AsyncRead + Unpin> Future for BufReading<'a, S> {
-    type Output = HlsResult<usize>;
+    type Output = io::Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.buf.len() >= self.want_size { return Poll::Ready(Ok(self.buf.len())); }
@@ -60,7 +61,7 @@ impl<'a, S: AsyncRead + Unpin> Future for BufReading<'a, S> {
                 Poll::Ready(_) => {
                     reading.timeout.reset_read();
                     let len = buf.filled().len();
-                    if len == 0 { return Poll::Ready(Err(HlsError::PeerClosedConnection)); }
+                    if len == 0 { return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into())); }
                     reading.buf.add_len(len);
                 }
             }
@@ -80,7 +81,7 @@ pub struct ChunkReading<'a, S> {
 }
 
 impl<'a, S: Read> ChunkReading<'a, S> {
-    pub fn wait(self) -> HlsResult<usize> {
+    pub fn wait(self) -> io::Result<usize> {
         if self.buf.len() < self.len_size {
             BufReading {
                 buf: self.buf,

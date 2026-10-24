@@ -1,10 +1,10 @@
-use crate::export::{check_run, handle_err1};
+use crate::export::{check_run, handle_err1, BUILTIN};
 use crate::packet::H2PayloadValue;
 use crate::*;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
-use std::slice;
+use std::{fs, slice};
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
@@ -12,6 +12,29 @@ pub extern "system" fn Fingerprint_new(token: *const c_char) -> *mut Fingerprint
     let token = unsafe { CStr::from_ptr(token) }.to_str().unwrap_or("");
     Box::into_raw(Box::new(Fingerprint::new_custom(token)))
 }
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
+pub extern "system" fn Fingerprint_from_builtin(name: *const c_char, sec_full: bool, token: *const c_char, err: *mut *mut c_char) -> *mut Fingerprint {
+    check_run(move || {
+        if !fs::exists("builtin.dat")? {
+            fs::write("builtin.dat", BUILTIN)?;
+        }
+        let name = unsafe { CStr::from_ptr(name) }.to_str()?;
+        let token = unsafe { CStr::from_ptr(token) }.to_str()?;
+        Ok(Box::into_raw(Box::new(Fingerprint::from_builtin(name, token, sec_full)?)))
+    }, |e| handle_err1(e, err, null_mut()))
+}
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
+pub extern "system" fn Fingerprint_from_idx(idx: usize, auth: *const c_char, sec_full: bool, err: *mut *mut c_char) -> *mut Fingerprint {
+    check_run(move || {
+        let auth = unsafe { CStr::from_ptr(auth) }.to_str()?;
+        Ok(Box::into_raw(Box::new(Fingerprint::from_idx(idx, auth, sec_full)?)))
+    }, |e| handle_err1(e, err, null_mut()))
+}
+
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]

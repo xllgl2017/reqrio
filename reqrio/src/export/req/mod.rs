@@ -2,16 +2,15 @@ mod finger;
 mod response;
 mod body;
 
-use crate::export::{check_run, handle_err1, handle_err2, BUILTIN};
+use crate::Fingerprint;
+use crate::export::{check_run, handle_err1, handle_err2};
+use crate::stream::StreamMessage;
 use crate::time::Timeout;
 use crate::*;
-use crate::Fingerprint;
-use std::ffi::{c_char, CStr, CString};
-use std::fs;
-use std::ops::{Deref};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::ffi::{CStr, CString, c_char};
+use std::ops::Deref;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr::{null, null_mut};
-use crate::stream::StreamMessage;
 
 #[cfg(feature = "log")]
 const LOGER: Logger = Logger {
@@ -131,41 +130,6 @@ pub extern "system" fn ScReq_set_fingerprint(req: *mut ScReq, fingerprint: *mut 
     check_run(move || {
         let req = unsafe { req.as_mut().ok_or(HlsError::NullPointer) }?;
         req.set_fingerprint(unsafe { *Box::from_raw(fingerprint) });
-        Ok(null_mut())
-    }, handle_err2)
-}
-
-#[unsafe(no_mangle)]
-#[allow(non_snake_case)]
-pub extern "system" fn ScReq_with_builtin(req: *mut ScReq, name: *const c_char, token: *const c_char) -> *mut c_char {
-    check_run(move || {
-        if !fs::exists("builtin.dat")? {
-            fs::write("builtin.dat", BUILTIN)?;
-        }
-        let req = unsafe { req.as_mut() }.ok_or(HlsError::NullPointer)?;
-        let name = unsafe { CStr::from_ptr(name) }.to_str()?;
-        let token = unsafe { CStr::from_ptr(token) }.to_str()?;
-        Fingerprint::check_subscription(token);
-        let (headers, fingerprint) = Fingerprint::from_builtin(name)?;
-        for (name, value) in headers {
-            req.insert_header(name, value);
-        }
-        req.set_fingerprint(fingerprint);
-        Ok(null_mut())
-    }, handle_err2)
-}
-
-#[unsafe(no_mangle)]
-#[allow(non_snake_case)]
-pub extern "system" fn ScReq_with_finger_idx(req: *mut ScReq, idx: usize, auth: *const c_char) -> *mut c_char {
-    check_run(move || {
-        let req = unsafe { req.as_mut() }.ok_or(HlsError::NullPointer)?;
-        let auth = unsafe { CStr::from_ptr(auth) }.to_str()?;
-        let (headers, fingerprint) = Fingerprint::from_idx(idx, auth)?;
-        for (name, value) in headers {
-            req.insert_header(name, value);
-        }
-        req.set_fingerprint(fingerprint);
         Ok(null_mut())
     }, handle_err2)
 }
