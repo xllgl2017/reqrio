@@ -8,9 +8,6 @@ static TOKEN: LazyLock<String> = LazyLock::new(|| fs::read_to_string("TOKEN").un
 #[allow(unused)]
 static AUTH: LazyLock<String> = LazyLock::new(|| fs::read_to_string("AUTH").unwrap_or(env::var("REQRIO_AUTH").unwrap_or("".to_string())));
 
-#[allow(unused)]
-static AUTH_BUILTIN: LazyLock<String> = LazyLock::new(|| fs::read_to_string("AUTH_BUILTIN").unwrap_or(env::var("REQRIO_AUTH_BUILTIN").unwrap_or("".to_string())));
-
 #[cfg(feature = "log")]
 const LOGER: Logger = Logger {
     module: &[],
@@ -27,98 +24,11 @@ fn test_log() {
     set_max_level(LevelFilter::Trace);
 }
 
-const REVERSED: [u16; 15] = [0x0a0a, 0x1a1a, 0x2a2a, 0x3a3a, 0x4a4a, 0x5a5a, 0x6a6a, 0x7a7a, 0x8a8a, 0x9a9a, 0xaaaa, 0xbaba, 0xcaca, 0xeaea, 0xfafa];
-pub fn random_fingerprint(sni: &str) -> Result<Fingerprint, HlsError> {
-    let group = REVERSED[rand::random::<usize>() % REVERSED.len()];
-    let padding = 196 + (19 - sni.len() as i32);
-    let tls = TlsFinger::Custom {
-        record_version: Version::TLS_1_0,
-        message_version: Version::TLS_1_2,
-        suites: vec![
-            CipherSuite::from(REVERSED[rand::random::<usize>() % REVERSED.len()]),
-            CipherSuite::TLS_AES_128_GCM_SHA256,
-            CipherSuite::TLS_AES_256_GCM_SHA384,
-            CipherSuite::TLS_CHACHA20_POLY1305_SHA256,
-            CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-            CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-            CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-            CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-            CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-            CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-            CipherSuite::TLS_RSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite::TLS_RSA_WITH_AES_256_GCM_SHA384,
-            CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA,
-            CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA,
-        ],
-        extensions: vec![
-            Extension::Reserved {
-                typ: ExtensionType::new(REVERSED[rand::random::<usize>() % REVERSED.len()]),
-                value: Buf::new_ref(&[])
-            },
-            Extension::ServerName(vec![ServerName::HOSTNAME]),
-            Extension::ExtendedMasterSecret,
-            Extension::RENEGOTIATION_INFO,
-            Extension::SupportedGroups(vec![
-                NamedCurve::new(group),
-                NamedCurve::X25519,
-                NamedCurve::SecP256r1,
-                NamedCurve::SecP384r1
-            ]),
-            Extension::EcPointFormats(vec![
-                EcPointFormat::UNCOMPRESSED
-            ]),
-            Extension::SessionTicket(Buf::new_ref(&[])),
-            Extension::ApplicationLayerProtocolNegotiation(vec![
-                ALPN::HTTP20,
-                ALPN::HTTP11
-            ]),
-            Extension::STATUS_REQUEST,
-            Extension::SignatureAlgorithms(vec![
-                SignatureAlgorithm::ECDSA_SECP256R1_SHA256,
-                SignatureAlgorithm::RSA_PSS_RSAE_SHA256,
-                SignatureAlgorithm::RSA_PKCS1_SHA256,
-                SignatureAlgorithm::ECDSA_SECP384R1_SHA384,
-                SignatureAlgorithm::RSA_PSS_RSAE_SHA384,
-                SignatureAlgorithm::RSA_PKCS1_SHA384,
-                SignatureAlgorithm::RSA_PSS_RSAE_SHA512,
-                SignatureAlgorithm::RSA_PKCS1_SHA512
-            ]),
-            Extension::SignedCertificateTimestamp,
-            Extension::KeyShare(vec![
-                KeyEntry::new(NamedCurve::new(group)),
-                KeyEntry::X25519
-            ]),
-            Extension::PskKeyExchangeModes(vec![PskMode::PSK_DHE_KE]),
-            Extension::SupportedVersions(vec![
-                Version::new(REVERSED[rand::random::<usize>() % REVERSED.len()]),
-                Version::TLS_1_3,
-                Version::TLS_1_2,
-            ]),
-            Extension::CompressionCertificate(vec![
-                CompressionMethod::BROTLI
-            ]),
-            Extension::ApplicationSettingOld(vec![
-                ALPN::HTTP20
-            ]),
-            Extension::Reserved {
-                typ: ExtensionType::new(REVERSED[rand::random::<usize>() % REVERSED.len()]),
-                value: Buf::new_ref(&[0])
-            },
-            Extension::Padding(padding as usize)
-        ],
-    };
-    Fingerprint::new_tls(tls, fs::read_to_string("TOKEN").unwrap_or("".to_string()))
-}
-
-
 fn main() {
     #[cfg(feature = "log")]
     test_log();
-    Fingerprint::check_subscription(TOKEN.as_str());
-    let (hdrs, fingerprint) = Fingerprint::from_idx(0, AUTH.as_str()).unwrap();
-    // let (hdrs, fingerprint) = Fingerprint::from_builtin("edge-148", AUTH_BUILTIN.as_str()).unwrap();
+    let fingerprint = Fingerprint::from_idx(0, AUTH.as_str(), false).unwrap();
+    // let fingerprint = Fingerprint::from_builtin("chrome-152", TOKEN.as_str(), false).unwrap();
     // return;
 
     let t = Time::now();
@@ -153,10 +63,6 @@ fn main() {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
     };
     req.set_headers_json(headers);
-    for (name, value) in hdrs {
-        println!("{} {}", name, value);
-        req.header_mut().insert(name, value);
-    }
     // let res1 = req.get("https://img-s-msn-com.akamaized.net", None).unwrap();
     // let url = "https://ts3.tc.mm.bing.net/th/id/ODF.dsR0yzVOEBuWxCU9cjAM4Q?w=32&h=32&qlt=96&pcl=fffffa&o=6&pid=1.2";
     // let sid1 = req.send(Method::GET, url, None).unwrap();
@@ -186,8 +92,7 @@ fn main() {
     // let res1=req.get("https://h5.moutai519.com.cn",None).unwrap();
     // let res1 = req.get("https://m.sogou.com", None).unwrap();
     // let res1 = req.get("https://127.0.0.1:7878", None).unwrap();
-    let res1 = req.get("https://www.bing.com", None).unwrap();
-    // let res1=req.get("https://m.so.com",None).unwrap();
+    let res1 = req.get("https://m.so.com", None).unwrap();
     // let session = req.tls_session().cloned();
     // println!("{:#?}", session);
     // req.set_tls_session(session);
