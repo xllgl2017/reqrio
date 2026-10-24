@@ -10,9 +10,9 @@ pub struct DynamicTable {
     values: VecDeque<(usize, PackItem)>,
     max_size: usize,
     size: usize,
-    ///Decoder 已经收到并处理到第x个动态表插入。
+    /// The decoder has received and processed up to the x-th insertion into the dynamic table.
     increment: usize,
-    ///我已经完成某个 Header Block的解码
+    /// The decoder has finished decoding a given Header Block.
     sec_reqs: HashMap<u64, Vec<usize>>,
 }
 
@@ -46,7 +46,7 @@ impl DynamicTable {
             let Some((index, _)) = self.values.get(pos)else { break; };
             if self.increment <= *index { break; }
             let ref_index = self.sec_reqs.iter().any(|(_, value)| value.iter().any(|x| x == index));
-            //查到有被引用的，后面的item不再检查
+            // If the item is still referenced, stop checking subsequent entries.
             if ref_index { break; }
             let Some((_, item)) = self.values.remove(pos)else {
                 pos += 1;

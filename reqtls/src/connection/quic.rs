@@ -43,7 +43,7 @@ impl QUICConnection {
     /// [rfc9001 5.2](https://datatracker.ietf.org/doc/html/rfc9001#name-initial-secrets)
     pub fn make_initial_cipher(&mut self, cid: &Buf<'_>, force: bool) -> RlsResult<()> {
         if !self.conn.decryptor.is_null() && !self.conn.encryptor.is_null() & !force { return Ok(()); }
-        //清空现有的handshake bytes
+        // Clear existing handshake bytes.
         self.conn.session_bytes.clear();
         if !force { self.conn.derived.init(KeyType::Initial, &CipherSuite::TLS_AES_128_GCM_SHA256); }
         #[cfg(all(debug_assertions, feature = "log"))]

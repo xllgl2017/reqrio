@@ -66,19 +66,19 @@ impl Proxy {
             Proxy::Socks5(v) => {
                 if index == 0 {
                     if v.username().is_empty() || v.password().is_empty() {
-                        //认证方法-无认证
+                        // Authentication method: no authentication
                         writer.write_slice(&[5, 1, 0])?;
                     } else {
-                        //认证方法-账号密码
+                        // Authentication method: username/password
                         writer.write_slice(&[5, 1, 2])?;
                     }
                 }
                 if index == 1 {
                     if v.username().is_empty() || v.password().is_empty() {
-                        //认证方法-无认证
+                        // Authentication method: no authentication
                         // index = 2;
                     } else {
-                        //认证方法-账号密码
+                        // Authentication method: username/password
                         writer.write_u8(1)?;
                         writer.write_u8(v.username().len() as u8)?;
                         writer.write_slice(v.username().as_bytes())?;

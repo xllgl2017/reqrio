@@ -52,9 +52,9 @@ impl PackItem {
     pub fn name(&self) -> &str { &self.name }
     pub fn value(&self) -> &str { &self.value }
 
-    /// 条目大小=len(name)+len(value)+32
+    /// Entry size = len(name) + len(value) + 32
     ///
-    /// 文档rfc7541-4.1
+    /// Reference: RFC 7541-4.1
     pub fn item_size(&self) -> usize {
         self.name.len() + self.value.len() + 32
     }

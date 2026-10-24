@@ -24,7 +24,7 @@ pub trait ReqExt: Sized {
         self
     }
 
-    ///是否校验服务器下发的消息（证书、签名等），默认校验
+    /// Whether to verify server-provided messages (certificates, signatures, etc.); enabled by default.
     fn set_verify(&mut self, verify: bool);
     fn with_verify(mut self, verify: bool) -> Self {
         self.set_verify(verify);
@@ -32,7 +32,7 @@ pub trait ReqExt: Sized {
     }
     fn proxy(&self) -> &Proxy;
 
-    ///是否自动进行跳转
+    /// Whether to automatically follow redirects.
     fn set_auto_redirect(&mut self, auto_redirect: bool);
     fn with_auto_redirect(mut self, auto_redirect: bool) -> Self {
         self.set_auto_redirect(auto_redirect);
@@ -44,15 +44,15 @@ pub trait ReqExt: Sized {
         self
     }
 
-    /// 导出tls key log
-    /// 注意: 为保证通信安全，生产模式勿使用，以免造成隐私泄露
+    /// Export a TLS key log.
+    /// Note: do not enable this in production as it can expose sensitive traffic data.
     fn set_key_log(&mut self, path: impl Into<String>);
 
     fn with_key_log(mut self, path: impl Into<String>) -> Self {
         self.set_key_log(path);
         self
     }
-    ///接受SSLKEYLOGFILE，
+    /// Accept `SSLKEYLOGFILE`.
     fn with_env_key_log(mut self) -> Self {
         if let Ok(key_log) = std::env::var("SSLKEYLOGFILE") {
             self.set_key_log(key_log);
@@ -60,23 +60,23 @@ pub trait ReqExt: Sized {
         self
     }
 
-    /// * 必须在建立tls连接前设置, 否则需要调re_conn
-    /// * 默认使用http2.0去连接，实际使用协议需要和服务器协商
+    /// * Must be set before establishing the TLS connection; otherwise call `re_conn`.
+    /// * HTTP/2.0 is used by default; the actual protocol is negotiated with the server.
     fn set_alpn(&mut self, alpn: ALPN);
     fn with_alpn(mut self, alpn: ALPN) -> Self {
         self.set_alpn(alpn);
         self
     }
 
-    /// * 必须在建立tls连接前设置, 否则需要调re_conn
-    /// * 默认使用TLS 1.3去连接，实际使用协议需要和服务器协商
+    /// * Must be set before establishing the TLS connection; otherwise call `re_conn`.
+    /// * TLS 1.3 is used by default; the actual protocol is negotiated with the server.
     fn set_version(&mut self, version: Version);
     fn with_version(mut self, version: Version) -> Self {
         self.set_version(version);
         self
     }
 
-    ///启用mtls，并传入客户端证书
+    /// Enable mTLS and provide the client certificate.
     ///```no_run
     /// use reqrio::*;
     ///
@@ -91,7 +91,7 @@ pub trait ReqExt: Sized {
         self
     }
 
-    ///用户恢复tls会话的数据
+    /// TLS session data used to resume a session.
     fn set_tls_session(&mut self, tls_session: Option<TlsSession>);
     fn with_tls_session(mut self, tls_session: Option<TlsSession>) -> Self {
         self.set_tls_session(tls_session);
@@ -158,7 +158,7 @@ pub trait ReqExt: Sized {
     }
 
 
-    ///设置请求头，keep_sort为true时请求头内务必包含必要参数（如：Host, Content-Length等）
+    /// Set request headers. When `keep_sort` is `true`, the headers must include required fields such as `Host` and `Content-Length`.
     fn with_headers_keys(mut self, headers: Vec<HeaderItem>, keep_sort: bool) -> HlsResult<Self> {
         self.set_header_keys(headers, keep_sort)?;
         Ok(self)

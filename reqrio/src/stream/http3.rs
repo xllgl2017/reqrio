@@ -252,7 +252,7 @@ impl HTTP3Stream<std::net::UdpSocket> {
                             _ => {}
                         }
                     }
-                    //客户端忽略，服务端暂不处理
+                    // Client ignores this; server side is not handled yet.
                     H3Frame::PriorityUpdate { .. } => {}
                     H3Frame::Headers(hdr) => {
                         let Some(response) = recv.responses.get_mut(sid) else { continue };

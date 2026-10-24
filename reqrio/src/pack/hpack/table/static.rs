@@ -1,6 +1,6 @@
 use super::super::super::item::{PackItem, pack_item};
 
-/// 静态表 rfc7541-Static Table Definition
+/// Static table, RFC 7541 - Static Table Definition
 pub(crate) static STATIC_TABLE: [PackItem; 61] = [
     pack_item!(":authority", ""),
     pack_item!(":method", "GET"),

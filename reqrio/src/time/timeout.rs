@@ -13,23 +13,23 @@ use tokio::time::Sleep;
 use crate::TimeError;
 
 pub struct Timeout {
-    //连接超时
+    // Connection timeout
     #[cfg(feature = "aync")]
     connect_time: Option<Pin<Box<Sleep>>>,
     connect_timeout: Duration,
-    //读取超时，单次
+    // Read timeout, per operation
     #[cfg(feature = "aync")]
     read_time: Option<Pin<Box<Sleep>>>,
     read_timeout: Duration,
-    //写出超时，单次
+    // Write timeout, per operation
     #[cfg(feature = "aync")]
     write_time: Option<Pin<Box<Sleep>>>,
     write_timeout: Duration,
-    //处理超时，总超时
+    // Handling timeout, total timeout
     handle: Duration,
-    //连接尝试次数
+    // Number of connection attempts
     connect_times: i32,
-    //处理次数
+    // Number of handling attempts
     handle_times: i32,
 }
 

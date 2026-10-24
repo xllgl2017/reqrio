@@ -224,10 +224,10 @@ impl HTTPStream {
 
 pub enum Stream {
     NonConnection,
-    //同步
+    // Synchronous
     SyncHttp(ProxyStream<std::net::TcpStream>),
     SyncHttps(TlsStream<ProxyStream<std::net::TcpStream>>),
-    //异步
+    // Asynchronous
     #[cfg(feature = "aync")]
     AsyncHttp(ProxyStream<tokio::net::TcpStream>),
     #[cfg(feature = "aync")]

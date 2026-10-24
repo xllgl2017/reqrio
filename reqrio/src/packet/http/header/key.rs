@@ -32,7 +32,7 @@ impl HeaderItem {
         self
     }
 
-    ///保留的key，当key的值为空时，该值不会被发送; 若要发送请使用new
+    /// Reserved key. When the key value is empty, it will not be sent; use `new` to send it.
     pub const fn new_reserved(name: &'static str, value: HeaderValue) -> HeaderItem {
         HeaderItem {
             name: Cow::Borrowed(name),

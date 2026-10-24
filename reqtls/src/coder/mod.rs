@@ -53,11 +53,11 @@ pub fn chunk_decode(mut raw: Vec<u8>) -> RlsResult<Vec<u8>> {
     while let Some(pos) = raw.windows(2).position(|w| w == b"\r\n") {
         let len_bs = raw.drain(..pos).collect();
         let len_str = String::from_utf8(len_bs)?;
-        //删除\r\n
+        // Remove `\r\n`.
         raw.drain(..2);
         let chunk_len = usize::from_str_radix(len_str.as_str(), 16)?;
         res.extend(raw.drain(..chunk_len).collect::<Vec<_>>());
-        //删除\r\n
+        // Remove `\r\n`.
         raw.drain(..2);
     }
     Ok(res)

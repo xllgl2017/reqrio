@@ -40,7 +40,7 @@ impl QPackEncode {
     }
     fn encode_literal(&mut self, value: &str, writer: &mut Writer) -> Result<(), BufferError> {
         let value_len = if value.len() >= 0x7F { 0x7F } else { value.len() };
-        //使用huffman编码
+        // Use Huffman encoding.
         writer.write_u8(value_len as u8 | if self.huffman { 0x80 } else { 0 })?;
         if value_len == 0x7F { super::super::encode_integer(writer, value.len() - value_len)? };
         match self.huffman {

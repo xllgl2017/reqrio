@@ -86,7 +86,7 @@ impl Time {
     }
 
     pub fn from_msecs(msecs: u128) -> Time {
-        // 处理时间（秒 -> 时分秒）
+        // Process time (seconds -> HH:MM:SS)
         let days = msecs.div_euclid(Time::SECS_PER_DAY);
         let rem = msecs.rem_euclid(Time::SECS_PER_DAY);
 
@@ -304,7 +304,7 @@ impl Time {
                 i += 1;
             }
 
-            // 转成毫秒（3位）
+            // Convert to milliseconds (3 digits)
             if digits > 0 {
                 if digits >= 3 {
                     msecs = val / 10u128.pow((digits - 3) as u32);

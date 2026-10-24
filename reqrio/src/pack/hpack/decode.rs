@@ -11,9 +11,9 @@ use std::sync::atomic::AtomicUsize;
 pub struct HPackDecodeBuf<'a> {
     remain: Vec<u8>,
     buf: &'a [u8],
-    //已读取的长度
+    // Number of bytes already read.
     read: usize,
-    //已使用的长度
+    // Number of bytes already consumed.
     used: usize,
 }
 

@@ -184,7 +184,7 @@ pub extern "system" fn ScReq_add_cookie(req: *mut ScReq, name: *const c_char, va
 }
 
 
-///注意: 流式请求返回的是引用
+/// Note: streaming requests return a reference.
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn ScReq_do_http(

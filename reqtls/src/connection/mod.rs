@@ -469,9 +469,9 @@ impl Connection {
         Ok(())
     }
 
-    ///#### tls Record结构-5bytes(头部)
-    /// * aes-gcm: payload(8byte的explicit+16payload+16byte的tag)
-    /// * chacha20_poly1305: payload(16payload+16byte tag)
+    ///#### TLS record structure: 5-byte header
+    /// * aes-gcm: payload (8-byte explicit + 16-byte payload + 16-byte tag)
+    /// * chacha20_poly1305: payload (16-byte payload + 16-byte tag)
     pub fn make_finish_message(&mut self, buffer: &mut [u8], server: bool) -> RlsResult<usize> {
         let session_hash = self.hasher.current_hash()?;
         let finish = self.derived.make_finish(self.version, server, session_hash)?;

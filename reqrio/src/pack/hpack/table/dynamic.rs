@@ -27,26 +27,26 @@ impl DynamicTable {
     #[cfg(test)]
     pub fn size(&self) -> usize { self.size }
 
-    ///动态表插入时应位于最前端
+    /// When inserting into the dynamic table, entries should be placed at the front.
     ///
-    /// 文档文档rfc7541-4.4
+    /// Reference: RFC 7541-4.4
     pub fn insert(&mut self, item: PackItem) {
         self.size += item.item_size();
         self.values.insert(0, item);
         self.resize();
     }
 
-    /// 动态表的索引应该减去静态表的长度
+    /// The dynamic table index should be reduced by the static table length.
     ///
-    /// 文档文档rfc7541-2.3.3
+    /// Reference: RFC 7541-2.3.3
     pub fn get(&self, index: usize) -> Option<&PackItem> {
         let index = index - 61;
         self.values.get(index)
     }
 
-    ///动态表的item遵循先入先出
+    /// Dynamic table items follow FIFO order.
     ///
-    /// 文档文档rfc7541-4.3
+    /// Reference: RFC 7541-4.3
     fn resize(&mut self) {
         while self.size > self.max_size.load(Ordering::SeqCst) {
             match self.values.pop() {

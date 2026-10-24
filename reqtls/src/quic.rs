@@ -41,7 +41,7 @@ pub fn write_variant(val: u64, writer: &mut Writer) -> Result<(), BufferError> {
     }
 }
 
-///从[place]-i的位置开始写入val
+/// Write `val` starting from the front of `[place] - i`.
 pub fn write_variant_front(val: u64, writer: &mut Writer) -> Result<usize, BufferError> {
     match val {
         ..0x40 => Ok(writer.write_u8_front(val as u8)),
@@ -55,11 +55,11 @@ pub fn write_variant_front(val: u64, writer: &mut Writer) -> Result<usize, Buffe
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct QUICNum {
     value: u64,
-    ///类型
+    /// Type.
     typ: PacketType,
-    ///在哪个ack包中对改包进行了ack
+    /// Which ACK packet acknowledged this packet.
     ack_nums: Vec<u64>,
-    ///是否是缺失的
+    /// Whether this value is missing.
     missing: bool,
 }
 impl QUICNum {
@@ -165,7 +165,7 @@ impl QUICRange {
     }
 
     pub fn need_ack(&self) -> bool {
-        //默认为25ms，目前先固定，后续可能有协商
+        // Defaults to 25 ms; currently fixed here until negotiation is added later.
         self.last_sent.elapsed() >= self.max_ack_delay
     }
 }

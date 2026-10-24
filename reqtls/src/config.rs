@@ -23,25 +23,25 @@ impl<'a> Config<'a> {
 }
 
 pub struct ClientConfig<'a> {
-    ///域名，ServerName
+    /// Domain name, i.e. `ServerName`.
     pub sni: &'a str,
-    ///设置应用层使用哪个协议，这里一般设置最高那个
+    /// Select the ALPN protocol to use; generally the highest-priority protocol is chosen here.
     pub alpn: &'a ALPN,
-    ///Tls指纹信息，
+    /// TLS fingerprint information.
     pub fingerprint: &'a TlsFinger<'a>,
-    ///证书，mTls设置客户端证书
+    /// Certificate used for mTLS client authentication.
     pub client_cert: &'a mut Vec<Certificate>,
-    ///证书私钥，mTls设置客户端证书私钥
+    /// Certificate private key used for mTLS client authentication.
     pub cert_key: &'a RsaKey,
-    ///是否对服务器证书链签名进行校验
+    /// Whether to verify the server certificate chain signature.
     pub verify: bool,
-    ///额外的ca证书，用于自签证书
+    /// Additional CA certificates used for self-signed certificates.
     pub ca_certs: &'a [Certificate],
-    ///tls密钥导出路径，None不导出
+    /// TLS key export path; `None` disables exporting.
     pub key_log: Option<Arc<String>>,
-    ///使用tls会话数据恢复会话
+    /// Resume a TLS session using saved TLS session data.
     pub session: Option<TlsSession>,
-    ///TLS版本
+    /// TLS version.
     pub version: Version,
 }
 
@@ -54,8 +54,8 @@ pub struct ServerConfig<'a> {
     pub verify: bool,
     pub ca_certs: &'a Vec<Certificate>,
     pub key_log: Option<Arc<String>>,
-    ///tls握手版本，优先选择config的，没有的情况下自动选择第一个
+    /// TLS handshake version. The config value takes priority; otherwise the first available value is selected automatically.
     pub version: Version,
-    ///密钥交换算法，优先选择config的，没有的情况下自动选择最后一个
+    /// Key exchange algorithm. The config value takes priority; otherwise the last available value is selected automatically.
     pub named_curve: NamedCurve
 }

@@ -212,7 +212,7 @@ impl Header {
         self.set_cookies(cookies);
     }
 
-    ///cookie请使用set_cookie/add_cookie
+    /// For cookies, use `set_cookie` or `add_cookie`.
     pub fn insert(&mut self, k: impl AsRef<str>, value: impl Into<HeaderValue>) {
         let value = value.into();
         let lower_key = k.as_ref().to_lowercase().replace("contentlength", "content-length")

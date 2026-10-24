@@ -1,6 +1,6 @@
 use super::super::super::item::{PackItem, pack_item};
 
-/// 静态表 rfc9204-[Static Table](https://datatracker.ietf.org/doc/html/rfc9204#appendix-A)
+/// Static table, RFC 9204 - [Static Table](https://datatracker.ietf.org/doc/html/rfc9204#appendix-A)
 pub(crate) static STATIC_TABLE: [PackItem; 99] = [
     pack_item!(":authority", ""),
     pack_item!(":path", "/"),

@@ -33,7 +33,7 @@ impl Uri {
         self.path = path.to_string();
     }
 
-    ///value: 应为未编码
+    /// `value` should be unencoded.
     pub fn insert_param<'a>(&mut self, name: impl ToString, value: impl Into<Cow<'a, str>>) {
         if self.path.is_empty() { self.path += "/"; }
         let name = name.to_string();

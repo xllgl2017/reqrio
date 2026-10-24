@@ -13,7 +13,7 @@ use std::path::Path;
 use std::sync::Arc;
 pub use file_form::FileForm;
 
-/// * 文件上传示例
+/// * File upload example
 /// ```no_run
 /// use reqrio::*;
 /// let data=json::object!{"key":"value"};
@@ -112,7 +112,7 @@ impl HttpFile {
         let mut suffix_reader: RefReader<&[u8]> = RefReader::default();
         suffix_reader.add_buf(b"--");
         suffix_reader.add_buf(self.boundary.as_bytes());
-        //此处待定
+        // TODO: placeholder for the pending implementation
         suffix_reader.add_buf(b"--");
         let mut files = vec![];
         for form in &self.forms {

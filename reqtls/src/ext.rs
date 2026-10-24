@@ -30,10 +30,10 @@ pub trait StreamHandle {
         Ok(())
     }
 
-    /// 处理ServerHello，当为HelloRetry时准备新的ClientHello
-    /// * `param` - 流参数
-    /// * `server_hello` - 已解析的结构
-    /// * 返回是否为hello_retry
+    /// Process `ServerHello`; prepare a new `ClientHello` when a HelloRetryRequest is received.
+    /// * `param` - stream parameters
+    /// * `server_hello` - parsed server hello structure
+    /// * Returns whether a `hello_retry` was triggered
     fn handle_server_hello(param: &mut StreamParam<'_>, config: &ClientConfig, version: Version, server_hello: ServerHello) -> Result<bool, RlsError> {
         let hello_retry = param.conn.set_by_server_hello(&server_hello, version)?;
         if hello_retry {

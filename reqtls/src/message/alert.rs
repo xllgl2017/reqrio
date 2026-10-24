@@ -12,56 +12,56 @@ pub enum AlertLevel {
 
 #[derive(Copy, Clone, Debug)]
 pub enum AlertDesc {
-    ///正常关闭通知，表示会话正常结束。
+    /// Normal closure notification; the session ended normally.
     CloseNotify = 0,
-    ///表示收到了不适当或未预期的消息类型
+    /// An inappropriate or unexpected message type was received.
     UnexpectedMessage = 10,
-    /// 记录层的消息认证码（MAC）验证失败
+    /// The record layer's message authentication code (MAC) check failed.
     BadRecordMac = 20,
-    ///解密接收到的数据时出现了问题
+    /// An error occurred while decrypting received data.
     DecryptionFailed = 21,
-    ///接收到的数据记录长度超过了协议所规定的最大长度，违反了协议的格式要求
+    /// The received record length exceeded the maximum allowed by the protocol and violated the format requirement.
     RecordOverflow = 22,
-    ///解压缩操作失败
+    /// Decompression failed.
     DecompressionFailure = 30,
-    /// 握手过程中发生错误，无法完成握手
+    /// A handshake error occurred and the handshake could not complete.
     HandshakeFailure = 40,
-    ///未接收到有效证书
+    /// No valid certificate was received.
     NoCertificate = 41,
-    ///证书无效或格式错误
+    /// The certificate is invalid or malformed.
     BadCertificate = 42,
-    ///对端提供的证书不受本地信任存储支持
+    /// The peer-provided certificate is not supported by the local trust store.
     UnsupportedCertificate = 43,
-    ///证书已被吊销
+    /// The certificate has been revoked.
     CertificateRevoked = 44,
-    ///证书已过期
+    /// The certificate has expired.
     CertificateExpired = 45,
-    ///无法验证对端提供的证书的有效性
+    /// The validity of the peer-provided certificate could not be established.
     CertificateUnknown = 46,
-    ///在握手消息中遇到了非法或不支持的参数
+    /// An illegal or unsupported parameter was encountered in the handshake message.
     IllegalParameter = 47,
-    ///验证过程中使用的证书颁发机构未知
+    /// The certificate authority used during validation is unknown.
     UnknownCa = 48,
-    ///访问被拒绝
+    /// Access was denied.
     AccessDenied = 49,
-    ///解码消息时出错
+    /// An error occurred while decoding the message.
     DecodeError = 50,
-    ///解密消息时出错
+    /// An error occurred while decrypting the message.
     DecryptError = 51,
     ExportRestricted = 60,
-    ///不支持的协议版本
+    /// Unsupported protocol version.
     ProtocolVersion = 70,
-    ///安全度低于最低要求
+    /// The security level is below the minimum requirement.
     InsufficientSecurity = 71,
-    ///发生了内部错误
+    /// An internal error occurred.
     InternalError = 80,
-    /// 用户主动取消了相关操作
+    /// The operation was canceled by the user.
     UserCanceled = 90,
-    ///客户端或服务器拒绝重新协商请求时产生
+    /// This occurs when a client or server rejects a renegotiation request.
     NoRenegotiation = 100,
-    ///一方接收到的SSL/TLS扩展不被另一方支持或理解
+    /// One side received an SSL/TLS extension that the other side does not support or understand.
     UnsupportedExtension = 110,
-    //未知的ServerName
+    // Unknown `ServerName`.
     UnrecognisedName = 112,
 }
 

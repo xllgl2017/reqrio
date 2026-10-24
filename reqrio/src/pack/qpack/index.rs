@@ -5,7 +5,7 @@ use reqtls::{BufferError, Reader, Writer};
 #[cfg_attr(debug_assertions, derive(PartialEq))]
 pub enum Index {
     //--------------------------->encoder<---------------------------
-    ///更新动态表大小
+    /// Update the dynamic table size.
     /// ```text
     ///  0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -13,7 +13,7 @@ pub enum Index {
     /// +---+---+---+-------------------+
     /// ```
     DynamicTableCapacity(usize),
-    ///name在编/解码表内存在，但value不存在，应追加到动态表中
+    /// The name exists in the encode/decode table, but the value does not; it should be appended to the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -28,7 +28,7 @@ pub enum Index {
         idx_dyn: bool,
         index: usize,
     },
-    /// name和value在编/解码表内不存在，应追加到动态表中
+    /// Neither the name nor the value exists in the encode/decode table; it should be appended to the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -45,7 +45,7 @@ pub enum Index {
         huffman: bool,
         name_len: usize,
     },
-    /// 复制动态表中已存在的条目
+    /// Copy an existing entry from the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -70,7 +70,7 @@ pub enum Index {
     /// +---+---+-----------------------+
     ///```
     StreamCancellation(u64),
-    /// 已经收到并处理到第x个动态表插入
+    /// The decoder has received and processed up to the x-th insertion into the dynamic table.
     ///```text
     ///  0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -79,7 +79,7 @@ pub enum Index {
     ///```
     Increment(usize),
     //---------------------------->stream<----------------------------
-    ///所需插入计数
+    /// Required insert count.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -99,7 +99,7 @@ pub enum Index {
         delta_base: usize,
         sign: bool,
     },
-    ///name-value均能在表内找到
+    /// Both the name and value are found in the table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -118,7 +118,7 @@ pub enum Index {
     /// +---+---+---+---+---------------+
     /// ```
     PostBase(usize),
-    ///name在编/解码表内存在，但value不存在，应追加到动态表中，N表示是否插入到动态表
+    /// The name exists in the encode/decode table but the value does not; append it to the dynamic table. `N` indicates whether to insert it.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+

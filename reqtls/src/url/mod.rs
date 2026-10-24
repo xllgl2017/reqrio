@@ -173,7 +173,7 @@ impl TryFrom<&str> for Url {
             addr.set_port(scheme.default_port());
         }
         let uri = if addr_pos != url.len() {
-            //在uri中存在`://`时，应该是带代理的url（如wss://），这里需要把`/`去除
+            // If `://` appears in the URI, it is likely a proxied URL (for example, `wss://`), so the leading `/` should be removed here.
             if url.split("?").next().map(|x| x.contains("://")).unwrap_or(false) { addr_pos += 1; }
             Uri::try_from(&url[addr_pos..])?
         } else { Uri::default() };

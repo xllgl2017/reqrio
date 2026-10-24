@@ -78,7 +78,7 @@ impl H2Finger {
 }
 
 
-///h3帧，仅用于握手后`setting stream`
+/// H3 frames; used only for the post-handshake `settings` stream.
 #[cfg(feature = "quic")]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H3Finger {
@@ -130,9 +130,9 @@ pub struct Fingerprint {
     h2: H2Finger,
     #[cfg(feature = "quic")]
     h3: H3Finger,
-    ///内置指纹和vip指纹
+    /// Built-in fingerprints and VIP fingerprints.
     pub(crate) adv: Option<Arc<Finger>>,
-    ///是否使用完整sec请求头
+    /// Whether to use the full `sec-*` request headers.
     pub(crate) sec_full: bool,
 }
 

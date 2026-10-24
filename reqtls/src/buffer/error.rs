@@ -6,7 +6,7 @@ use std::str::Utf8Error;
 
 #[derive(Debug)]
 pub enum BufferError {
-    ///内容长度过小
+    /// The content length is too small.
     Insufficient,
     InvalidQUICVariant,
     CapacityTooSmall {

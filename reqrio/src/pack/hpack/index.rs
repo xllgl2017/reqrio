@@ -4,7 +4,7 @@ use reqtls::{BufferError, Writer};
 use std::ops::AddAssign;
 
 pub enum Index {
-    /// name-value均能在表内找到
+    /// Both the name and value are found in the table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -12,7 +12,7 @@ pub enum Index {
     /// +---+---------------------------+
     /// ```
     Indexed(usize),
-    /// name和value在编/解码表内不存在，**应追加**到动态表中
+    /// Neither the name nor the value exists in the encode/decode table; it should be appended to the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -28,7 +28,7 @@ pub enum Index {
     /// +-------------------------------+
     /// ```
     NoIndexAdd,
-    /// name和value在编/解码表内不存在，**不应追加**到动态表中
+    /// Neither the name nor the value exists in the encode/decode table; it should not be appended to the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -44,7 +44,7 @@ pub enum Index {
     /// +-------------------------------+
     /// ```
     NoIndexOnce,
-    /// name和value在编/解码表内不存在，**不追加**到动态表中
+    /// Neither the name nor the value exists in the encode/decode table; it is not added to the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -60,7 +60,7 @@ pub enum Index {
     /// +-------------------------------+
     /// ```
     NoIndexNever,
-    /// * name在编/解码表内存在，但value不存在，**应追加**到动态表中
+    /// * The name exists in the encode/decode table but the value does not; it should be appended to the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -72,7 +72,7 @@ pub enum Index {
     /// +-------------------------------+
     /// ```
     NameIndexedAdd(usize),
-    /// * name在编/解码表内存在，但value不存在，**不应追加**到动态表中
+    /// * The name exists in the encode/decode table but the value does not; it should not be appended to the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -84,7 +84,7 @@ pub enum Index {
     /// +-------------------------------+
     /// ```
     NameIndexedOnce(usize),
-    /// * name在编/解码表内存在，但value不存在，**不追加**到动态表中
+    /// * The name exists in the encode/decode table but the value does not; it is not added to the dynamic table.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -96,7 +96,7 @@ pub enum Index {
     /// +-------------------------------+
     /// ```
     NameIndexedNever(usize),
-    /// * 动态表大小更新
+    /// * Dynamic table size update
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
@@ -108,14 +108,14 @@ pub enum Index {
 }
 
 impl Index {
-    ///* Index的value最大值为2^N-1
+    ///* The maximum value of `Index` is `2^N - 1`.
     /// ```text
     ///   0   1   2   3   4   5   6   7
     /// +---+---+---+---+---+---+---+---+
     /// | ? | ? | ? |       Value       |
     /// +---+---+---+-------------------+
     /// ```
-    /// 这里的N为5
+    /// Here `N` is 5.
     fn max_value(&self) -> u8 {
         match self {
             Index::Indexed(_) => 2i32.pow(7) as u8 - 1,

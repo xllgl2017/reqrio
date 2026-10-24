@@ -331,7 +331,7 @@ impl Writer {
     }
 
 
-    ///不更新长度，需要更新使用write_slice
+    /// Does not update the length; use `write_slice` to update it.
     pub fn write_slice_in(&mut self, place: usize, v: &[u8]) -> Result<usize, BufferError> {
         let res = unsafe { Writer_write_slice_in(self, place, v.as_ptr(), v.len()) };
         self.check_write(res, v.len())?;
@@ -415,11 +415,12 @@ impl Debug for Writer {
 }
 
 
-///对应c的结构{
-/// uint8_t tag;
-/// size_t cap;
-/// uint8_t *ptr;
-/// size_t len;
+/// Corresponds to the C structure:
+/// {
+///   uint8_t tag;
+///   size_t cap;
+///   uint8_t *ptr;
+///   size_t len;
 /// }
 #[repr(C)]
 pub enum Buf<'a> {
@@ -531,7 +532,7 @@ impl BufPtr {
         }
     }
 
-    ///注意外部指针，不自动释放
+    /// Note: external pointer; not automatically freed.
     pub fn from_ptr(ptr: *const u8) -> BufPtr {
         BufPtr {
             ptr: CPointer::new(ptr.cast_mut()).with_free(false),

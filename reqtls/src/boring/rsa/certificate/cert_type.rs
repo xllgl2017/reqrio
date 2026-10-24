@@ -6,7 +6,7 @@ pub struct CertType(c_int);
 impl CertType {
     pub const RSA: CertType = CertType(1);
     pub const ECDSA: CertType = CertType(64);
-    //未知
+    // Unknown
     pub const ED25519: CertType = CertType(0);
 
 

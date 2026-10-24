@@ -1,5 +1,5 @@
 pub enum DnType {
-    //国家，只能两个字节
+    // Country; only two bytes are allowed.
     Country,
     StateOrProvince,
     Locality,

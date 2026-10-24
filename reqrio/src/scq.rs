@@ -97,7 +97,7 @@ impl ScReq {
         self.do_http(Method::QUERY, url, body)
     }
 
-    /// 发送一个请求
+    /// Send a request.
     pub fn send<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<u64> {
         let url = url.into().build()?;
         self.set_url(url.as_ref())?;
@@ -150,7 +150,7 @@ impl ScReq {
         Ok(Some(resp.body.slice(offset)))
     }
 
-    /// 流式请求，仅返回请求头，请求体需调next_chunk
+    /// Streaming request; returns only the headers, and the request body must be consumed via `next_chunk`.
     pub fn send_stream<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<&StreamMessage> {
         let sid = self.send(method, url, body)?;
         self.recv_stream(sid)
@@ -246,7 +246,7 @@ impl ScReq {
         Ok(())
     }
 
-    /// 发送请求，并检查http状态码，非200时会报错
+    /// Send a request and validate the HTTP status code; return an error if the status is not 200.
     pub fn send_check<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
         let url = url.into().build()?;
         let response = self.do_http(method, url.as_ref(), body.into())?;
@@ -254,9 +254,9 @@ impl ScReq {
         Ok(response)
     }
 
-    /// #### 发送请求并检查错误，包含body的错误，返回json
-    /// 1. 发送请求，并检查http状态码，非200时会报错
-    /// 2. 根据提供的key，对对应的值进行比较，例如: {"code":200,..},传入k为code，v为200，若不相等则返回错误
+    /// #### Send a request and validate errors, including body errors, then return JSON.
+    /// 1. Send the request and validate the HTTP status code; return an error if it is not 200.
+    /// 2. Compare the provided value using the supplied key, for example: {"code":200,..}; pass `k` as `code` and `v` as `200`. If it does not match, return an error.
     pub fn send_check_json<'a>(
         &mut self,
         method: Method,

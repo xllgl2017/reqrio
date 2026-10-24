@@ -7,9 +7,9 @@ use std::mem;
 
 pub struct ChunkDecoder {
     coder: TZCoder,
-    ///当前数据块需要的大小
+    /// Size required for the current data block.
     want_size: usize,
-    ///当前数据块已读的大小
+    /// Number of bytes already read from the current data block.
     read_size: usize,
     /// trim end
     trim_end: bool,
@@ -25,7 +25,7 @@ impl ChunkDecoder {
             read_size: 0,
             trim_end: true,
             finish: false,
-            remain: vec![],
+            remain: Vec::with_capacity(6),
         })
     }
 
