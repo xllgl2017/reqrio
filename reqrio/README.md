@@ -20,8 +20,8 @@ Unlike HTTP clients that prioritize ease of use, `reqrio` focuses on:
 
 | Category                    | Capability                                                               |
 |-----------------------------|--------------------------------------------------------------------------|
-| **Protocol Support**        | HTTP/1.1, HTTP/2                                                         |
-| **TLS Support**             | TLS 1.2 / TLS 1.3, browser-level TLS construction                        |
+| **Protocol Support**        | HTTP/1.1, HTTP/2, HTTP/3.0                                               |
+| **TLS Support**             | TLS 1.2 / TLS 1.3, TLCP,QUIC                                             |
 | **TLS Fingerprinting**      | JA3, JA4, ClientHello, randomized TLS fingerprints                       |
 | **Request Modes**           | synchronous & asynchronous                                               |
 | **Header Control**          | ordered headers, browser-like header sequencing                          |
@@ -84,7 +84,7 @@ handshake constructor designed for browser-level ClientHello and TLS behavior bu
 ```rust
 use reqrio::*;
 
-let (_, fingerprint) = Fingerprint::from_builtin("chrome-152")?;
+let fingerprint = Fingerprint::from_builtin("chrome-152") ?;
 let mut req = ScReq::new().with_fingerprint(fingerprint).with_alpn(ALPN::HTTP20);
 ```
 
@@ -93,8 +93,8 @@ You can also build a custom fingerprint from a ClientHello payload:
 ```rust
 use reqrio::*;
 
-let client_hello = hex::decode("...")?;
-let mut req = ScReq::new().with_fingerprint(Fingerprint::from_client_hello(client_hello, "<token>")?);
+let client_hello = hex::decode("...") ?;
+let mut req = ScReq::new().with_fingerprint(Fingerprint::from_client_hello(client_hello, "<token>") ? );
 ```
 
 ---

@@ -17,18 +17,18 @@
 
 ## ✨ 核心特性
 
-| 类别            | 能力                                 |
-|---------------|------------------------------------|
-| **协议支持**      | HTTP/1.1、HTTP/2                    |
-| **TLS 支持**    | TLS 1.2 / TLS 1.3，浏览器级 TLS 构造      |
-| **TLS 指纹**    | JA3、JA4、ClientHello、随机指纹           |
-| **请求模式**      | 同步 & 异步                            |
-| **请求头控制**     | 有序 Header，模拟浏览器排序                  |
-| **流式传输**      | 低拷贝数据管道，支持大文件上传与流式响应               |
-| **代理支持**      | HTTP 代理、SOCKS5 代理                  |
-| **Cookie 管理** | 自动继承与会话维持                          |
-| **压缩支持**      | Gzip、Deflate、Brotli、Zstd           |
-| **多语言绑定**     | Rust、Python、Java、Node.js、Go、Qt/C++ |
+| 类别            | 能力                                     |
+|-----------------|------------------------------------------|
+| **协议支持**    | HTTP/1.1、HTTP/2、HTTP/3                 |
+| **TLS 支持**    | TLS 1.2 / TLS 1.3 / TLCP/ QUIC           |
+| **TLS 指纹**    | JA3、JA4、ClientHello、随机指纹          |
+| **请求模式**    | 同步 & 异步                              |
+| **请求头控制**  | 有序 Header，模拟浏览器排序              |
+| **流式传输**    | 低拷贝数据管道，支持大文件上传与流式响应 |
+| **代理支持**    | HTTP 代理、SOCKS5 代理                   |
+| **Cookie 管理** | 自动继承与会话维持                       |
+| **压缩支持**    | Gzip、Deflate、Brotli、Zstd              |
+| **多语言绑定**  | Rust、Python、Java、Node.js、Go、Qt/C++  |
 
 ---
 
@@ -58,6 +58,7 @@
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
 
 ```
+
 ---
 
 ## 🔐 TLS 与指纹
@@ -81,7 +82,7 @@ ClientHello 和 TLS 行为。
 ```rust
 use reqrio::*;
 
-let (_, fingerprint) = Fingerprint::from_builtin("chrome-152")?;
+let fingerprint = Fingerprint::from_builtin("chrome-152") ?;
 let mut req = ScReq::new().with_fingerprint(fingerprint).with_alpn(ALPN::HTTP20);
 ```
 
@@ -90,8 +91,8 @@ let mut req = ScReq::new().with_fingerprint(fingerprint).with_alpn(ALPN::HTTP20)
 ```rust
 use reqrio::*;
 
-let client_hello = hex::decode("...")?;
-let mut req = ScReq::new().with_fingerprint(Fingerprint::from_client_hello(client_hello, "<token>")?);
+let client_hello = hex::decode("...") ?;
+let mut req = ScReq::new().with_fingerprint(Fingerprint::from_client_hello(client_hello, "<token>") ? );
 ```
 
 ---
