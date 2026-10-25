@@ -52,9 +52,10 @@ impl Default for H2Finger {
 impl H2Finger {
     pub fn build_settings(&self, writer: &mut Writer) -> Result<(), BufferError> {
         if let Some(ref adv) = self.adv {
+            let start = writer.end();
             let ret = unsafe { Finger_build_h2(adv.as_ref(), writer) };
             if ret != 1 { return Err(BufferError::InvalidCEncode); }
-            return Ok(());
+            if start != writer.end() { return Ok(()); }
         }
         for frame in self.frames.iter() {
             frame.write_to(writer)?;
@@ -90,9 +91,10 @@ pub struct H3Finger {
 impl H3Finger {
     pub fn build_settings(&self, writer: &mut Writer) -> Result<(), BufferError> {
         if let Some(ref adv) = self.adv {
+            let start = writer.end();
             let ret = unsafe { Finger_build_h3(adv.as_ref(), writer) };
             if ret != 1 { return Err(BufferError::InvalidCEncode); }
-            return Ok(());
+            if start != writer.end() { return Ok(()); }
         }
         for frame in self.frames.iter() {
             frame.write_to(writer)?;
