@@ -126,6 +126,16 @@ pub extern "system" fn ScReq_set_key_log(req: *mut ScReq, key_log: *const c_char
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
+pub extern "system" fn ScReq_set_version(req: *mut ScReq, version: Version) -> *mut c_char {
+    check_run(move || {
+        let req = unsafe { req.as_mut().ok_or(HlsError::NullPointer) }?;
+        req.set_version(version);
+        Ok(null_mut())
+    }, handle_err2)
+}
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
 pub extern "system" fn ScReq_set_fingerprint(req: *mut ScReq, fingerprint: *mut Fingerprint) -> *mut c_char {
     check_run(move || {
         let req = unsafe { req.as_mut().ok_or(HlsError::NullPointer) }?;

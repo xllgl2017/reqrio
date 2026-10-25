@@ -179,12 +179,12 @@ impl Fingerprint {
     }
 
 
-    pub fn new_custom(token: impl AsRef<str>) -> Fingerprint {
+    pub fn new_custom(record_version: Version, message_version: Version, token: impl AsRef<str>) -> Fingerprint {
         Fingerprint::check_subscription(token);
         Fingerprint {
             tls: TlsFinger::Custom {
-                record_version: Version::TLS_1_0,
-                message_version: Version::TLS_1_2,
+                record_version,
+                message_version,
                 suites: vec![],
                 extensions: vec![],
             },

@@ -8,9 +8,9 @@ use std::{fs, slice};
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
-pub extern "system" fn Fingerprint_new(token: *const c_char) -> *mut Fingerprint {
+pub extern "system" fn Fingerprint_new(record_version: Version, message_version: Version, token: *const c_char) -> *mut Fingerprint {
     let token = unsafe { CStr::from_ptr(token) }.to_str().unwrap_or("");
-    Box::into_raw(Box::new(Fingerprint::new_custom(token)))
+    Box::into_raw(Box::new(Fingerprint::new_custom(record_version, message_version, token)))
 }
 
 #[unsafe(no_mangle)]
