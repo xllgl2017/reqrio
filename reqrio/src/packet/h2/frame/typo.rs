@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
 
+#[repr(C)]
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct H2FrameType(u8);
 

@@ -1,7 +1,7 @@
 use crate::body::RawBodyReader;
 use crate::error::HlsResult;
 use crate::pack::{PackError, QPackDecode, QPackEncode, QPackType};
-use crate::packet::{H3Frame, H3Setting, H3Stream};
+use crate::packet::{H3FrameType, H3Payload, H3Setting, H3Stream};
 use crate::reader::ReadExt;
 use crate::stream::quic::QUICStream;
 use crate::stream::quic::Queue;
@@ -50,10 +50,10 @@ impl<S> HTTP3Stream<S> {
         Ok(())
     }
 
-    fn build_frame_head(typ: u64, off: usize, mut len: usize, sid: u64, flag: QUICFrameFlag, writer: &mut Writer) -> std::io::Result<usize> {
+    fn build_frame_head(typ: H3FrameType, off: usize, mut len: usize, sid: u64, flag: QUICFrameFlag, writer: &mut Writer) -> std::io::Result<usize> {
         //----------H3 Frame
         len += quic::write_variant_front(len as u64, writer)?;
-        len += quic::write_variant_front(typ, writer)?;
+        len += quic::write_variant_front(typ.into_inner(), writer)?;
         // ----------QUIC Frame
         quic::write_variant_front(len as u64, writer)?;
         if flag.offset() {
@@ -126,13 +126,13 @@ impl<S> HTTP3Stream<S> {
             };
         }
         stream_param.send_offset = HTTP3Stream::<S>::build_frame_head(
-            H3Frame::HEADERS, stream_param.send_offset, writer.len(), self.sid, flag, &mut writer)?;
+            H3FrameType::Header, stream_param.send_offset, writer.len(), self.sid, flag, &mut writer)?;
         if stream_param.send_offset == 0 && let Some(priority) = param.header.get_str("priority") {
             let param = self.stream_ids.get_mut(&2).unwrap();
             let mut len = writer.write_slice_front(priority.as_bytes())?;
             len += quic::write_variant_front(self.sid, &mut writer)?;
             let flag = QUICFrameFlag::new(param.send_offset);
-            param.send_offset = HTTP3Stream::<S>::build_frame_head(H3Frame::PRIORITY_UPDATE, param.send_offset, len, 2, flag, &mut writer)?;
+            param.send_offset = HTTP3Stream::<S>::build_frame_head(H3FrameType::PriorityUpdate, param.send_offset, len, 2, flag, &mut writer)?;
         }
         Ok(writer)
     }
@@ -154,7 +154,7 @@ impl<S> HTTP3Stream<S> {
         buffer.add_len(writer.len());
 
 
-        stream_param.send_offset = HTTP3Stream::<S>::build_frame_head(H3Frame::HEADERS, stream_param.send_offset, writer.len(), self.sid, flag, &mut buffer)?;
+        stream_param.send_offset = HTTP3Stream::<S>::build_frame_head(H3FrameType::Header, stream_param.send_offset, writer.len(), self.sid, flag, &mut buffer)?;
         Ok(buffer)
     }
 }
@@ -231,7 +231,7 @@ impl HTTP3Stream<std::net::UdpSocket> {
             }
             let mut reader = Reader::from_slice(param.buffer.filled());
             #[cfg(all(debug_assertions, feature = "log"))]
-            trace!("[HTTP3] recv quic: typ={:?}; sid={}; fin={}; off={}",param.typ, sid,  param.recv_fin, param.recv_offset);
+            trace!("[HTTP3] recv stream: typ={:?}; sid={}; fin={}; off={}",param.typ, sid,  param.recv_fin, param.recv_offset);
             let mut pos = reader.position();
             while reader.unread_len() > 0 {
                 let frame = match param.typ.handle_stream(&mut reader, recv.decoder) {
@@ -240,35 +240,34 @@ impl HTTP3Stream<std::net::UdpSocket> {
                     Err(HlsError::Rls(RlsError::Buffer(BufferError::IndexOutBound { .. }))) => break,
                     Err(e) => return Err(e)
                 };
-                // println!("{:#?}", frame);
-                match frame {
-                    H3Frame::Settings(settings) => for setting in settings {
-                        match setting.flag() {
-                            H3Setting::MaxTableCapacity => {
-                                recv.encoder.update_table_size(setting.value() as usize);
-                                recv.decoder.update_table_size(setting.value() as usize);
-                            }
-                            H3Setting::BlockedStreams => *recv.max_stream = setting.value(),
-                            _ => {}
-                        }
-                    }
-                    // Client ignores this; server side is not handled yet.
-                    H3Frame::PriorityUpdate { .. } => {}
-                    H3Frame::Headers(hdr) => {
+                match (frame.frame_type(), frame.payload()) {
+                    (H3FrameType::Header, H3Payload::Bytes(buf)) => {
                         let Some(response) = recv.responses.get_mut(sid) else { continue };
-                        let read_size = match recv.decoder.decode_into(hdr.as_ref(), response, QPackType::Stream, *sid) {
+                        let read_size = match recv.decoder.decode_into(buf.as_ref(), response, QPackType::Stream, *sid) {
                             Ok(size) => size,
                             Err(HlsError::HPack(PackError::BlockedStream(_))) => break,
                             Err(e) => return Err(e)
                         };
-                        assert_eq!(read_size, hdr.len());
+                        assert_eq!(read_size, buf.len());
                         response.make_coding()?;
                     }
-                    H3Frame::Data(body) => {
+                    (H3FrameType::Data, H3Payload::Bytes(buf)) => {
                         let Some(response) = recv.responses.get_mut(sid) else { continue };
-                        response.extend_body(body.as_slice())?;
+                        response.extend_body(buf.as_slice())?;
                     }
-                    H3Frame::Reserved { .. } => {}
+                    (H3FrameType::Setting, H3Payload::Settings(settings)) => {
+                        for setting in settings {
+                            match setting.flag() {
+                                H3Setting::MaxTableCapacity => {
+                                    recv.encoder.update_table_size(setting.value() as usize);
+                                    recv.decoder.update_table_size(setting.value() as usize);
+                                }
+                                H3Setting::BlockedStreams => *recv.max_stream = setting.value(),
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
                 }
                 pos = reader.position();
             }
@@ -332,10 +331,10 @@ struct RecvParam1<'a> {
 
 #[cfg(test)]
 mod tests {
-    use reqtls::quic::QUICFrameFlag;
-    use reqtls::Writer;
-    use crate::packet::H3Frame;
     use super::HTTP3Stream;
+    use crate::packet::H3FrameType;
+    use reqtls::Writer;
+    use reqtls::quic::QUICFrameFlag;
 
     #[test]
     fn test_frame_head_encode() {
@@ -343,7 +342,7 @@ mod tests {
         writer.reset_offset(100..100);
         writer.write_slice((0..50).collect::<Vec<_>>().as_slice()).unwrap();
         let offset = HTTP3Stream::<std::net::UdpSocket>::build_frame_head(
-            H3Frame::HEADERS,
+            H3FrameType::Header,
             0,
             writer.len(),
             0,

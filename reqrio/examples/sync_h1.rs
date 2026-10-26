@@ -27,13 +27,13 @@ fn test_log() {
 fn main() {
     #[cfg(feature = "log")]
     test_log();
-    let fingerprint = Fingerprint::from_idx(0, AUTH.as_str(), false).unwrap();
-    // let fingerprint = Fingerprint::from_builtin("chrome-152", TOKEN.as_str(), false).unwrap();
+    // let fingerprint = Fingerprint::from_idx(0, AUTH.as_str(), false).unwrap();
+    let fingerprint = Fingerprint::from_builtin("win-x64-chrome-152-h3", TOKEN.as_str(), false).unwrap();
     // return;
 
     let t = Time::now();
     let mut req = ScReq::new()
-        .with_alpn(ALPN::HTTP20)
+        .with_alpn(ALPN::HTTP30)
         .with_verify(false)
         .with_timeout(Timeout::new_same(3000, 1))
         // .with_key_log("2.log")
@@ -92,7 +92,8 @@ fn main() {
     // let res1=req.get("https://h5.moutai519.com.cn",None).unwrap();
     // let res1 = req.get("https://m.sogou.com", None).unwrap();
     // let res1 = req.get("https://127.0.0.1:7878", None).unwrap();
-    let res1 = req.get("https://m.so.com", None).unwrap();
+    // let res1 = req.get("https://m.so.com", None).unwrap();
+    let res1 = req.get("https://cn.bing.com", None).unwrap();
     // let session = req.tls_session().cloned();
     // println!("{:#?}", session);
     // req.set_tls_session(session);

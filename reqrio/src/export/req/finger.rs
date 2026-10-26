@@ -1,4 +1,4 @@
-use crate::export::{check_run, handle_err1, BUILTIN};
+use crate::export::{BUILTIN, check_run, handle_err1};
 use crate::packet::H2PayloadValue;
 use crate::*;
 use std::ffi::CStr;
@@ -188,6 +188,15 @@ pub extern "system" fn Fingerprint_add_ext_ec_point(fingerprint: *mut Fingerprin
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
+pub extern "system" fn Fingerprint_clear_h2_frame(fingerprint: *mut Fingerprint) {
+    let fingerprint = unsafe { fingerprint.as_mut() };
+    if let Some(fingerprint) = fingerprint {
+        fingerprint.h2_mut().frames.clear();
+    }
+}
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
 pub extern "system" fn Fingerprint_add_h2_setting(fingerprint: *mut Fingerprint, flag: u16, value: u32) {
     let fingerprint = unsafe { fingerprint.as_mut() };
     if let Some(fingerprint) = fingerprint {
@@ -208,6 +217,57 @@ pub extern "system" fn Fingerprint_add_h2_setting(fingerprint: *mut Fingerprint,
                 _ => unreachable!()
             }
         }
+    }
+}
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
+pub extern "system" fn Fingerprint_add_h2_frame(fingerprint: *mut Fingerprint, typ: H2FrameType, data: *const u8, data_len: usize) {
+    let fingerprint = unsafe { fingerprint.as_mut() };
+    if let Some(fingerprint) = fingerprint {
+        let mut frame = H2Frame::new(0, typ);
+        let data = unsafe { slice::from_raw_parts(data, data_len) }.to_vec();
+        frame.payload.value = H2PayloadValue::Data(Buf::Vec(data));
+
+        fingerprint.h2_mut().frames.push(frame)
+    }
+}
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
+pub extern "system" fn Fingerprint_clean_h3_frame(fingerprint: *mut Fingerprint) {
+    let fingerprint = unsafe { fingerprint.as_mut() };
+    if let Some(fingerprint) = fingerprint {
+        fingerprint.h3_mut().frames.clear();
+    }
+}
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
+pub extern "system" fn Fingerprint_add_h3_setting(fingerprint: *mut Fingerprint, flag: u64, value: u64) {
+    let fingerprint = unsafe { fingerprint.as_mut() };
+    if let Some(fingerprint) = fingerprint {
+        let frame = fingerprint.h3_mut().frames.iter_mut().find(|x| x.frame_type() == H3FrameType::Setting);
+        let setting = H3Setting::new(flag, value);
+        match frame {
+            None => fingerprint.h3_mut().frames.push(H3Frame::new_setting(vec![setting])),
+            Some(frame) => match frame.payload {
+                H3Payload::Settings(ref mut settings) => settings.push(setting),
+                _ => unreachable!()
+            }
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
+pub extern "system" fn Fingerprint_add_h3_frame(fingerprint: *mut Fingerprint, typ: H3FrameType, data: *const u8, data_len: usize) {
+    let fingerprint = unsafe { fingerprint.as_mut() };
+    if let Some(fingerprint) = fingerprint {
+        fingerprint.h3_mut().frames.push(H3Frame {
+            typ,
+            payload: H3Payload::Bytes(Buf::Vec(unsafe { slice::from_raw_parts(data, data_len) }.to_vec())),
+        })
     }
 }
 

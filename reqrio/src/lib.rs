@@ -295,6 +295,8 @@ pub use packet::{
     Application, ContentType, Cookie, Font, H2FrameFlag, H2FrameType, H2Frame, H2Setting, Header,
     HeaderItem, HeaderValue, HttpStatus, Method, Response, Text, WsFrame, WsOpcode, Request,
 };
+#[cfg(feature = "quic")]
+pub use packet::{H3Payload, H3FrameType, H3Setting, H3Frame};
 pub use reqrio_json as json;
 pub use reqtls::*;
 pub use scq::ScReq;

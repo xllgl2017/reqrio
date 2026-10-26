@@ -1,5 +1,3 @@
-#[cfg(feature = "quic")]
-use crate::packet::{H3Frame, H3Setting};
 use crate::*;
 use std::ffi::CString;
 #[cfg(debug_assertions)]
@@ -108,17 +106,20 @@ impl Default for H3Finger {
     fn default() -> Self {
         H3Finger {
             frames: vec![
-                H3Frame::Settings(vec![
-                    H3Setting::new(H3Setting::MaxTableCapacity, 65536),
-                    H3Setting::new(H3Setting::MaxFieldSectionSize, 262144),
-                    H3Setting::new(H3Setting::BlockedStreams, 100),
-                    H3Setting::new(H3Setting::EnableDatagram, 1),
-                    H3Setting::new(0x7c3b6e5b0, 4089453656)
-                ]),
-                H3Frame::Reserved {
-                    typ: 0x11d4c4c93c,
-                    payload: Buf::new_ref(&[0x54]),
-                }
+                H3Frame {
+                    typ: H3FrameType::Setting,
+                    payload: H3Payload::Settings(vec![
+                        H3Setting::new(H3Setting::MaxTableCapacity, 65536),
+                        H3Setting::new(H3Setting::MaxFieldSectionSize, 262144),
+                        H3Setting::new(H3Setting::BlockedStreams, 100),
+                        H3Setting::new(H3Setting::EnableDatagram, 1),
+                        H3Setting::new(0x7c3b6e5b0, 4089453656)
+                    ])
+                },
+                H3Frame {
+                    typ: H3FrameType::new(0x11d4c4c93c),
+                    payload: H3Payload::Bytes(Buf::new_ref(&[0x54]))
+                },
             ],
             adv: None,
         }
@@ -139,7 +140,7 @@ pub struct Fingerprint {
 }
 
 impl Fingerprint {
-    pub fn from_idx<'a>(idx: usize, auth: &str, sec_full: bool) -> HlsResult<Fingerprint> {
+    pub fn from_idx(idx: usize, auth: &str, sec_full: bool) -> HlsResult<Fingerprint> {
         let mut finger = Finger {
             hdr_count: 0,
             hdr: null_mut(),
@@ -150,7 +151,7 @@ impl Fingerprint {
         Ok(Fingerprint::from_adv(finger, sec_full))
     }
 
-    pub fn from_builtin<'a>(name: &'static str, token: &str, sec_full: bool) -> HlsResult<Fingerprint> {
+    pub fn from_builtin(name: &'static str, token: &str, sec_full: bool) -> HlsResult<Fingerprint> {
         Fingerprint::check_subscription(token);
         let mut finger = Finger {
             hdr_count: 0,
