@@ -122,7 +122,7 @@ impl ScReq {
         }
     }
 
-    fn recv_stream(&mut self, sid: u64) -> HlsResult<&StreamMessage> {
+    pub(crate) fn recv_stream(&mut self, sid: u64) -> HlsResult<&StreamMessage> {
         loop {
             let resp = self.responses.get(&sid).ok_or("response not inited or finished")?;
             if !resp.header.is_empty() { break; }

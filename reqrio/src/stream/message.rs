@@ -170,8 +170,6 @@ impl StreamMessage {
 
     pub fn final_request(self) -> Request {
         Request {
-            #[cfg(feature = "export")]
-            sid: self.sid,
             method: self.method,
             uri: self.uri,
             alpn: self.alpn,

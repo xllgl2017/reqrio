@@ -6,8 +6,6 @@ use std::fmt::{Display, Formatter};
 use std::str::Utf8Error;
 
 pub struct Request {
-    #[cfg(feature = "export")]
-    pub(crate) sid: u64,
     pub(crate) method: Method,
     pub(crate) uri: Uri,
     pub(crate) alpn: ALPN,

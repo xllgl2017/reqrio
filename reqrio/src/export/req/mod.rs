@@ -193,6 +193,45 @@ pub extern "system" fn ScReq_add_cookie(req: *mut ScReq, name: *const c_char, va
     }, handle_err2)
 }
 
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn ScReq_send(
+    req: *mut ScReq,
+    method: Method,
+    url: *mut Url,
+    body: *mut Body<'static>,
+    err: *mut *mut c_char,
+) -> u64 {
+    catch_unwind(AssertUnwindSafe(|| {
+        check_run(move || {
+            let req = unsafe { req.as_mut().ok_or(HlsError::NullPointer) }?;
+            let url = unsafe { Box::from_raw(url) };
+            let body = unsafe { Box::from_raw(body) };
+            let sid = req.send(method, *url, *body)?;
+            Ok(sid)
+        }, |e| handle_err1(e, err, 0))
+    })).unwrap_or_else(|_| handle_err1("程序panic", err, 0))
+}
+
+#[unsafe(no_mangle)]
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn ScReq_recv(req: *mut ScReq, sid: u64, stream: bool, err: *mut *mut c_char) -> *mut Response {
+    catch_unwind(AssertUnwindSafe(|| {
+        check_run(move || {
+            let req = unsafe { req.as_mut().ok_or(HlsError::NullPointer) }?;
+            Ok(match stream {
+                true => {
+                    let message = req.recv_stream(sid)? as *const StreamMessage;
+                    message.cast_mut() as *mut Response
+                }
+                false => {
+                    let response = Box::new(req.recv(sid)?);
+                    Box::into_raw(response)
+                }
+            })
+        }, |e| handle_err1(e, err, null_mut()))
+    })).unwrap_or_else(|_| handle_err1("程序panic", err, null_mut()))
+}
 
 /// Note: streaming requests return a reference.
 #[unsafe(no_mangle)]
