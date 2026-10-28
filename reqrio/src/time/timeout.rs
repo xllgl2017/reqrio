@@ -120,7 +120,6 @@ impl Timeout {
 
     pub fn set_handle_times(&mut self, handle_times: i32) {
         self.handle_times = handle_times;
-        self.connect_times = handle_times;
     }
 
     #[cfg(feature = "aync")]
