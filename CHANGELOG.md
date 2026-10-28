@@ -1,39 +1,39 @@
 # reqrio-v0.4.0
 
-`v0.4.0` 是 reqrio 的一次重大跃迁：它将传输能力扩展到 HTTP/3 与 QUIC，并补充了面向国密场景的 TLCP / SM2 支持，同时统一了跨 HTTP/1.1、HTTP/2 和 HTTP/3 的流处理模型。该版本的重点是为高并发、复杂网络环境和国密合规场景提供更完整的底层能力。
+`v0.4.0` is a major leap for reqrio: it extends the transport layer to HTTP/3 and QUIC, adds TLCP / SM2 support for the Chinese national cryptography (GM) ecosystem, and unifies the stream processing model across HTTP/1.1, HTTP/2 and HTTP/3. The focus of this release is to provide more complete low-level capabilities for high concurrency, complex network environments and GM compliance scenarios.
 
-## ✨ 新特性
+## ✨ New Features
 
-### 🌊 HTTP/3 与 QUIC [#20](https://github.com/xllgl2017/reqrio/pull/20)
+### 🌊 HTTP/3 and QUIC [#20](https://github.com/xllgl2017/reqrio/pull/20)
 
-- 新增 QUIC 传输层，覆盖连接建立、握手、加密数据包、ACK、流控、丢包恢复和流管理等核心能力。
-- 新增 HTTP/3 请求与响应处理，支持同步和异步编程模型。
-- 新增 QPACK 编解码支持，并提供静态表、动态表和索引管理能力。
-- 新增 `H3Finger`，允许对 HTTP/3 连接行为做更细粒度的指纹控制。
-- 支持在 QUIC / HTTP/3 场景中处理无序流、`HelloRetry`、`Retry` 数据包，以及 HTTP/3 响应头字段。
-- `ScReq` / `AcReq` 可在启用 `quic` feature 后发起 HTTP/3 请求，并保持和现有 HTTP/1.1 / HTTP/2 接口的一致体验。
+- Added a QUIC transport layer covering connection establishment, handshake, encrypted packets, ACK, flow control, loss recovery and stream management.
+- Added HTTP/3 request and response handling, with both synchronous and asynchronous programming models.
+- Added QPACK encoding/decoding support, including static table, dynamic table and index management.
+- Added `H3Finger`, allowing finer-grained fingerprint control over HTTP/3 connection behavior.
+- Supports handling unordered streams, `HelloRetry` and `Retry` packets, and HTTP/3 response header fields in QUIC / HTTP/3 scenarios.
+- With the `quic` feature enabled, `ScReq` / `AcReq` can send HTTP/3 requests while keeping the same experience as the existing HTTP/1.1 / HTTP/2 APIs.
 
-> ⚠️ HTTP/3 / QUIC 仍属于扩展能力，使用前请开启 `quic` feature：
+> ⚠️ HTTP/3 / QUIC is still an optional capability; enable the `quic` feature before use:
 
 ```toml
 reqrio = { version = "0.4.0", features = ["quic"] }
 ```
 
-### 🔐 TLCP 与国密算法 [#23](https://github.com/xllgl2017/reqrio/issues/23) [#25](https://github.com/xllgl2017/reqrio/pull/25)
+### 🔐 TLCP and GM algorithms [#23](https://github.com/xllgl2017/reqrio/issues/23) [#25](https://github.com/xllgl2017/reqrio/pull/25)
 
-- 新增 TLCP 服务端证书校验支持，提升国密环境中的 TLS 合规性与兼容性。
-- 支持 TLS 1.3 服务端握手、证书校验和 ALPN 协商，补齐服务端场景下的 TLS 1.3 能力。
-- 新增 `Sm2Key`，支持 SM2 加密、解密、签名和验签。
-- 支持 `ECC_SM4_CBC_SM3` 密码套件，覆盖常见国密场景。
-- 新增 `X509_verify` 与 `TrustAnchors` 相关能力，完善证书链校验与信任锚点处理。
-- 完善 SM2、证书、签名和错误处理相关的底层接口，提升国密算法的可集成性。
-- 为国密场景提供更完整的 TLS / 证书链处理能力，使 reqrio 更适合政务、金融与合规化网络环境。
+- Added TLCP server certificate verification, improving TLS compliance and compatibility in GM environments.
+- Supports TLS 1.3 server-side handshake, certificate verification and ALPN negotiation, completing the TLS 1.3 capability for server scenarios.
+- Added `Sm2Key`, supporting SM2 encryption, decryption, signing and verification.
+- Supports the `ECC_SM4_CBC_SM3` cipher suite, covering common GM scenarios.
+- Added `X509_verify` and `TrustAnchors` capabilities, improving certificate chain verification and trust anchor handling.
+- Improved the low-level interfaces for SM2, certificates, signatures and error handling, making GM algorithms easier to integrate.
+- Provides more complete TLS / certificate chain handling for GM scenarios, making reqrio better suited to government, financial and compliance-oriented network environments.
 
-### 🧩 HTTPStream 与流式请求
+### 🧩 HTTPStream and streaming requests
 
-- 统一了 HTTP/1.1、HTTP/2 和 HTTP/3 的流处理结构 `HTTPStream`。
-- `HTTPStream` 同时支持同步和异步使用，调用接口保持一致。
-- 支持多个请求并发发送并按需接收结果，不要求严格按照发送顺序读取响应。
+- Unified the stream processing structure `HTTPStream` across HTTP/1.1, HTTP/2 and HTTP/3.
+- `HTTPStream` supports both synchronous and asynchronous usage with a consistent API.
+- Supports sending multiple requests concurrently and receiving results on demand, without requiring responses to be read in strict send order.
 
 ```rust
 use reqrio::*;
@@ -53,49 +53,54 @@ let resp2 = req.recv(sid2)?;
 println!("{} {}", resp1.header().status(), resp7.header().status());
 ```
 
-### 🧩 内置多个指纹
+### 🧩 Multiple built-in fingerprints
 
-内置多套浏览器和 HTTP/3 指纹模板，便于在不同场景下切换行为特征：
+Several browser and HTTP/3 fingerprint templates are built in, making it easy to switch behavior characteristics across scenarios:
 
-* edge-148
-* chrome-137
-* chrome-141
-* chrome-148
-* chrome-152
-* edge-148-h3
-* chrome-137-h3
-* chrome-141-h3
-* chrome-148-h3
-* chrome-152-h3
+* win-x64-edge-148
+* win-x64-chrome-137
+* win-x64-chrome-141
+* win-x64-chrome-148
+* win-x64-chrome-152
+* win-x64-edge-148-h3
+* win-x64-chrome-137-h3
+* win-x64-chrome-141-h3
+* win-x64-chrome-148-h3
+* win-x64-chrome-152-h3
 
-> `*-h3` 仅用于 UDP / QUIC 场景，不应与 HTTP/1.1 / HTTP/2 的 TLS 指纹配置混用。
+> `*-h3` fingerprints are for UDP / QUIC scenarios only and must not be mixed with TLS fingerprint configurations used for HTTP/1.1 / HTTP/2.
 
-### 🎯 其他增强
+### 🎯 Other enhancements
 
-- 增加 `QUERY` 请求方法，兼容 [RFC10008](https://www.rfc-editor.org/rfc/rfc10008.html) 语义。
-- 支持 MacOS 平台适配 [#22](https://github.com/xllgl2017/reqrio/issues/22)。
-- 统一同步与异步请求接口，调用形式更直接：`.wait()` / `.await`。
-- 增强底层请求状态管理，提升连接复用和多路复用下的稳定性。
+- Added the `QUERY` request method, compatible with [RFC10008](https://www.rfc-editor.org/rfc/rfc10008.html) semantics.
+- Added macOS platform support [#22](https://github.com/xllgl2017/reqrio/issues/22).
+- Unified the sync and async request APIs with a more direct call form: `.wait()` / `.await`.
+- Improved low-level request state management for more stable connection reuse and multiplexing.
 
-## 🛠️ 修复与稳定性提升
+## 🛠️ Fixes and stability improvements
 
-- 修复 H2 响应体在缺少 `content-length` 时的解析问题。
-- 修复 TLS 1.2 服务端兼容性问题，确保服务端模式下握手、ALPN 和证书校验更稳定。
-- 修复 `WebSocket` 的 `permessage-deflate` 未正确解压的问题 [#17](https://github.com/xllgl2017/reqrio/issues/17)。
-- 修复流式响应处理中的边界问题 [#18](https://github.com/xllgl2017/reqrio/issues/18)。
-- 修复高网络延迟环境下返回响应不正确的问题 [#24](https://github.com/xllgl2017/reqrio/issues/24)。
-- 修复 H2 在空请求体的 POST 场景中 `content-length` 无法正确设置的问题。
-- 改进整体连接恢复、流重试和响应组装的稳定性，降低复杂网络条件下的异常率。
+- Fixed H2 response body parsing when `content-length` is missing.
+- Fixed TLS 1.2 server compatibility issues, making handshake, ALPN and certificate verification more stable in server mode.
+- Fixed `WebSocket` `permessage-deflate` not being decompressed correctly [#17](https://github.com/xllgl2017/reqrio/issues/17).
+- Fixed boundary issues in streaming response handling [#18](https://github.com/xllgl2017/reqrio/issues/18).
+- Fixed incorrect responses under high network latency [#24](https://github.com/xllgl2017/reqrio/issues/24).
+- Fixed `content-length` not being set correctly for H2 POST requests with an empty body.
+- Fixed the `poll_read` behavior of `ProxyStream`, improving read correctness over proxy links.
+- Fixed abnormal `f32` / `f64` random number generation.
+- Added timeout control for `QUICStream`, avoiding long blocking of stream operations on abnormal networks.
+- Fixed `upload_file` in the Python bindings.
+- Further improved `Header` handling of `update_table_size` (HPACK dynamic table).
+- Improved overall connection recovery, stream retry and response assembly stability, reducing the abnormal rate under complex network conditions.
 
-## 🚀 适用场景
+## 🚀 Use cases
 
-`v0.4.0` 适合以下场景：
+`v0.4.0` is suitable for the following scenarios:
 
-- HTTP/3 / QUIC 协议研究与调试
-- TLS 指纹和浏览器行为模拟
-- 高并发数据采集与协议测试
-- 国密环境下的 TLS / 证书兼容性验证
-- 需要同时支持同步和异步网络编程模型的服务端与客户端组件
+- HTTP/3 / QUIC protocol research and debugging
+- TLS fingerprinting and browser behavior simulation
+- High-concurrency data collection and protocol testing
+- TLS / certificate compatibility verification in GM environments
+- Server and client components that need to support both sync and async network programming models
 
 ## Contact
 
