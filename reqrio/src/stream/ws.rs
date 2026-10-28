@@ -40,7 +40,7 @@ impl WebSocket {
     pub fn open_sync(url: &str) -> HlsResult<WebSocket> {
         let mut header = Header::new_req_h1();
         WebSocket::add_header(&mut header);
-        let mut req = ScReq::new().with_header(header);
+        let mut req = ScReq::new().with_alpn(ALPN::HTTP11).with_header(header);
         WebSocket::new(req.get(url, None)?, req.into_stream()?)
     }
 
@@ -48,7 +48,7 @@ impl WebSocket {
     pub async fn open_async(url: &str) -> HlsResult<WebSocket> {
         let mut header = Header::new_req_h1();
         WebSocket::add_header(&mut header);
-        let mut req = AcReq::new().with_header(header);
+        let mut req = AcReq::new().with_alpn(ALPN::HTTP11).with_header(header);
         WebSocket::new(req.get(url, None).await?, req.into_stream()?)
     }
 }
@@ -73,7 +73,7 @@ impl WebSocket {
     }
 
     pub fn new(resp: Response, stream: Stream) -> HlsResult<WebSocket> {
-        println!("{}", resp.to_string());
+        println!("{}", resp);
         WebSocket::new_with_buffer(resp, stream, Writer::with_capacity(16384))
     }
 }
