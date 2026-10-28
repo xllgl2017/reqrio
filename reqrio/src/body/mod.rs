@@ -32,6 +32,7 @@ impl<'a, 'b: 'a> From<&'b BodyKind<'a>> for BodyKind<'a> {
     }
 }
 
+/// HTTP request body payload for raw bytes, JSON, forms, or file uploads.
 pub struct Body<'a> {
     kind: BodyKind<'a>,
     ct: ContentType,
@@ -139,12 +140,18 @@ impl<'a> From<Option<()>> for Body<'a> {
 
 
 impl<'a> Body<'a> {
+    /// Create a body from a specific payload kind and content type.
+    ///
+    /// * `body` - wire data kind.
+    /// * `ty` - content type.
     pub fn new(body: BodyKind<'a>, ty: ContentType) -> Body<'a> {
         Body {
             kind: body,
             ct: ty,
         }
     }
+
+    /// Create an empty body.
     pub fn none() -> Body<'a> {
         Body {
             kind: BodyKind::Bytes(Cow::Borrowed(&[])),
@@ -153,6 +160,7 @@ impl<'a> Body<'a> {
     }
 
     #[cfg(feature = "serde")]
+    /// Build a JSON request body from a serializable value.
     pub fn json<T: Serialize>(value: &T) -> HlsResult<Body<'a>> {
         let bytes = json::to_string(value).map_err(|e| format!("struct to json error, {}", e))?;
         Ok(Body {
@@ -199,6 +207,7 @@ impl<'a> Body<'a> {
         }
     }
 
+    /// Serialize the body to raw bytes.
     pub fn to_vec(&self) -> HlsResult<Vec<u8>> {
         let mut body = self.as_reader()?;
         let mut res = vec![0; body.len()];
@@ -208,10 +217,12 @@ impl<'a> Body<'a> {
         Ok(res)
     }
 
+    /// Serialize the body to UTF-8 text.
     pub fn to_string(&self) -> HlsResult<String> {
         let res = self.to_vec()?;
         Ok(String::from_utf8(res)?)
     }
 
+    /// Return the body content type.
     pub fn context_type(&self) -> &ContentType { &self.ct }
 }

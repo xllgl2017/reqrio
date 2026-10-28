@@ -12,6 +12,7 @@ use tokio::time::Sleep;
 #[cfg(feature = "aync")]
 use crate::TimeError;
 
+/// Timeout policy for connection, read, write, and request retries.
 pub struct Timeout {
     // Connection timeout
     #[cfg(feature = "aync")]
@@ -40,6 +41,10 @@ impl Default for Timeout {
 }
 
 impl Timeout {
+    /// Create a timeout policy using the same value for all stages.
+    ///
+    /// * `timeout` - timeout in milliseconds.
+    /// * `handles` - handle times for connect and request handling.
     pub fn new_same(timeout: u64, handles: i32) -> Timeout {
         Timeout {
             #[cfg(feature = "aync")]
@@ -57,10 +62,12 @@ impl Timeout {
         }
     }
 
+    /// Return a very permissive timeout policy.
     pub fn longer() -> Timeout {
         Timeout::new_same(u64::MAX, 3)
     }
 
+    /// Check whether a connection error indicates a closed peer.
     pub fn is_peer_closed(&self, status: impl AsRef<str>) -> bool {
         let close_status = vec!["broken pipe", "reset by peer", "关闭", "中止了", "close"];
         let status = status.as_ref().to_lowercase();

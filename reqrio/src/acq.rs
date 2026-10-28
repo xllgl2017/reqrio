@@ -9,6 +9,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+/// Asynchronous HTTP client session for non-blocking requests.
 pub struct AcReq {
     header: Header,
     stream: HTTPStream,
@@ -58,6 +59,7 @@ impl Default for AcReq {
 }
 
 impl AcReq {
+    /// Create a new async request session with default settings.
     pub fn new() -> AcReq {
         AcReq::default()
     }
@@ -99,6 +101,11 @@ impl AcReq {
     }
 
 
+    /// Send a request asynchronously and return its request id.
+    ///
+    /// * `method` - HTTP method.
+    /// * `url` - request URL.
+    /// * `body` - request body.
     pub async fn send<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<u64> {
         let url = url.into().build()?;
         self.set_url(url.as_ref()).await?;
@@ -114,6 +121,9 @@ impl AcReq {
         Ok(sid)
     }
 
+    /// Receive a response for a request id.
+    ///
+    /// * `sid` - request id returned by `send`.
     pub async fn recv(&mut self, sid: u64) -> HlsResult<Response> {
         if self.recv_ids.remove(&sid) && let Some(resp) = self.get_resp(sid) { return Ok(resp); }
         loop {
@@ -172,7 +182,9 @@ impl AcReq {
         Ok(Some(resp.body.slice(offset)))
     }
 
-    /// Streaming request; returns only the headers, and the request body must be consumed via `next_chunk`.
+    /// Start a streaming request and return the response headers only.
+    ///
+    /// The request body must then be consumed with `next_chunk`.
     pub async fn send_stream<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<&StreamMessage> {
         let sid = self.send(method, url, body).await?;
         self.recv_stream(sid).await
@@ -248,7 +260,11 @@ impl AcReq {
         Ok(())
     }
 
-    /// Send a request and validate the HTTP status code; return an error if the status is not 200.
+    /// Send a request and require an HTTP 200 status.
+    ///
+    /// * `method` - HTTP method.
+    /// * `url` - request URL.
+    /// * `body` - request body.
     pub async fn send_check<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
         let url = url.into().build()?;
         let response = self.do_http(method, url.as_ref(), &body.into()).await?;

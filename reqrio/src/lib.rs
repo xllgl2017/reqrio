@@ -310,14 +310,26 @@ pub use tokio;
 pub use logger::Logger;
 use crate::ext::ReqUrl;
 
+/// Send a GET request with a temporary session.
+///
+/// * `url` - request URL or URL-like value.
+/// * `body` - request body payload.
 pub fn get<'a>(url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
     ScReq::new().get(url, body)
 }
 
+/// Send a POST request with a temporary session.
+///
+/// * `url` - request URL or URL-like value.
+/// * `body` - request body payload.
 pub fn post<'a>(url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
     ScReq::new().post(url, body)
 }
 
+/// Send a PUT request with a temporary session.
+///
+/// * `url` - request URL or URL-like value.
+/// * `body` - request body payload.
 pub fn put<'a>(url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
     ScReq::new().put(url, body)
 }

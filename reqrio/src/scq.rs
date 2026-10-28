@@ -7,6 +7,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+/// Reusable synchronous HTTP client session.
 pub struct ScReq {
     header: Header,
     stream: HTTPStream,
@@ -57,14 +58,15 @@ impl Default for ScReq {
 
 
 impl ScReq {
+    /// Create a new request session with default settings.
     pub fn new() -> ScReq {
         ScReq::default()
     }
-
+    
     pub fn get<'a>(&mut self, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
         self.do_http(Method::GET, url, body)
     }
-
+    
     pub fn post<'a>(&mut self, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
         self.do_http(Method::POST, url, body)
     }
@@ -97,7 +99,11 @@ impl ScReq {
         self.do_http(Method::QUERY, url, body)
     }
 
-    /// Send a request.
+    /// Send a request and return its request id.
+    ///
+    /// * `method` - HTTP method.
+    /// * `url` - request URL.
+    /// * `body` - request body.
     pub fn send<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<u64> {
         let url = url.into().build()?;
         self.set_url(url.as_ref())?;
@@ -113,6 +119,10 @@ impl ScReq {
         Ok(sid)
     }
 
+    /// Receive a response for a request id.
+    ///
+    /// # Arguments
+    /// * `sid` - request id returned by `send`.
     pub fn recv(&mut self, sid: u64) -> HlsResult<Response> {
         if self.recv_ids.remove(&sid) && let Some(resp) = self.get_resp(sid) { return Ok(resp); }
         loop {
@@ -246,7 +256,11 @@ impl ScReq {
         Ok(())
     }
 
-    /// Send a request and validate the HTTP status code; return an error if the status is not 200.
+    /// Send a request and require an HTTP 200 status.
+    ///
+    /// * `method` - HTTP method.
+    /// * `url` - request URL.
+    /// * `body` - request body.
     pub fn send_check<'a>(&mut self, method: Method, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
         let url = url.into().build()?;
         let response = self.do_http(method, url.as_ref(), body.into())?;
@@ -254,7 +268,7 @@ impl ScReq {
         Ok(response)
     }
 
-    /// #### Send a request and validate errors, including body errors, then return JSON.
+    /// Send a request and validate errors, including body errors, then return JSON.
     /// 1. Send the request and validate the HTTP status code; return an error if it is not 200.
     /// 2. Compare the provided value using the supplied key, for example: {"code":200,..}; pass `k` as `code` and `v` as `200`. If it does not match, return an error.
     pub fn send_check_json<'a>(

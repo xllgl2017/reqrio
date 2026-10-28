@@ -5,6 +5,7 @@ use std::fmt::{Display, Formatter};
 use std::str::Utf8Error;
 
 
+/// HTTP response returned by the request engine.
 #[repr(C)]
 pub struct Response {
     //share c
@@ -30,24 +31,33 @@ impl Default for Response {
 }
 
 impl Response {
+    /// Return response headers.
     pub fn header(&self) -> &Header {
         &self.header
     }
 
+    /// Return response headers as mutable.
     pub fn header_mut(&mut self) -> &mut Header { &mut self.header }
 
+    /// Parse the response body as JSON.
     pub fn json(self) -> HlsResult<JsonValue> { Ok(json::from_bytes(self.body.filled())?) }
 
+    /// Read the response body as UTF-8 text.
     pub fn as_text(&self) -> Result<&str, Utf8Error> { std::str::from_utf8(self.body.filled()) }
 
+    /// Consume the response and return the text body.
     pub fn text(self) -> Result<String, Utf8Error> { Ok(self.as_text()?.to_owned()) }
 
+    /// Return the raw response body bytes.
     pub fn as_bytes(&self) -> &[u8] { self.body.filled() }
 
+    /// Consume the response and return the raw body bytes.
     pub fn bytes(self) -> Vec<u8> { self.body.filled().to_vec() }
 
+    /// Return the HTTP status.
     pub fn status(&self) -> HttpStatus { self.status }
 
+    /// Return the negotiated ALPN value.
     pub fn alpn(&self) -> &ALPN { &self.alpn }
 }
 

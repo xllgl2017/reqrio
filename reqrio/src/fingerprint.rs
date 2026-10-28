@@ -127,6 +127,7 @@ impl Default for H3Finger {
 }
 
 
+/// TLS fingerprint profile and associated HTTP/2 and HTTP/3 settings.
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Fingerprint {
     tls: TlsFinger<'static>,
@@ -140,6 +141,11 @@ pub struct Fingerprint {
 }
 
 impl Fingerprint {
+    /// Load a built-in fingerprint by index.
+    ///
+    /// * `idx` - built-in fingerprint index.
+    /// * `auth` - authorization token.
+    /// * `sec_full` - whether to include full `sec-*` headers.
     pub fn from_idx(idx: usize, auth: &str, sec_full: bool) -> HlsResult<Fingerprint> {
         let mut finger = Finger {
             hdr_count: 0,
@@ -151,6 +157,11 @@ impl Fingerprint {
         Ok(Fingerprint::from_adv(finger, sec_full))
     }
 
+    /// Load a built-in fingerprint by name.
+    ///
+    /// * `name` - built-in fingerprint name.
+    /// * `token` - authorization token.
+    /// * `sec_full` - whether to include full `sec-*` headers.
     pub fn from_builtin(name: &'static str, token: &str, sec_full: bool) -> HlsResult<Fingerprint> {
         Fingerprint::check_subscription(token);
         let mut finger = Finger {
@@ -182,6 +193,11 @@ impl Fingerprint {
     }
 
 
+    /// Create a custom TLS fingerprint from explicit protocol versions.
+    ///
+    /// * `record_version` - record layer version.
+    /// * `message_version` - handshake message version.
+    /// * `token` - authorization token.
     pub fn new_custom(record_version: Version, message_version: Version, token: impl AsRef<str>) -> Fingerprint {
         Fingerprint::check_subscription(token);
         Fingerprint {
@@ -268,6 +284,9 @@ impl Fingerprint {
 }
 
 impl Fingerprint {
+    /// Create a random fingerprint.
+    ///
+    /// * `token` - authorization token.
     pub fn random(token: impl AsRef<str>) -> Fingerprint {
         Fingerprint::check_subscription(token);
         Fingerprint {
