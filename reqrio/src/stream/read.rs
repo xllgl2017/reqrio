@@ -25,11 +25,13 @@ impl<'a, S: Read> BufReading<'a, S> {
         debug_assert!(self.want_size > 0 && self.buf.len() < self.want_size);
         self.buf.check_move(self.want_size)?;
         while self.buf.len() < self.want_size {
-            match self.stream.read(self.buf.unfilled()).map_err(|e| e.kind()) {
+            match self.stream.read(self.buf.unfilled()) {
                 Ok(0) => return Err(io::Error::from(ErrorKind::BrokenPipe)),
                 Ok(len) => self.buf.add_len(len),
-                Err(ErrorKind::Interrupted) => continue,
-                Err(e) => return Err(io::Error::from(e)),
+                Err(e) => match e.kind() {
+                    ErrorKind::Interrupted => continue,
+                    _ => return Err(e)
+                }
             }
         }
         Ok(self.buf.len())

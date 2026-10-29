@@ -125,7 +125,7 @@ impl<S: Write> TlsStream<S> {
 }
 
 impl<S: Read> Read for TlsStream<S> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         loop {
             let record_len = self.read_next_record().wait()?;
             let size = self.handle_record(record_len, None, buf)?;
@@ -136,7 +136,7 @@ impl<S: Read> Read for TlsStream<S> {
 }
 #[cfg(feature = "aync")]
 impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         if self.shutdown_wrote { return Poll::Ready(Ok(())); }
         let stream = self.get_mut();
         loop {
@@ -155,7 +155,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for TlsStream<S> {
 }
 
 impl<S: Write> Write for TlsStream<S> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         for chunk in buf.chunks(16384) {
             self.write_buffer.reset();
             let record_len = self.conn.make_message(RecordType::ApplicationData, chunk, self.write_buffer.unfilled())?;
@@ -165,13 +165,13 @@ impl<S: Write> Write for TlsStream<S> {
         Ok(buf.len())
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> io::Result<()> {
         self.stream.flush()
     }
 }
 #[cfg(feature = "aync")]
 impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         let stream = self.get_mut();
         loop {
             if stream.write_offset == buf.len() && stream.write_buffer.is_empty() { break; }
@@ -190,11 +190,11 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TlsStream<S> {
         Poll::Ready(Ok(buf.len()))
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.stream).poll_flush(cx)
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let stream = self.get_mut();
         if stream.write_buffer.is_empty() {
             let len = stream.conn.make_message(RecordType::Alert, &Alert::close_notify().to_bytes(), stream.write_buffer.unfilled())?;

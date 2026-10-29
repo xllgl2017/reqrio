@@ -297,7 +297,7 @@ impl Stream {
                 sent_server_hello: false,
                 config: Config::Client(config),
                 state: ConnState::Connected,
-                app_buf: Writer::with_capacity(24657),
+                app_buf: Writer::with_capacity(32876),
                 #[cfg(feature = "aync")]
                 timeout_reset: false,
             },
@@ -327,10 +327,10 @@ impl Stream {
     }
 }
 
-impl std::io::Read for Stream {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let stream: &mut dyn std::io::Read = match self {
-            Stream::NonConnection => return Err(std::io::Error::from(std::io::ErrorKind::NotConnected)),
+impl io::Read for Stream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let stream: &mut dyn io::Read = match self {
+            Stream::NonConnection => return Err(io::Error::from(io::ErrorKind::NotConnected)),
             Stream::SyncHttp(stream) => stream,
             Stream::SyncHttps(stream) => stream,
             #[cfg(feature = "aync")]
@@ -342,9 +342,9 @@ impl std::io::Read for Stream {
 
 #[cfg(feature = "aync")]
 impl tokio::io::AsyncRead for Stream {
-    fn poll_read(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut tokio::io::ReadBuf<'_>) -> std::task::Poll<std::io::Result<()>> {
+    fn poll_read(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut tokio::io::ReadBuf<'_>) -> std::task::Poll<io::Result<()>> {
         let stream: &mut (dyn tokio::io::AsyncRead + Unpin) = match self.get_mut() {
-            Stream::NonConnection => return std::task::Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::NotConnected))),
+            Stream::NonConnection => return std::task::Poll::Ready(Err(io::Error::from(io::ErrorKind::NotConnected))),
             Stream::AsyncHttp(stream) => stream,
             Stream::AsyncHttps(stream) => stream,
             #[cfg(feature = "aync")]
