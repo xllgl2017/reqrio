@@ -47,6 +47,10 @@ impl Header {
             alpn: ALPN::HTTP30,
             inner: vec![
                 //h2 order
+                HeaderItem::new_reserved(":method", HeaderValue::new_str("")),
+                HeaderItem::new_reserved(":authority", HeaderValue::new_str("")),
+                HeaderItem::new_reserved(":scheme", HeaderValue::new_str("")),
+                HeaderItem::new_reserved(":path", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("origin", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-platform", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("user-agent", HeaderValue::String(Cow::Owned(format!("reqrio/{}", env!("CARGO_PKG_VERSION"))))),
@@ -86,6 +90,10 @@ impl Header {
             alpn: ALPN::HTTP20,
             inner: vec![
                 //h2 order
+                HeaderItem::new_reserved(":method", HeaderValue::new_str("")),
+                HeaderItem::new_reserved(":authority", HeaderValue::new_str("")),
+                HeaderItem::new_reserved(":scheme", HeaderValue::new_str("")),
+                HeaderItem::new_reserved(":path", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("pragma", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("cache-control", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("ect", HeaderValue::new_str("")),
@@ -177,6 +185,7 @@ impl Header {
         }
     }
 
+    ///获取值为str的item，非str，请使用get
     pub fn get_str(&self, name: impl AsRef<str>) -> Option<&str> {
         let header = self.inner.iter().find(|x| x.name().eq_ignore_ascii_case(name.as_ref()))?;
         header.value().as_string()

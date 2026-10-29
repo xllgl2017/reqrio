@@ -42,26 +42,24 @@ impl HTTP2Stream {
         let frame = self.build_frame(frame_type, param);
         let start = self.write_buffer.end();
         frame.write_to(&mut self.write_buffer)?;
-        if index == 0 {
-            self.encoder.encode_one(":method", param.method.spec(), &mut self.write_buffer)?;
-            if param.url.addr().port() == 443 {
-                self.encoder.encode_one(":authority", param.url.sni(), &mut self.write_buffer)?;
-            } else {
-                let authority = format!("{}:{}", param.url.sni(), param.url.addr().port());
-                self.encoder.encode_one(":authority", authority, &mut self.write_buffer)?;
-            }
-            self.encoder.encode_one(":scheme", param.url.scheme().spec(), &mut self.write_buffer)?;
-            if param.url.uri().path().is_empty() {
-                self.encoder.encode_one(":path", "/", &mut self.write_buffer)?;
-            } else {
-                self.encoder.encode_one(":path", param.url.uri().to_string(), &mut self.write_buffer)?;
-            }
-        }
         for (i, key) in param.header.iter().enumerate() {
             if i < index { continue; }
             index = i;
             let key_start = self.write_buffer.end();
             match key.name() {
+                ":method" => self.encoder.encode_one(key.name(), param.method.spec(), &mut self.write_buffer)?,
+                ":authority" => if param.url.addr().port() == 443 {
+                    self.encoder.encode_one(key.name(), param.url.sni(), &mut self.write_buffer)?;
+                } else {
+                    let authority = format!("{}:{}", param.url.sni(), param.url.addr().port());
+                    self.encoder.encode_one(key.name(), authority, &mut self.write_buffer)?;
+                }
+                ":scheme" => self.encoder.encode_one(":scheme", param.url.scheme().spec(), &mut self.write_buffer)?,
+                ":path" => if param.url.uri().path().is_empty() {
+                    self.encoder.encode_one(key.name(), "/", &mut self.write_buffer)?;
+                } else {
+                    self.encoder.encode_one(key.name(), param.url.uri().to_string(), &mut self.write_buffer)?;
+                }
                 "host" | "Host" | "Transfer-Encoding" | "transfer-encoding" |
                 "Upgrade" | "upgrade" | "connection" | "Connection" => continue,
                 "content-length" | "Content-Length" => {

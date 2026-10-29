@@ -74,22 +74,7 @@ impl<S> HTTP3Stream<S> {
         });
         let mut writer = self.stream.alloc_buffer();
         writer.reset_offset(100..100);
-        if *index == 0 {
-            self.encoder.encode_head(&mut writer)?;
-            self.encoder.encode_one(QPackType::Stream, ":method", param.method.spec(), self.sid, &mut writer)?;
-            if param.url.addr().port() == 443 {
-                self.encoder.encode_one(QPackType::Stream, ":authority", param.url.sni(), self.sid, &mut writer)?;
-            } else {
-                let authority = format!("{}:{}", param.url.sni(), param.url.addr().port());
-                self.encoder.encode_one(QPackType::Stream, ":authority", authority, self.sid, &mut writer)?;
-            }
-            self.encoder.encode_one(QPackType::Stream, ":scheme", param.url.scheme().spec(), self.sid, &mut writer)?;
-            if param.url.uri().path().is_empty() {
-                self.encoder.encode_one(QPackType::Stream, ":path", "/", self.sid, &mut writer)?;
-            } else {
-                self.encoder.encode_one(QPackType::Stream, ":path", param.url.uri().to_string(), self.sid, &mut writer)?;
-            }
-        }
+        if *index == 0 { self.encoder.encode_head(&mut writer)?; }
         let mut flag = QUICFrameFlag::new(stream_param.send_offset).with_fin(body_len == 0);
         for (i, key) in param.header.iter().enumerate() {
             if i < *index { continue; }
@@ -99,8 +84,21 @@ impl<S> HTTP3Stream<S> {
             }
             *index = i;
             match key.name() {
-                "host" | "Host" | "Transfer-Encoding" | "transfer-encoding" |
-                "Upgrade" | "upgrade" | "connection" | "Connection" => continue,
+                ":method" => self.encoder.encode_one(QPackType::Stream, key.name(), param.method.spec(), self.sid, &mut writer)?,
+                ":authority" => if param.url.addr().port() == 443 {
+                    self.encoder.encode_one(QPackType::Stream, key.name(), param.url.sni(), self.sid, &mut writer)?;
+                } else {
+                    let authority = format!("{}:{}", param.url.sni(), param.url.addr().port());
+                    self.encoder.encode_one(QPackType::Stream, key.name(), authority, self.sid, &mut writer)?;
+                }
+                ":scheme" => self.encoder.encode_one(QPackType::Stream, key.name(), param.url.scheme().spec(), self.sid, &mut writer)?,
+                ":path" => if param.url.uri().path().is_empty() {
+                    self.encoder.encode_one(QPackType::Stream, key.name(), "/", self.sid, &mut writer)?;
+                } else {
+                    self.encoder.encode_one(QPackType::Stream, key.name(), param.url.uri().to_string(), self.sid, &mut writer)?;
+                }
+                "host" | "Host" | "Transfer-Encoding" | "transfer-encoding" | "Upgrade" |
+                "upgrade" | "connection" | "Connection" => continue,
                 "content-length" | "Content-Length" => {
                     if body_len == 0 && param.method == Method::GET { continue; }
                     self.encoder.encode_one(QPackType::Stream, key.name(), body_len.to_string(), self.sid, &mut writer)?;
