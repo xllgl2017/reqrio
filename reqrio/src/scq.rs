@@ -121,7 +121,6 @@ impl ScReq {
 
     /// Receive a response for a request id.
     ///
-    /// # Arguments
     /// * `sid` - request id returned by `send`.
     pub fn recv(&mut self, sid: u64) -> HlsResult<Response> {
         if self.recv_ids.remove(&sid) && let Some(resp) = self.get_resp(sid) { return Ok(resp); }
