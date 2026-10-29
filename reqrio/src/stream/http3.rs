@@ -241,6 +241,7 @@ impl HTTP3Stream<std::net::UdpSocket> {
                 match (frame.frame_type(), frame.payload()) {
                     (H3FrameType::Header, H3Payload::Bytes(buf)) => {
                         let Some(response) = recv.responses.get_mut(sid) else { continue };
+                        response.alpn = ALPN::HTTP30;
                         let read_size = match recv.decoder.decode_into(buf.as_ref(), response, QPackType::Stream, *sid) {
                             Ok(size) => size,
                             Err(HlsError::HPack(PackError::BlockedStream(_))) => break,

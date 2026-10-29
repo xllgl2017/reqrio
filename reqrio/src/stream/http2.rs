@@ -208,6 +208,7 @@ impl HTTP2Stream {
             }
             (H2FrameType::Headers, H2PayloadValue::Data(data)) => {
                 let resp = responses.get_mut(&sid).ok_or("resp not inited")?;
+                resp.alpn = ALPN::HTTP20;
                 self.decoder.decode_into(data.as_ref(), resp)?;
                 if let Some(size) = resp.header.update_table_size() {
                     self.encoder.update_table_size(size);
