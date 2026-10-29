@@ -41,7 +41,7 @@ impl<'a> H2Payload<'a> {
         let mut padding_len = 0;
         if flag.padding() {
             padding_len = reader.read_u8()? as usize;
-            reader.read_slice(padding_len)?;
+            // reader.read_slice(padding_len)?;
         }
         let mut stream_dependency = 0;
         let mut weight = 0;
@@ -58,7 +58,11 @@ impl<'a> H2Payload<'a> {
                 H2FrameType::WindowUpdate |
                 H2FrameType::Goaway => H2PayloadValue::U32(reader.read_u32()?),
                 H2FrameType::Headers |
-                H2FrameType::Data => H2PayloadValue::Data(Buf::new_ref(reader.read_slice(reader.unread_len())?)),
+                H2FrameType::Data => {
+                    let data = reader.read_slice(reader.unread_len() - padding_len)?;
+                    reader.read_slice(padding_len)?;
+                    H2PayloadValue::Data(Buf::new_ref(data))
+                }
                 H2FrameType::Settings => {
                     let mut res = Vec::with_capacity(8);
                     while let Ok(setting) = H2Setting::from_reader(&mut reader) {
