@@ -38,7 +38,7 @@ fn main() {
         .with_timeout(Timeout::new_same(3000, 1))
         // .with_key_log("2.log")
         .with_env_key_log()
-        .with_fingerprint(fingerprint)
+        // .with_fingerprint(fingerprint)
         // .with_proxy(Proxy::try_from("http://36.150.202.148:10951").unwrap())
         // .with_mtls(certs, key)
         // .with_proxy(Proxy::try_from("http://127.0.0.1:10280").unwrap())
@@ -94,6 +94,7 @@ fn main() {
     // let res1 = req.get("https://127.0.0.1:7878", None).unwrap();
     // let res1 = req.get("https://m.so.com", None).unwrap();
     let res1 = req.get("https://cn.bing.com", None).unwrap();
+    // let res1=req.get("https://httpbin.org/bytes/65536",None).unwrap();
     // let session = req.tls_session().cloned();
     // println!("{:#?}", session);
     // req.set_tls_session(session);

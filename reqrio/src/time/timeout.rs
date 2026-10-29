@@ -36,7 +36,9 @@ pub struct Timeout {
 
 impl Default for Timeout {
     fn default() -> Self {
-        Timeout::new_same(3000, 3)
+        let mut timeout = Timeout::new_same(3000, 3);
+        timeout.handle = Duration::from_millis(10000);
+        timeout
     }
 }
 
