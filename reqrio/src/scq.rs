@@ -33,7 +33,7 @@ pub struct ScReq {
 impl Default for ScReq {
     fn default() -> Self {
         ScReq {
-            header: Header::new_req_h2(),
+            header: Header::default(),
             stream: HTTPStream::NonConnection,
             timeout: Timeout::default(),
             proxy: Proxy::Null,
@@ -62,11 +62,11 @@ impl ScReq {
     pub fn new() -> ScReq {
         ScReq::default()
     }
-    
+
     pub fn get<'a>(&mut self, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
         self.do_http(Method::GET, url, body)
     }
-    
+
     pub fn post<'a>(&mut self, url: impl Into<ReqUrl<'a>>, body: impl Into<Body<'a>>) -> HlsResult<Response> {
         self.do_http(Method::POST, url, body)
     }
@@ -235,7 +235,12 @@ impl ScReq {
             match self.stream.conn_sync(config, param, &self.fingerprint) {
                 Ok(alpn) => {
                     #[cfg(feature = "log")]
-                    debug!("[AcReq] Connected | ALPN: {} | RemoteAddr: {}", alpn, url.unwrap_or(&self.url).addr());
+                    debug!(
+                        "[AcReq] Connected | ALPN: {} | RemoteAddr: {} | IgnoreOrder: {}",
+                        alpn,
+                        url.unwrap_or(&self.url).addr(),
+                        self.ignore_order
+                    );
                     if !self.ignore_order { self.header.init_by_alpn(alpn); }
                     if let Some(url) = url { self.url = url.clone(); }
                     return Ok(());

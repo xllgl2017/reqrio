@@ -307,10 +307,10 @@ impl<'a> HTTPStreamConnect<'a, std::net::TcpStream> {
                 let session = config.session.as_ref().cloned().unwrap_or_default();
                 let conn = Connection::new_client(session, config.key_log.take(), false)
                     .with_verify(config.verify).with_mtls(!config.client_cert.is_empty());
-                let tls_connector=TlsStream::new(conn, self.param.timeout.clone(), proxy_stream);
+                let tls_connector = TlsStream::new(conn, self.param.timeout.clone(), proxy_stream);
                 self.tls_connecting.state = ConnState::Connecting(Box::new(tls_connector));
                 let mut tls_stream = self.tls_connecting.wait()?;
-                let alpn = tls_stream.alpn().clone();
+                let mut alpn = tls_stream.alpn().clone();
                 let stream = match &alpn {
                     h2 if h2 == ALPN::HTTP20 => {
                         let mut buffer = self.tls_connecting.app_buf;
@@ -320,7 +320,10 @@ impl<'a> HTTPStreamConnect<'a, std::net::TcpStream> {
                         buffer.reset();
                         HTTPStream::SyncH2(HTTP2Stream::new(buffer, Stream::SyncHttps(tls_stream)))
                     }
-                    _ => HTTPStream::SyncH1(HTTP1Stream::new(Stream::SyncHttps(tls_stream)))
+                    _ => {
+                        alpn = ALPN::HTTP11;
+                        HTTPStream::SyncH1(HTTP1Stream::new(Stream::SyncHttps(tls_stream)))
+                    }
                 };
                 Ok((alpn, stream))
             }
