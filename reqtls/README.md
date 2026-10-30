@@ -46,6 +46,8 @@ network tools, and custom TLS client/proxy development.
 * TLS_AES_128_GCM_SHA256
 * TLS_AES_256_GCM_SHA384
 * TLS_CHACHA20_POLY1305_SHA256
+*
+* ECC_SM4_CBC_SM3
 
 #### Signature algorithm
 
@@ -59,6 +61,7 @@ network tools, and custom TLS client/proxy development.
 * RSA_PKCS1_SHA256
 * RSA_PKCS1_SHA384
 * RSA_PKCS1_SHA512
+* ECC_SM2_ASN1
 
 ### Password Curve
 
@@ -167,12 +170,12 @@ fn dd() {
 * DES_ECB
 * RC4
 * RSA
+* SM2
 * SM4-ECB
 * SM4-CBC
 * SM4-OFB
 * SM4-CFB
 * SM4-CTR
-* SM3
 * 3DES-CBC
 * 3DES-ECB
 
@@ -226,6 +229,7 @@ fn dd() {
 * SHA512
 * MD5
 * HMAC
+* SM3
 
 - Usage example
 
