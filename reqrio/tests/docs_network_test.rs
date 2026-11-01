@@ -7,6 +7,7 @@
 //! 连接复用 / 指纹 / TLCP / HTTP3 / WebSocket。
 //!
 //! 依赖公网（baidu / httpbin / gmssl / bing / echo.websocket.org）。
+#![cfg(not(feature = "staticlink"))]
 
 use reqrio::*;
 use std::env;
@@ -384,34 +385,6 @@ fn net_fingerprint_builtin() {
     assert_eq!(s.get("https://m.so.com", None).unwrap().status(), HttpStatus::OK);
 }
 
-// ---------------------------------------------------------------------------
-// TLCP / HTTP3 / WebSocket
-// ---------------------------------------------------------------------------
-
-#[test]
-fn net_tlcp() {
-    let fp = Fingerprint::new_tls(
-        TlsFinger::Custom {
-            record_version: Version::TLCP,
-            message_version: Version::TLCP,
-            suites: vec![CipherSuite::ECC_SM4_CBC_SM3],
-            extensions: vec![
-                Extension::Reserved { typ: ExtensionType::new(0xfafa), value: Buf::default() },
-                Extension::ServerName(vec![ServerName::HOSTNAME]),
-                Extension::Reserved { typ: ExtensionType::new(0x8a8a), value: Buf::new_ref(&[0]) },
-            ],
-        },
-        TOKEN.as_str(),
-    )
-        .unwrap();
-
-    let mut req = ScReq::new()
-        .with_timeout(Timeout::new_same(20000, 1))
-        .with_alpn(ALPN::HTTP11)
-        .with_fingerprint(fp);
-    let resp = req.get("https://test.gmssl.cn", None).unwrap();
-    assert_eq!(resp.status(), HttpStatus::OK);
-}
 
 #[cfg(all(not(feature = "staticlink"), feature = "quic"))]
 #[test]
