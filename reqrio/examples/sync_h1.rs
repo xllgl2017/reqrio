@@ -28,17 +28,18 @@ fn main() {
     #[cfg(feature = "log")]
     test_log();
     // let fingerprint = Fingerprint::from_idx(0, AUTH.as_str(), false).unwrap();
-    let fingerprint = Fingerprint::from_builtin("win-x64-chrome-152-h3", TOKEN.as_str(), false).unwrap();
+    // let fingerprint = Fingerprint::from_builtin("win-x64-chrome-152-h3", TOKEN.as_str(), false).unwrap();
     // return;
-
+    let ch = hex::decode("010001fc030336c13cb75e2cb58c62b77e37f8daa3bbaa6b1146d4ea92dcea6ae3cd6edac05e204f8d89e9e5f0a4b7adb37a403854dcc61f89e2c637b36ae98878ea3daf18345e0024130213031301c02cc030c02bc02fcca9cca8c024c028c023c027009f009e006b006700ff0100018f0000000e000c00000962622e636f6d2e6272000b000403000102000a00160014001d0017001e00190018010001010102010301040010000b000908687474702f312e31001600000017000000310000000d002a0028040305030603080708080809080a080b080408050806040105010601030303010302040205020602002b00050403040303002d00020101003300260024001d00204d584a5b16d4fc94d89aee57ede4dddb1d4cae2bcab820819b1f12f47462ac5c001500d5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+    let fingerprint = Fingerprint::from_client_hello(Version::TLS_1_0, ch, TOKEN.as_str()).unwrap();
     let t = Time::now();
     let mut req = ScReq::new()
-        .with_alpn(ALPN::HTTP30)
+        .with_alpn(ALPN::HTTP11)
         .with_verify(false)
         .with_timeout(Timeout::new_same(3000, 1))
-        // .with_key_log("2.log")
-        .with_env_key_log()
-        // .with_fingerprint(fingerprint)
+        .with_key_log("2.log")
+        // .with_env_key_log()
+        .with_fingerprint(fingerprint)
         // .with_proxy(Proxy::try_from("http://36.150.202.148:10951").unwrap())
         // .with_mtls(certs, key)
         // .with_proxy(Proxy::try_from("http://127.0.0.1:10280").unwrap())
@@ -93,7 +94,8 @@ fn main() {
     // let res1 = req.get("https://m.sogou.com", None).unwrap();
     // let res1 = req.get("https://127.0.0.1:7878", None).unwrap();
     // let res1 = req.get("https://m.so.com", None).unwrap();
-    let res1 = req.get("https://cn.bing.com", None).unwrap();
+    let res1 = req.get("https://bb.com.br/", None).unwrap();
+    // let res1 = req.get("https://cn.bing.com", None).unwrap();
     // let res1=req.get("https://httpbin.org/bytes/65536",None).unwrap();
     // let session = req.tls_session().cloned();
     // println!("{:#?}", session);
