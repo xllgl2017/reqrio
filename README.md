@@ -71,89 +71,70 @@ TLS supports TLS 1.2 and TLS 1.3.
 
 ## ✅ Capability Comparison (HTTP Client Libraries)
 
-| Abilities/Characteristics      | reqrio               | reqwest            | requests (py) | uTLS (Go)         | curl-ffi (py)   | blockreq |
-|--------------------------------|----------------------|--------------------|---------------|-------------------|-----------------|----------|
-| HTTP/1                         | ✅                   | ✅                 | ✅            | ⚠️（needs combo） | ✅              | ✅       |
-| HTTP/2                         | ✅                   | ✅                 | ❌            | ⚠️（needs combo） | ⚠️（build-dep） | ⚠️       |
-| HTTP/3 / QUIC                  | ⚠️（`quic` feature） | ⚠️（experimental） | ❌            | ❌                | ⚠️（build-dep） | ❌       |
-| HTTPS / TLS                    | ✅                   | ✅                 | ✅            | ✅                | ✅              | ⚠️       |
-| Cookie auto management         | ✅                   | ✅                 | ✅            | ❌                | ⚠️              | ⚠️       |
-| Proxy support                  | ✅                   | ✅                 | ✅            | ⚠️（needs combo） | ✅              | ⚠️       |
-| IP + domain (SNI) mode         | ✅                   | ⚠️（custom DNS）   | ⚠️（adapter） | ✅                | ✅              | ⚠️       |
-| Redirection control            | ✅                   | ✅                 | ✅            | ❌                | ⚠️              | ⚠️       |
-| Custom headers                 | ✅                   | ✅                 | ✅            | ❌                | ⚠️              | ⚠️       |
-| Header order control           | ✅                   | ❌                 | ❌            | ❌                | ⚠️              | ⚠️       |
-| Connection reuse (Keep-Alive)  | ✅                   | ✅                 | ⚠️（limited） | ⚠️                | ⚠️              | ⚠️       |
-| Streaming requests/responses   | ✅                   | ✅                 | ⚠️（weak）    | ⚠️                | ⚠️              | ⚠️       |
-| Ultra-low latency optimization | ✅                   | ❌                 | ❌            | ❌                | ⚠️              | ⚠️       |
-| High concurrency support       | ✅                   | ⚠️                 | ❌            | ⚠️                | ⚠️              | ⚠️       |
-| HTTP/2 fingerprint             | ✅                   | ❌                 | ❌            | ⚠️（limited）     | ❌              | ⚠️       |
-| HTTP/3 fingerprint             | ✅                   | ❌                 | ❌            | ❌                | ❌              | ❌       |
-| TLCP                           | ✅                   | ❌                 | ❌            | ❌                | ❌              | ❌       |
-| TLS version control            | ✅                   | ⚠️（min/max）      | ⚠️（adapter） | ✅                | ⚠️              | ⚠️       |
-| Session key export             | ✅                   | ⚠️（config）       | ⚠️（adapter） | ✅                | ⚠️（version）   | ❌       |
-| Timeout control                | ✅                   | ✅                 | ✅            | ⚠️（needs combo） | ✅              | ⚠️       |
-| File upload / download         | ✅                   | ✅                 | ✅            | ❌                | ✅              | ⚠️       |
-| Multi-language support         | ✅                   | ❌                 | ❌            | ❌                | ❌              | ⚠️       |
-| TLS session resumption         | ⚠️（TLS 1.2）        | ⚠️                 | ⚠️            | ⚠️                | ⚠️              | ⚠️       |
-| mTLS (HTTP, client cert)       | ⚠️（TLS 1.2）        | ✅                 | ✅            | ✅                | ✅              | ⚠️       |
+| Capability / Feature           | reqrio           | requests          | request-go           | curl_cffi   | geektls | netty       |
+|--------------------------------|------------------|-------------------|----------------------|-------------|---------|-------------|
+| HTTP/1                         | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| HTTP/2                         | ✅               | ❌                | ✅                   | ✅          | ✅      | ✅          |
+| HTTP/3 / QUIC                  | ⚠️(quic feature) | ❌                | ❌                   | ⚠️(limited) | ✅      | ✅          |
+| HTTPS / TLS                    | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| Automatic Cookie Management    | ✅               | ✅                | ✅                   | ✅          | ✅      | ❌          |
+| Proxy Support                  | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| IP + Domain Mode               | ✅               | ⚠️(DNS)           | ⚠️(adaptation layer) | ✅          | ✅      | ❌          |
+| Redirect Control               | ✅               | ✅                | ✅                   | ✅          | ✅      | ❌          |
+| Custom Headers                 | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| Header Order Control           | ✅               | ❌                | ✅                   | ✅          | ✅      | ⚠️(limited) |
+| Connection Reuse (Keep-Alive)  | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| Streaming Requests / Responses | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| Ultra-low Latency Optimization | ✅               | ❌                | ❌                   | ⚠️(limited) | ✅      | ✅          |
+| High Concurrency Support       | ✅               | ⚠️(limited)       | ✅                   | ⚠️(limited) | ✅      | ✅          |
+| HTTP/2 Fingerprinting          | ✅               | ❌                | ✅                   | ⚠️(limited) | ✅      | ❌          |
+| HTTP/3 Fingerprinting          | ✅               | ❌                | ❌                   | ❌          | ✅      | ⚠️(limited) |
+| TLCP                           | ✅               | ❌                | ❌                   | ❌          | ❌      | ⚠️(limited) |
+| TLS Version Control            | ✅               | ⚠️(min/max)       | ✅                   | ⚠️(limited) | ✅      | ❌          |
+| Session Key Export             | ✅               | ⚠️(configuration) | ⚠️(configuration)    | ✅          | ✅      | ❌          |
+| Timeout Control                | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| File Upload and Download       | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| Multi-language Support         | ✅               | ❌                | ✅                   | ✅          | ✅      | ❌          |
+| TLS Session Resumption         | ⚠️(TLS1.2)       | ⚠️(limited)       | ⚠️(limited)          | ⚠️(limited) | ✅      | ⚠️(limited) |
+| mTLS (HTTP, client cert)       | ✅               | ✅                | ✅                   | ✅          | ✅      | ✅          |
+| UA / TLS Coordination          | ✅               | ❌                | ✅                   | ❌          | ✅      | ❌          |
+
+* The `geektls` project is entirely AI-generated, and the conclusions are for reference only
 
 ---
 
 ## 🔐 TLS / fingerprint capability
 
-| Abilities/Characteristics                        | reqrio             | reqwest       | requests (py) | uTLS (Go)            | curl-ffi (py)            | blockreq |
-|--------------------------------------------------|--------------------|---------------|---------------|----------------------|--------------------------|----------|
-| ClientHello fully controllable                   | ✅                 | ❌            | ❌            | ⚠️（templatization） | ❌                       | ⚠️       |
-| Raw ClientHello import                           | ✅                 | ❌            | ❌            | ⚠️（template）       | ❌                       | ⚠️       |
-| JA3 / JA4 construction (from fingerprint string) | ✅                 | ❌            | ❌            | ⚠️（simulation）     | ⚠️（Depends on libcurl） | ⚠️       |
-| JA3 / JA4 computation                            | ❌                 | ❌            | ❌            | ⚠️                   | ⚠️                       | ⚠️       |
-| Cipher suite order control                       | ✅                 | ❌            | ❌            | ⚠️                   | ⚠️                       | ⚠️       |
-| Custom extension type / order                    | ✅                 | ❌            | ❌            | ⚠️                   | ❌                       | ⚠️       |
-| Fine-grained control of TLS 1.2 / 1.3            | ✅                 | ⚠️(min/max)   | ❌            | ⚠️                   | ⚠️                       | ⚠️       |
-| TLS version selection (1.2 / 1.3 / TLCP)         | ✅                 | ⚠️(min/max)   | ⚠️（adapter） | ✅                   | ⚠️                       | ⚠️       |
-| ALPN control (H1 / H2 / H3)                      | ✅                 | ⚠️（limited） | ❌            | ❌                   | ⚠️                       | ⚠️       |
-| SNI override / IP + domain mode                  | ✅                 | ⚠️（custom）  | ⚠️（adapter） | ✅                   | ✅                       | ⚠️       |
-| TLS fingerprint randomization                    | ✅                 | ❌            | ❌            | ❌                   | ❌                       | ⚠️       |
-| Custom TLS fingerprint                           | ✅                 | ❌            | ❌            | ⚠️                   | ❌                       | ⚠️       |
-| Browser-level TLS simulation                     | ✅                 | ❌            | ❌            | ⚠️（Chrome profile） | ❌                       | ⚠️       |
-| Built-in browser fingerprint library             | ✅                 | ❌            | ❌            | ⚠️（templates）      | ❌                       | ❌       |
-| Session Ticket orchestration                     | ✅                 | ❌            | ❌            | ❌                   | ❌                       | ⚠️       |
-| HRR (HelloRetryRequest)                          | ✅                 | ✅            | ✅            | ✅                   | ✅                       | ⚠️       |
-| Certificate compression (Brotli)                 | ✅                 | ⚠️            | ❌            | ❌                   | ⚠️                       | ❌       |
-| mTLS (mutual authentication)                     | ✅                 | ✅            | ✅            | ✅                   | ✅                       | ⚠️       |
-| Custom CA / certificate verify switch            | ✅                 | ✅            | ✅            | ✅                   | ✅                       | ⚠️       |
-| TLS session resumption                           | ⚠️（TLS 1.2 only） | ⚠️            | ⚠️            | ⚠️                   | ⚠️                       | ⚠️       |
-| TLS 1.3 PSK / 0-RTT                              | ❌                 | ⚠️            | ❌            | ❌                   | ⚠️                       | ❌       |
-| Session key export (SSLKEYLOGFILE)               | ✅                 | ⚠️（config）  | ⚠️（adapter） | ✅                   | ⚠️（version）            | ❌       |
-| ECH (not exposed)                                | ⚠️                 | ❌            | ❌            | ⚠️                   | ❌                       | ❌       |
-| TLCP / GM (SM2 / SM3 / SM4)                      | ✅                 | ❌            | ❌            | ❌                   | ❌                       | ❌       |
+| Capability / Feature                  | reqrio       | requests          | request-go        | uTLS         | curl_cffi   | geektls           | netty       |
+|---------------------------------------|--------------|-------------------|-------------------|--------------|-------------|-------------------|-------------|
+| Fully Controllable ClientHello        | ✅           | ❌                | ✅                | ⚠️(limited)  | ❌          | ✅                | ❌          |
+| Import Raw ClientHello Bytes          | ✅           | ❌                | ✅                | ⚠️(template) | ❌          | ✅                | ❌          |
+| JA3 / JA4 Construction                | ✅           | ❌                | ✅                | ⚠️(template) | ⚠️(limited) | ✅                | ❌          |
+| JA3 / JA4 Calculation                 | ❌           | ❌                | ❌                | ❌           | ⚠️(limited) | ✅                | ❌          |
+| Cipher Suites Ordering Control        | ✅           | ❌                | ✅                | ⚠️(template) | ⚠️(limited) | ✅                | ❌          |
+| Extension Ordering Control            | ✅           | ❌                | ✅                | ⚠️(template) | ⚠️(limited) | ✅                | ❌          |
+| Fine-grained TLS 1.2 / 1.3 Control    | ✅           | ⚠️(min/max)       | ✅                | ⚠️(limited)  | ⚠️(limited) | ✅                | ❌          |
+| TLS Version Control                   | ✅           | ⚠️(min/max)       | ✅                | ✅           | ⚠️(limited) | ✅                | ❌          |
+| ALPN Control                          | ✅           | ⚠️(limited)       | ✅                | ✅           | ⚠️(limited) | ✅                | ✅          |
+| SNI + IP + Domain Mode                | ✅           | ⚠️(customized)    | ✅                | ✅           | ✅          | ✅                | ✅          |
+| TLS Fingerprint Randomization         | ✅           | ❌                | ✅                | ❌           | ❌          | ✅                | ❌          |
+| Custom TLS Fingerprint                | ✅           | ❌                | ✅                | ⚠️(template) | ❌          | ✅                | ❌          |
+| Browser-level TLS Simulation          | ✅           | ❌                | ✅                | ⚠️(limited)  | ✅          | ✅                | ❌          |
+| Built-in Browser Fingerprint Library  | ✅           | ❌                | ✅                | ⚠️(template) | ✅          | ✅                | ❌          |
+| Session Ticket Orchestration          | ✅           | ❌                | ⚠️(limited)       | ❌           | ❌          | ✅                | ❌          |
+| HRR (HelloRetryRequest)               | ✅           | ❌                | ❌                | ❌           | ❌          | ✅                | ❌          |
+| Certificate Compression (Brotli)      | ✅           | ❌                | ✅                | ❌           | ⚠️(limited) | ✅                | ❌          |
+| mTLS Mutual Authentication            | ✅           | ✅                | ✅                | ✅           | ✅          | ✅                | ✅          |
+| Custom CA / certificate verify switch | ✅           | ✅                | ✅                | ✅           | ✅          | ✅                | ✅          |
+| TLS Session Resumption                | ⚠️(TLS1.2)   | ⚠️(limited)       | ⚠️(limited)       | ⚠️(limited)  | ⚠️(limited) | ✅                | ⚠️(limited) |
+| TLS 1.3 PSK / 0-RTT                   | ❌           | ❌                | ❌                | ❌           | ❌          | ⚠️(need improved) | ❌          |
+| SSLKEYLOGFILE Export                  | ✅           | ⚠️(configuration) | ⚠️(configuration) | ✅           | ✅          | ✅                | ❌          |
+| ECH (Not Open)                        | ⚠️(not open) | ❌                | ❌                | ❌           | ❌          | ✅                | ❌          |
+| TLCP / SM (Chinese GM)                | ✅           | ❌                | ❌                | ❌           | ❌          | ❌                | ❌          |
 
-> Notes: built-in / VIP fingerprints (`Fingerprint::from_idx` / `from_builtin`) require an authorization token;
-> `random()`, `new_custom()`, `from_ja3()`, `from_ja4()` need no token (only a WARN is printed when unsubscribed).
-> TLS 1.3 PSK resumption and 0-RTT are not implemented (`reqtls/src/extend/pre_share_key.rs` is commented out);
-> only TLS 1.2 `session_id` / `SessionTicket` resumption is supported.
+* The `geektls` project is entirely AI-generated, and the conclusions are for reference only
 
 ---
-
-## 🧠 Scalability (Advanced Features)
-
-| Abilities/Characteristics                         | reqrio              | reqwest       | requests (py) | uTLS (Go) | curl-ffi (py) | blockreq |
-|---------------------------------------------------|---------------------|---------------|---------------|-----------|---------------|----------|
-| fingerprint consistency control                   | ✅                  | ❌            | ❌            | ⚠️        | ⚠️            | ⚠️       |
-| Multi TLS profile switching                       | ✅                  | ❌            | ❌            | ⚠️        | ⚠️            | ⚠️       |
-| Browser behavior simulation                       | ✅                  | ❌            | ❌            | ⚠️        | ⚠️            | ⚠️       |
-| HTTP/2 fingerprint (SETTINGS / window / priority) | ✅                  | ❌            | ❌            | ❌        | ❌            | ⚠️       |
-| HTTP/3 fingerprint (SETTINGS frames)              | ✅(`quic` features) | ❌            | ❌            | ❌        | ❌            | ❌       |
-| HTTP Header Spoofing Strategies                   | ✅                  | ❌            | ❌            | ⚠️        | ⚠️            | ⚠️       |
-| UA / ClientHello integration                      | ✅                  | ❌            | ❌            | ⚠️        | ⚠️            | ⚠️       |
-| Anti-detection strategy support                   | ✅                  | ❌            | ❌            | ⚠️        | ⚠️            | ⚠️       |
-| ALPN / protocol version switching                 | ✅                  | ⚠️（limited） | ❌            | ❌        | ⚠️            | ⚠️       |
-| SOCKS5 proxy                                      | ✅                  | ⚠️（feature） | ⚠️（PySocks） | ⚠️        | ✅            | ⚠️       |
-| WebSocket (`wss`)                                 | ✅                  | ✅（`ws`）    | ❌            | ⚠️        | ✅            | ⚠️       |
-| mTLS (mutual authentication)                      | ✅                  | ✅            | ✅            | ✅        | ✅            | ⚠️       |
-| SNI override / IP + domain                        | ✅                  | ⚠️（custom）  | ⚠️（adapter） | ✅        | ✅            | ⚠️       |
-| Raw TLS stream takeover                           | ⚠️                  | ❌            | ❌            | ⚠️        | ⚠️            | ⚠️       |
 
 > ⚠️ Some features are for paid use
 

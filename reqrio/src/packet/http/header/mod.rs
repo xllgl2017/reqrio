@@ -46,15 +46,18 @@ impl Header {
         Header {
             alpn: ALPN::HTTP30,
             inner: vec![
-                //h2 order
+                //h3 order
                 HeaderItem::new_reserved(":method", HeaderValue::new_str("")),
                 HeaderItem::new_reserved(":authority", HeaderValue::new_str("")),
                 HeaderItem::new_reserved(":scheme", HeaderValue::new_str("")),
                 HeaderItem::new_reserved(":path", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("origin", HeaderValue::new_str("")),
+                HeaderItem::new_reserved("sec-ch-ua-arch", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-platform", HeaderValue::new_str("")),
+                HeaderItem::new_reserved("upgrade-insecure-requests", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("user-agent", HeaderValue::String(Cow::Owned(format!("reqrio/{}", env!("CARGO_PKG_VERSION"))))),
                 HeaderItem::new_reserved("sec-ch-ua", HeaderValue::new_str("")),
+                HeaderItem::new_reserved("sec-ch-ua-wow64", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-mobile", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("accept", HeaderValue::new_str("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")),
                 HeaderItem::new_reserved("sec-fetch-site", HeaderValue::new_str("")),
@@ -64,20 +67,19 @@ impl Header {
                 HeaderItem::new_reserved("referer", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("accept-encoding", HeaderValue::new_str("gzip, deflate, br, zstd")),
                 HeaderItem::new_reserved("accept-language", HeaderValue::new_str("zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6")),
+                HeaderItem::new_reserved("cookie", HeaderValue::Cookies(CookieManager::new(vec![]))),
                 HeaderItem::new_reserved("priority", HeaderValue::new_str("")),
 
 
                 //unknown or http
                 HeaderItem::new_reserved("cache-control", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-full-version", HeaderValue::new_str("")),
-                HeaderItem::new_reserved("sec-ch-ua-arch", HeaderValue::new_str("")),
+
                 HeaderItem::new_reserved("sec-ch-ua-platform-version", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-model", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-bitness", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-full-version-list", HeaderValue::new_str("")),
-                HeaderItem::new_reserved("upgrade-insecure-requests", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-fetch-storage-access", HeaderValue::new_str("")),
-                HeaderItem::new_reserved("cookie", HeaderValue::Cookies(CookieManager::new(vec![]))),
                 HeaderItem::new_reserved("content-encoding", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("content-type", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("authorization", HeaderValue::new_str("")),
