@@ -16,7 +16,7 @@
 
 ---
 
-🌐 **官方网站**: [reqrio](https://ms.xllgl.top/)
+🌐 **官方网站**: [reqrio](https://www.reqrio.com/)
 
 💡 **应用案例**: [TLS Forward](https://tlsfoward.com/) — 基于 reqrio 构建的高级抓包工具
 
@@ -215,5 +215,5 @@ reqrio 采用分层网络栈设计：
 
 ## 联系方式
 
-* Tg：https://t.me/+VVfbAeug-ohhZjU1
-* QQ：1083315546
+* Telegram Group: https://t.me/+VVfbAeug-ohhZjU1
+* QQ Group: 1083315546
