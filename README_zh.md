@@ -215,5 +215,5 @@ reqrio 采用分层网络栈设计：
 
 ## 联系方式
 
-* Telegram Group: https://t.me/+VVfbAeug-ohhZjU1
-* QQ Group: 1083315546
+* Tg 群：https://t.me/+VVfbAeug-ohhZjU1
+* QQ 群：1083315546

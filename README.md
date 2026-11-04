@@ -226,5 +226,5 @@ You are welcome to submit issues and pull requests.
 
 ## Contact information
 
-* Tg：https://t.me/+VVfbAeug-ohhZjU1
-* QQ：1083315546
+* Telegram Group: https://t.me/+VVfbAeug-ohhZjU1
+* QQ Group: 1083315546
