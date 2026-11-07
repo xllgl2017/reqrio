@@ -2,7 +2,6 @@ use crate::hash::HashError;
 use crate::{HashType, Hmac};
 use std::borrow::Cow;
 
-#[allow(dead_code)]
 pub struct Hkdf<'a> {
     hash: HashType,
     prk: Cow<'a, [u8]>,
@@ -11,11 +10,17 @@ pub struct Hkdf<'a> {
 
 impl<'a> Hkdf<'a> {
     pub fn new(salt: &[u8], ikm: &[u8], hash: HashType) -> Result<Hkdf<'a>, HashError> {
-        let prk = match salt.is_empty() {
-            true => Hkdf::extract(hash, &vec![0; hash.hash_size()], ikm)?,
-            false => Hkdf::extract(hash, salt, ikm)?
+        let mut hmac = Hkdf::new_extracting(salt, hash)?;
+        hmac.update(ikm)?;
+        Ok(Hkdf::from_prk(hmac.finalize()?, hash))
+    }
+
+    pub fn new_extracting(salt: &[u8], hash: HashType) -> Result<Hmac, HashError> {
+        let salt = match salt.is_empty() {
+            true => &crate::ZERO,
+            false => salt
         };
-        Ok(Hkdf::from_prk(prk, hash))
+        Hmac::new(salt, hash)
     }
 
     pub fn from_prk(prk: impl Into<Cow<'a, [u8]>>, hash: HashType) -> Hkdf<'a> {
@@ -23,14 +28,6 @@ impl<'a> Hkdf<'a> {
             hash,
             prk: prk.into(),
         }
-    }
-
-    pub fn extract(hash: HashType, salt: &[u8], ikm: &[u8]) -> Result<Vec<u8>, HashError> {
-        let mut out = vec![0; hash.hash_size()];
-        let mut hmac = Hmac::new(salt, hash)?;
-        hmac.update(ikm)?;
-        hmac.finalize_extract(&mut out)?;
-        Ok(out)
     }
 
     pub fn extend_multi(&mut self, infos: &[&[u8]], out: &mut [u8]) -> Result<(), HashError> {
@@ -43,13 +40,12 @@ impl<'a> Hkdf<'a> {
             }
             hmac.update([i as u8 + 1])?;
             hmac.finalize_extract(&mut prev)?;
-            chunk.copy_from_slice(&prev.as_slice()[..chunk.len()]);
+            chunk.copy_from_slice(&prev[..chunk.len()]);
         }
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn extend(&mut self, infos: &[u8], out: &mut [u8]) -> Result<(), HashError> {
+    pub fn expand(&mut self, infos: &[u8], out: &mut [u8]) -> Result<(), HashError> {
         self.extend_multi(&[infos], out)
     }
 
@@ -68,6 +64,13 @@ impl<'a> Hkdf<'a> {
     }
 
     pub fn into_prk(self) -> Cow<'a, [u8]> { self.prk }
+    
+    pub const fn prk(&self)->&[u8]{
+        match &self.prk {
+            Cow::Borrowed(prk) => prk,
+            Cow::Owned(prk) => prk.as_slice(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -80,7 +83,7 @@ mod tests {
         let mut hkdf = Hkdf::new(b"test", b"test", HashType::Sha256).unwrap();
         let mut out = vec![0; 100];
         let info = (0..100).collect::<Vec<u8>>();
-        hkdf.extend(&info, &mut out).unwrap();
+        hkdf.expand(&info, &mut out).unwrap();
         assert_eq!(&out[..6], &[76, 35, 136, 208, 215, 198]);
 
         let secret = (0..32).collect::<Vec<u8>>();
