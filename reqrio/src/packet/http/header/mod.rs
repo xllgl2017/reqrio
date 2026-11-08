@@ -96,6 +96,7 @@ impl Header {
                 HeaderItem::new_reserved(":authority", HeaderValue::new_str("")),
                 HeaderItem::new_reserved(":scheme", HeaderValue::new_str("")),
                 HeaderItem::new_reserved(":path", HeaderValue::new_str("")),
+                HeaderItem::new_reserved("content-length", HeaderValue::Number(0)),
                 HeaderItem::new_reserved("pragma", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("cache-control", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("ect", HeaderValue::new_str("")),
@@ -110,6 +111,7 @@ impl Header {
                 HeaderItem::new_reserved("sec-ch-ua-full-version-list", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-prefers-color-scheme", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("upgrade-insecure-requests", HeaderValue::new_str("")),
+                HeaderItem::new_reserved("content-type", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("user-agent", HeaderValue::String(Cow::Owned(format!("reqrio/{}", env!("CARGO_PKG_VERSION"))))),
                 HeaderItem::new_reserved("accept", HeaderValue::new_str("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")),
                 HeaderItem::new_reserved("origin", HeaderValue::new_str("")),
@@ -125,7 +127,7 @@ impl Header {
                 HeaderItem::new_reserved("priority", HeaderValue::new_str("")),
                 //unknown or http
                 HeaderItem::new_reserved("content-encoding", HeaderValue::new_str("")),
-                HeaderItem::new_reserved("content-type", HeaderValue::new_str("")),
+
                 HeaderItem::new_reserved("authorization", HeaderValue::new_str("")),
             ],
         }

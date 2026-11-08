@@ -1,5 +1,6 @@
 use crate::{rand, Buf, CipherSuite, Version};
 use std::fmt::{Debug, Formatter};
+use crate::hpke::HpkeSuite;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum KeyType {
@@ -56,7 +57,7 @@ impl TlsSession {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub(crate) struct Tls12Key {
     client_key: [u8; 80],
     server_key: [u8; 80],
@@ -83,7 +84,7 @@ impl Tls12Key {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub(crate) struct Tls13Key {
     client_key: [u8; 32],
     server_key: [u8; 32],
@@ -106,7 +107,7 @@ impl Tls13Key {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub(crate) struct QUICKey {
     client_key: [u8; 32],
     server_key: [u8; 32],
@@ -138,6 +139,54 @@ impl QUICKey {
         }
     }
 }
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub(crate) struct EchKey {
+    key: [u8; 32],
+    key_size: usize,
+    iv: [u8; 16],
+    iv_size: usize,
+    exp: [u8; 32],
+    exp_size: usize,
+}
+
+impl EchKey {
+    pub fn new(suite: &HpkeSuite) -> EchKey {
+        EchKey {
+            key: [0; 32],
+            key_size: suite.key_size,
+            iv: [0; 16],
+            iv_size: suite.iv_size,
+            exp: [0; 32],
+            exp_size: suite.exp_size,
+        }
+    }
+
+    pub fn key_mut(&mut self) -> &mut [u8] {
+        &mut self.key[..self.key_size]
+    }
+
+    pub fn iv_mut(&mut self) -> &mut [u8] {
+        &mut self.iv[..self.iv_size]
+    }
+
+    pub fn exp_mut(&mut self) -> &mut [u8] {
+        &mut self.exp[..self.exp_size]
+    }
+
+    pub fn key(&self) -> &[u8] {
+        &self.key[..self.key_size]
+    }
+
+    pub fn iv(&self) -> &[u8] {
+        &self.iv[..self.iv_size]
+    }
+
+    pub fn exp(&self) -> &[u8] {
+        &self.exp[..self.exp_size]
+    }
+}
+
 
 #[allow(clippy::upper_case_acronyms)]
 pub(crate) enum KeyBlock {

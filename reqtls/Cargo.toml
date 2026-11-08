@@ -16,7 +16,6 @@ log = { version = "0.4", default-features = false, optional = true }
 
 
 [features]
-zstd = []
 static_link = []
 export = []
 quic = []

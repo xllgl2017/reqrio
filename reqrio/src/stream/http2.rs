@@ -310,7 +310,7 @@ mod tests {
 
 
         let mut raw = Writer::with_capacity(3072);
-        raw.write_u24(1957).unwrap(); //len
+        raw.write_u24(1960).unwrap(); //len
         raw.write_u8(1).unwrap(); //frame type
         raw.write_u8(37).unwrap(); //frame flag
         raw.write_slice(&[0, 0, 0, 1]).unwrap();
@@ -321,6 +321,7 @@ mod tests {
         encoder.encode_one(":authority", "api.test.example.com:8222", &mut raw).unwrap();
         encoder.encode_one(":scheme", "https", &mut raw).unwrap();
         encoder.encode_one(":path", "/web/user/uias_login.do?appCode=hbzwfw&gotoUrl=http%3A%2F%2Fzwfw.hubei.gov.cn%2Fwebview%2Fgrkj%2Fwelcome.html&p01=", &mut raw).unwrap();
+        encoder.encode_one("content-length", "0",&mut raw).unwrap();
         encoder.encode_one("cache-control", "no-cache", &mut raw).unwrap();
         encoder.encode_one("sec-ch-ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Microsoft Edge\";v=\"120\"", &mut raw).unwrap();
         encoder.encode_one("sec-ch-ua-mobile", "?0", &mut raw).unwrap();
