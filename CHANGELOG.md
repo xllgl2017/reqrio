@@ -1,3 +1,8 @@
+# reqrio-v0.4.1
+* fix some bugs
+* adjust h2 header order
+
+
 # reqrio-v0.4.0
 
 `v0.4.0` is a major leap for reqrio: it extends the transport layer to HTTP/3 and QUIC, adds TLCP / SM2 support for the Chinese national cryptography (GM) ecosystem, and unifies the stream processing model across HTTP/1.1, HTTP/2 and HTTP/3. The focus of this release is to provide more complete low-level capabilities for high concurrency, complex network environments and GM compliance scenarios.
