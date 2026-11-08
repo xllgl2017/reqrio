@@ -1,40 +1,43 @@
+use super::SvcParam;
+use super::add::AddOption;
+use super::domain::Domain;
+use reqtls::{BufferError, Reader, Writer};
 use std::fmt::Debug;
 use std::net::{Ipv4Addr, Ipv6Addr};
-use crate::dns::add::AddOption;
-use crate::dns::domain::Domain;
-use crate::dns::error::DNSError;
-use crate::dns::SvcParam;
-use crate::{BufferError, Reader, Writer};
 
+#[derive(Copy, Clone, PartialEq)]
 pub struct DnsType(u16);
 
 impl DnsType {
     ///Host Address
-    pub const A: u16 = 0x0001;
+    pub const A: DnsType = DnsType::new(0x0001);
     /// Authoritative name server
-    pub const NS: u16 = 0x0002;
+    pub const NS: DnsType = DnsType::new(0x0002);
     ///Canonical Name
-    pub const CNAME: u16 = 0x0005;
+    pub const CNAME: DnsType = DnsType::new(0x0005);
     ///Start of a zone of authority
-    pub const SOA: u16 = 0x0006;
+    pub const SOA: DnsType = DnsType::new(0x0006);
     ///Domain name PoinTeR
-    pub const PTR: u16 = 0x000c;
+    pub const PTR: DnsType = DnsType::new(0x000c);
     ///IPv6 Address
-    pub const AAAA: u16 = 0x001c;
+    pub const AAAA: DnsType = DnsType::new(0x001c);
     ///
-    pub const OPT: u16 = 0x0029;
+    pub const OPT: DnsType = DnsType::new(0x0029);
     ///Https specific service endpoints
-    pub const HTTPS: u16 = 0x0041;
+    pub const HTTPS: DnsType = DnsType::new(0x0041);
 
-    pub fn as_u16(&self) -> u16 {
+    pub const fn new(val: u16) -> DnsType {
+        DnsType(val)
+    }
+
+    pub const fn inner(&self) -> u16 {
         self.0
     }
 
-    pub fn into_inner(self) -> u16 { self.0 }
+    pub const fn into_inner(self) -> u16 { self.0 }
 
-
-    fn spec(&self) -> &str {
-        match self.0 {
+    const fn spec(&self) -> &str {
+        match *self {
             DnsType::A => "A",
             DnsType::NS => "NS",
             DnsType::CNAME => "CNAME",
@@ -47,33 +50,15 @@ impl DnsType {
         }
     }
 }
-
+#[cfg(debug_assertions)]
 impl Debug for DnsType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}(0x{:x})", self.spec(), self.0)
     }
 }
 
-impl From<&[u8]> for DnsType {
-    fn from(bytes: &[u8]) -> Self {
-        DnsType(u16::from_be_bytes([bytes[0], bytes[1]]))
-    }
-}
 
-impl From<u16> for DnsType {
-    fn from(value: u16) -> Self {
-        DnsType(value)
-    }
-}
-
-impl PartialEq<u16> for &DnsType {
-    fn eq(&self, other: &u16) -> bool {
-        &self.as_u16() == other
-    }
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum DNSValue<'a> {
     A(Ipv4Addr),
     NS(Domain<'a>),
@@ -104,15 +89,15 @@ impl<'b, 'a: 'b> DNSValue<'a> {
         } else { unreachable!() }
     }
 
-    pub fn from_bytes(type_: &DnsType, reader: &'b mut Reader<'a>, len: usize) -> Result<Self, DNSError> {
+    pub fn from_reader(typ: &DnsType, reader: &'b mut Reader<'a>, len: usize) -> Result<Self, BufferError> {
         if len == 0 { return Ok(DNSValue::Null); }
-        match type_.as_u16() {
-            DnsType::A => Ok(DNSValue::A(Ipv4Addr::from_octets(reader.read_slice(4)?.try_into().map_err(DNSError::SliceError)?))),
-            DnsType::NS => Ok(DNSValue::NS(Domain::from_bytes(reader)?)),
-            DnsType::CNAME => Ok(DNSValue::CName(Domain::from_bytes(reader)?)),
+        match *typ {
+            DnsType::A => Ok(DNSValue::A(Ipv4Addr::from_bits(reader.read_u32_le()?))),
+            DnsType::NS => Ok(DNSValue::NS(Domain::from_reader(reader)?)),
+            DnsType::CNAME => Ok(DNSValue::CName(Domain::from_reader(reader)?)),
             DnsType::SOA => {
-                let primary_name = Domain::from_bytes(reader)?;
-                let authority = Domain::from_bytes(reader)?;
+                let primary_name = Domain::from_reader(reader)?;
+                let authority = Domain::from_reader(reader)?;
                 Ok(DNSValue::Soa {
                     primary_name,
                     authority,
@@ -123,17 +108,17 @@ impl<'b, 'a: 'b> DNSValue<'a> {
                     min_ttl: reader.read_u32()?,
                 })
             }
-            DnsType::AAAA => Ok(DNSValue::AAAA(Ipv6Addr::from_octets(reader.read_slice(16)?.try_into().map_err(DNSError::SliceError)?))),
+            DnsType::AAAA => Ok(DNSValue::AAAA(Ipv6Addr::from_octets(reader.read_slice(16)?.try_into().map_err(|_| BufferError::Insufficient)?))),
             DnsType::OPT => {
-                Ok(DNSValue::OPT(AddOption::from_bytes(reader)?))
+                Ok(DNSValue::OPT(AddOption::from_reader(reader)?))
             }
             DnsType::HTTPS => {
                 let start = reader.position();
                 let priority = reader.read_u16()?;
-                let target = Domain::from_bytes(reader)?;
+                let target = Domain::from_reader(reader)?;
                 let mut params = vec![];
                 while reader.position() < start + len {
-                    let param = SvcParam::from_bytes(reader)?;
+                    let param = SvcParam::from_reader(reader)?;
                     params.push(param);
                 }
                 Ok(DNSValue::Https {
@@ -142,7 +127,7 @@ impl<'b, 'a: 'b> DNSValue<'a> {
                     params,
                 })
             }
-            _ => Err(DNSError::UnknownDNSValue(type_.as_u16()))
+            _ => unreachable!("unknown dns-{:?}", typ)
         }
     }
 

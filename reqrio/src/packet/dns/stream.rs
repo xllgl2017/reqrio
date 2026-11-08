@@ -1,8 +1,4 @@
-use super::{DNSError, SvcParamValue, SvcType, DNS};
-use crate::dns::add::Additional;
-use crate::dns::value::{DNSValue, DnsType};
-use crate::extend::EchConfig;
-use crate::{rand, Writer, ALPN};
+use super::{DNS, DNSError, SvcParamValue, SvcType};
 use std::io;
 use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
@@ -10,7 +6,9 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::ptr::null_mut;
 use std::str::FromStr;
 use std::time::Duration;
-
+use reqtls::{EchConfig, ALPN, Writer, rand};
+use crate::packet::dns::add::Additional;
+use crate::packet::dns::value::{DNSValue, DnsType};
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct DNSCache {
@@ -168,7 +166,7 @@ impl DNSStream {
             len
         }else { return Ok(DNSCache::new_addrs(vec![])) };
         let dns = DNS::from_bytes(&self.read_buf[..len])?;
-        let answer = dns.answers().iter().find(|x| x.type_() == DnsType::HTTPS);
+        let answer = dns.answers().iter().find(|x| x.typ() == DnsType::HTTPS);
         let (alpn, addrs, echo) = if let Some(answer) = answer && let DNSValue::Https { params, .. } = answer.data() {
             let alpn = params.iter().find(|x| x.key == SvcType::ALPN).map(|x| {
                 x.values.iter().filter_map(|x| if let SvcParamValue::ALPN(alpn) = x {
@@ -203,13 +201,13 @@ impl DNSStream {
 
 #[cfg(test)]
 mod test {
-    use crate::dns::stream::DNSStream;
+    use crate::packet::dns::stream::DNSStream;
 
     #[test]
     fn test_https_dns() {
         let mut stream = DNSStream::new().unwrap();
-        // let dns = stream.get_dns_https("crypto.cloudflare.com").unwrap();
-        // println!("{:#?}", dns);
+        let dns = stream.get_dns_https("crypto.cloudflare.com").unwrap();
+        println!("{:#?}", dns);
         // let dns = stream.get_dns_a("m.so.com").unwrap();
         // println!("{:#?}", dns);
         let dns = stream.get_dns_https("cn.bing.com").unwrap();

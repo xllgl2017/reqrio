@@ -283,7 +283,6 @@ mod config;
 #[cfg(feature = "export")]
 mod export;
 mod buffer;
-mod dns;
 mod hkdf;
 mod key;
 mod finger;
@@ -296,7 +295,7 @@ pub use alpn::ALPN;
 pub use boring::{
     base64, certificate::CertStore, certificate::CertType, certificate::Certificate, cipher, hash,
     hmac, AeadCtx, AeadDir, AlgoSigner, Cipher, CipherType, Padding, RsaCipher,
-    RsaKey, RsaPadding, SignatureAlgorithm,
+    RsaKey, RsaPadding, SignatureAlgorithm, Aead,
 };
 #[cfg(feature = "cert_signer")]
 pub use boring::{
@@ -309,7 +308,7 @@ pub use connection::Connection;
 pub use error::{HandShakeError, RlsError};
 pub use ext::{StreamHandle, StreamParam};
 pub use extend::{
-    Aead, CompressCertificate, CompressionMethod, EcPointFormat, EncryptClientHello, Extension,
+    CompressCertificate, CompressionMethod, EcPointFormat, EncryptClientHello, Extension, EchConfig,
     ExtensionType, KeyEntry, PskMode, ServerName, StatusRequest,
 };
 pub use finger::{TlsFinger, RecordParam, Finger};

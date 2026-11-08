@@ -1,6 +1,5 @@
+use reqtls::{BufferError, Reader, Writer};
 use std::fmt::{Debug, Formatter};
-use crate::dns::error::DNSError;
-use crate::{BufferError, Reader, Writer};
 
 pub struct Domain<'a>(Vec<&'a str>);
 
@@ -9,8 +8,8 @@ impl<'b, 'a: 'b> Domain<'a> {
         Domain(if domain.is_empty() { vec![] } else { domain.split(".").collect() })
     }
 
-    pub fn from_bytes(reader: &'b mut Reader<'a>) -> Result<Domain<'a>, DNSError> {
-        let mut names = Vec::with_capacity(100);
+    pub fn from_reader(reader: &'b mut Reader<'a>) -> Result<Domain<'a>, BufferError> {
+        let mut names = Vec::with_capacity(5);
         let mut pos = reader.position();
         while reader.current()? != 0 {
             match reader.current()? >> 6 == 0b11 {

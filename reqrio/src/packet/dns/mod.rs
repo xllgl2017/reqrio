@@ -7,29 +7,33 @@ mod stream;
 mod domain;
 mod value;
 
-use crate::{rand, BufferError, Reader, Writer};
 use add::Additional;
 use answer::DNSAnswer;
 use authoritative::Authoritative;
 use domain::Domain;
 pub use error::DNSError;
 use query::DNSQuery;
+use reqtls::{BufferError, Reader, Writer, rand};
 use std::fmt::{Debug, Formatter};
 use std::net::{Ipv4Addr, Ipv6Addr};
-pub use stream::{DNSCache, DNSStream};
 use value::{DNSValue, DnsType};
 
 
+#[derive(Copy, Clone, PartialEq)]
 struct SvcType(u16);
 
 impl SvcType {
-    const ALPN: u16 = 0x0001;
-    const IPV4: u16 = 0x0004;
-    const ECHO: u16 = 0x0005;
-    const IPV6: u16 = 0x0006;
+    const ALPN: SvcType = SvcType::new(0x0001);
+    const IPV4: SvcType = SvcType::new(0x0004);
+    const ECHO: SvcType = SvcType::new(0x0005);
+    const IPV6: SvcType = SvcType::new(0x0006);
 
-    fn spec(&self) -> &str {
-        match self.0 {
+    pub const fn new(val: u16) -> SvcType {
+        SvcType(val)
+    }
+
+    const fn spec(&self) -> &str {
+        match *self {
             SvcType::ALPN => "ALPN",
             SvcType::IPV4 => "IPv4",
             SvcType::ECHO => "Echo",
@@ -37,23 +41,20 @@ impl SvcType {
             _ => "Reserved"
         }
     }
-}
 
-impl From<u16> for SvcType {
-    fn from(value: u16) -> Self {
-        SvcType(value)
+    pub const fn inner(&self) -> u16 {
+        self.0
+    }
+
+    pub const fn into_inner(self) -> u16 {
+        self.0
     }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for SvcType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}(0x{:x})", self.spec(), self.0)
-    }
-}
-
-impl PartialEq<u16> for SvcType {
-    fn eq(&self, other: &u16) -> bool {
-        &self.0 == other
     }
 }
 
@@ -75,13 +76,13 @@ pub struct SvcParam<'a> {
 }
 
 impl<'b, 'a: 'b> SvcParam<'a> {
-    fn from_bytes(reader: &'b mut Reader<'a>) -> Result<SvcParam<'a>, DNSError> {
-        let key: SvcType = reader.read_u16()?.into();
+    fn from_reader(reader: &'b mut Reader<'a>) -> Result<SvcParam<'a>, BufferError> {
+        let typ = SvcType::new(reader.read_u16()?);
         let parse_len = reader.read_u16()?;
         let mut value_len = parse_len as usize;
         let mut values = vec![];
         while value_len > 0 {
-            let value = match key.0 {
+            let value = match typ {
                 SvcType::ALPN => {
                     let len = reader.read_u8()? as usize;
                     value_len -= 1 + len;
@@ -89,8 +90,7 @@ impl<'b, 'a: 'b> SvcParam<'a> {
                 }
                 SvcType::IPV4 => {
                     value_len -= 4;
-                    let slice = reader.read_slice(4)?.try_into().map_err(DNSError::SliceError)?;
-                    SvcParamValue::IPV4(Ipv4Addr::from_octets(slice))
+                    SvcParamValue::IPV4(Ipv4Addr::from_bits(reader.read_u32_le()?))
                 }
                 SvcType::ECHO => {
                     let slice = reader.read_slice(value_len)?;
@@ -99,15 +99,18 @@ impl<'b, 'a: 'b> SvcParam<'a> {
                 }
                 SvcType::IPV6 => {
                     value_len -= 16;
-                    let slice = reader.read_slice(16)?.try_into().map_err(DNSError::SliceError)?;
+                    let slice = reader.read_slice(16)?.try_into()?;
                     SvcParamValue::IPV6(Ipv6Addr::from_octets(slice))
                 }
-                _ => return Err(DNSError::UnknownSvcType(key.0))
+                #[cfg(debug_assertions)]
+                _ => unreachable!("unknown svc typ-{:?}", typ),
+                #[cfg(not(debug_assertions))]
+                _ => continue,
             };
             values.push(value);
         }
         Ok(SvcParam {
-            key,
+            key: typ,
             len: parse_len,
             values,
         })
@@ -115,30 +118,38 @@ impl<'b, 'a: 'b> SvcParam<'a> {
 }
 
 
+#[derive(Copy, Clone, PartialEq)]
 struct ReplyCode(u8);
 
 impl ReplyCode {
-    const NO_ERROR: u8 = 0;
-    const NO_SUCH_NAME: u8 = 3;
+    const NO_ERROR: ReplyCode = ReplyCode::new(0);
+    const NO_SUCH_NAME: ReplyCode = ReplyCode::new(3);
 
-    fn spec(&self) -> &str {
-        match self.0 {
-            ReplyCode::NO_ERROR => "NO_ERROR",
-            ReplyCode::NO_SUCH_NAME => "NO_SUCH_NAME",
+    pub const fn new(val: u8) -> ReplyCode {
+        ReplyCode(val)
+    }
+
+    const fn spec(&self) -> &str {
+        match *self {
+            ReplyCode::NO_ERROR => "NoError",
+            ReplyCode::NO_SUCH_NAME => "NoSuchName",
             _ => "Reserved"
         }
     }
-}
 
-impl Debug for ReplyCode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}(0x{:x})", self.spec(), self.0)
+    pub const fn inner(&self) -> u8 {
+        self.0
+    }
+
+    pub const fn into_inner(self) -> u8 {
+        self.0
     }
 }
 
-impl From<u8> for ReplyCode {
-    fn from(code: u8) -> Self {
-        ReplyCode(code)
+#[cfg(debug_assertions)]
+impl Debug for ReplyCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}(0x{:x})", self.spec(), self.0)
     }
 }
 
@@ -158,7 +169,7 @@ struct DNSFlag {
 }
 
 impl DNSFlag {
-    pub fn from_bytes(bytes: &[u8]) -> Self {
+    pub fn from_reader(bytes: &[u8]) -> Self {
         DNSFlag {
             resp: bytes[0] & 0b1000_0000 == 0b1000_0000,
             opcode: bytes[0] & 0b111_1000,
@@ -169,7 +180,7 @@ impl DNSFlag {
             z: bytes[1] & 0b100_0000 == 0b100_0000,
             answer_authenticated: bytes[1] & 0b10_0000 == 0b10_0000,
             non_authenticated: bytes[1] & 0b1_0000 == 0b1_0000,
-            reply_code: (bytes[1] & 0b1111).into(),
+            reply_code: ReplyCode::new(bytes[1] & 0b1111),
         }
     }
 
@@ -187,31 +198,26 @@ impl DNSFlag {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct DNSClass(u16);
 
 impl DNSClass {
-    const IN: u16 = 0x0001;
+    const IN: DNSClass = DNSClass::new(0x0001);
 
-    fn spec(&self) -> &str {
-        match self.0 {
+    pub const fn new(val: u16) -> DNSClass {
+        DNSClass(val)
+    }
+
+    const fn spec(&self) -> &str {
+        match *self {
             DNSClass::IN => "IN",
             _ => "Reserved"
         }
     }
 
-    pub fn into_inner(self) -> u16 { self.0 }
-}
+    pub const fn inner(&self) -> u16 { self.0 }
 
-impl From<&[u8]> for DNSClass {
-    fn from(bytes: &[u8]) -> Self {
-        DNSClass(u16::from_be_bytes([bytes[0], bytes[1]]))
-    }
-}
-
-impl From<u16> for DNSClass {
-    fn from(code: u16) -> Self {
-        DNSClass(code)
-    }
+    pub const fn into_inner(self) -> u16 { self.0 }
 }
 
 impl Debug for DNSClass {
@@ -273,7 +279,7 @@ impl<'a> DNS<'a> {
         let mut reader = Reader::from_slice(reader);
         if reader.size() < 12 { return Err(DNSError::Buffer(BufferError::Insufficient)); }
         let tid = reader.read_u16().unwrap();
-        let flag = DNSFlag::from_bytes(reader.read_slice(2).unwrap());
+        let flag = DNSFlag::from_reader(reader.read_slice(2).unwrap());
         reader.set_position(4);
         let questions = reader.read_u16().unwrap();
         let answer = reader.read_u16().unwrap();
@@ -291,7 +297,7 @@ impl<'a> DNS<'a> {
         //answer
         let mut answers = vec![];
         for _ in 0..answer {
-            let answer = DNSAnswer::from_bytes(&mut reader).unwrap();
+            let answer = DNSAnswer::from_reader(&mut reader).unwrap();
             answers.push(answer)
         }
 
@@ -299,7 +305,7 @@ impl<'a> DNS<'a> {
         let mut authorities = vec![];
 
         for _ in 0..authority {
-            let authority = Authoritative::from_bytes(&mut reader).unwrap();
+            let authority = Authoritative::from_reader(&mut reader).unwrap();
             authorities.push(authority)
         }
         //add
@@ -307,7 +313,7 @@ impl<'a> DNS<'a> {
 
         for _ in 0..additional {
             // println!("222={:x?}", &reader[reader.position()..]);
-            let add = Additional::from_bytes(&mut reader).unwrap();
+            let add = Additional::from_reader(&mut reader).unwrap();
             // println!("{:#?}", add);
             adds.push(add)
         }
@@ -349,7 +355,8 @@ impl<'a> DNS<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::dns::DNS;
+    use crate::hex;
+    use crate::packet::dns::DNS;
 
     #[test]
     fn test_query() {

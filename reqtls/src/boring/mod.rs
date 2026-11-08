@@ -8,8 +8,7 @@ mod evp;
 mod padding;
 pub mod base64;
 
-pub use evp::{cipher, Cipher, CipherType};
-pub use evp::{AeadCtx, AeadDir, Iv};
+pub use evp::{cipher, Cipher, CipherType, Aead, AeadCtx, AeadDir, Iv};
 pub use hash::*;
 pub use padding::Padding;
 pub use rsa::{certificate, RsaCipher, RsaKey, RsaPadding};

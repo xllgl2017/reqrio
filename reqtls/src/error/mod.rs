@@ -4,7 +4,6 @@ mod quic;
 
 use crate::cipher::CipherError;
 use crate::coder::CodeState;
-use crate::dns::DNSError;
 use crate::hash::HashError;
 use crate::url::UrlError;
 use crate::{Alert, BufferError, SmError};
@@ -77,7 +76,6 @@ pub enum RlsError {
     Currently(String),
     Alert(Alert),
     HasherError(HashError),
-    DNSError(DNSError),
     Cipher(CipherError),
     Sm(SmError),
 }
@@ -134,7 +132,6 @@ impl Display for RlsError {
             RlsError::Alert(alert) => write!(f, "Alert({})", alert.desc()),
             RlsError::Currently(e) => f.write_str(e),
             RlsError::HasherError(e) => write!(f, "Hasher({})", e),
-            RlsError::DNSError(e) => write!(f, "DNSError({:?})", e),
             RlsError::Cipher(e) => write!(f, "Cipher({:?})", e),
             RlsError::Sm(sm) => write!(f, "Sm({:?})", sm),
             RlsError::TZCode(state) => write!(f, "TZCode({:?})", state),
@@ -256,12 +253,6 @@ impl From<HandShakeError> for RlsError {
 impl From<HashError> for RlsError {
     fn from(value: HashError) -> Self {
         RlsError::HasherError(value)
-    }
-}
-
-impl From<DNSError> for RlsError {
-    fn from(value: DNSError) -> Self {
-        RlsError::DNSError(value)
     }
 }
 

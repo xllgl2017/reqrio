@@ -1,5 +1,4 @@
-use crate::Version;
-use crate::extend::Aead;
+use crate::{Aead, Version};
 use crate::hash::HashType;
 use std::cmp::max;
 use std::fmt::{Debug, Formatter};

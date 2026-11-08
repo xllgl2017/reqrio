@@ -10,11 +10,11 @@ mod ech;
 #[cfg(feature = "quic")]
 mod quic;
 
-use crate::{rand, Buf, NamedCurve, SignatureAlgorithm, Version, ALPN, REVERSED};
+use crate::{ALPN, Buf, NamedCurve, REVERSED, SignatureAlgorithm, Version, rand};
 pub use certificate::CompressCertificate;
 pub use certificate::CompressionMethod;
 pub use client_hello::EncryptClientHello;
-pub use ech::{Aead, EchConfig};
+pub use ech::EchConfig;
 pub use formats::EcPointFormat;
 pub use key_share::KeyEntry;
 pub use psk_key::PskMode;

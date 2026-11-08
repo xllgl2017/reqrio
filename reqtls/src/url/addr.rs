@@ -1,14 +1,8 @@
-use crate::dns::{DNSCache, DNSStream};
 use crate::error::RlsResult;
 use crate::url::UrlError;
-use std::collections::HashMap;
 use std::fmt::Display;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
+use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
-use std::sync::{Arc, LazyLock, RwLock};
-use std::time::SystemTime;
-
-static DNS: LazyLock<RwLock<HashMap<String, Arc<DNSCache>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -58,52 +52,55 @@ impl Addr {
         self.host = host.to_string();
     }
 
-    fn get_dns(&self, ech: bool) -> RlsResult<Arc<DNSCache>> {
-        let mut cache = match IpAddr::from_str(&self.host) {
-            Ok(addr) => DNSCache::new_addrs(vec![addr]),
-            Err(_) => {
-                let mut cache = if ech {
-                    let mut stream = DNSStream::new()?;
-                    stream.get_dns_https(&self.host)?
-                } else { DNSCache::new_addrs(vec![]) };
-                if cache.addrs().is_empty() {
-                    let addrs = format!("{}:{}", self.host, self.port).to_socket_addrs()?.map(|x| x.ip()).collect();
-                    cache.set_addrs(addrs);
-                }
-                cache
-            }
-        };
 
-        let t = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
-        cache.set_time(t);
-        let cache = Arc::new(cache);
-        let mut dns_write = DNS.write()?;
-        dns_write.insert(self.host.clone(), cache.clone());
-        Ok(cache)
-    }
-    pub fn get_dns_cache(&self, ech: bool) -> RlsResult<Arc<DNSCache>> {
-        let dns_read = DNS.read()?;
-        match dns_read.get(&self.host) {
-            None => {
-                drop(dns_read);
-                self.get_dns(ech)
-            }
-            Some(dns) => {
-                let t = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
-                if t - dns.time() > 30 * 60 {
-                    drop(dns_read);
-                    self.get_dns(ech)
-                } else {
-                    Ok(dns.clone())
-                }
-            }
-        }
-    }
+    // fn get_dns(&self, ech: bool) -> RlsResult<Arc<DNSCache>> {
+    //     let mut cache = match IpAddr::from_str(&self.host) {
+    //         Ok(addr) => DNSCache::new_addrs(vec![addr]),
+    //         Err(_) => {
+    //             let mut cache = if ech {
+    //                 let mut stream = DNSStream::new()?;
+    //                 stream.get_dns_https(&self.host)?
+    //             } else { DNSCache::new_addrs(vec![]) };
+    //             if cache.addrs().is_empty() {
+    //                 let addrs = format!("{}:{}", self.host, self.port).to_socket_addrs()?.map(|x| x.ip()).collect();
+    //                 cache.set_addrs(addrs);
+    //             }
+    //             cache
+    //         }
+    //     };
+    // 
+    //     let t = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+    //     cache.set_time(t);
+    //     let cache = Arc::new(cache);
+    //     let mut dns_write = DNS.write()?;
+    //     dns_write.insert(self.host.clone(), cache.clone());
+    //     Ok(cache)
+    // }
+    // pub fn get_dns_cache(&self, ech: bool) -> RlsResult<Arc<DNSCache>> {
+    //     let dns_read = DNS.read()?;
+    //     match dns_read.get(&self.host) {
+    //         None => {
+    //             drop(dns_read);
+    //             self.get_dns(ech)
+    //         }
+    //         Some(dns) => {
+    //             let t = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+    //             if t - dns.time() > 30 * 60 {
+    //                 drop(dns_read);
+    //                 self.get_dns(ech)
+    //             } else {
+    //                 Ok(dns.clone())
+    //             }
+    //         }
+    //     }
+    // }
 
-    pub fn socket_addr(&self, ech: bool) -> RlsResult<SocketAddr> {
-        let dns = self.get_dns_cache(ech)?;
-        let addr = dns.addrs().iter().next().ok_or("missing dns address")?;
-        Ok(SocketAddr::new(*addr, self.port))
+    #[deprecated]
+    pub fn socket_addr(&self, _ech: bool) -> RlsResult<SocketAddr> {
+        Ok(format!("{}:{}", self.host, self.port)
+            .to_socket_addrs()?
+            .next()
+            .ok_or("dns none")?)
     }
 
     pub fn to_bits(&self) -> RlsResult<u32> {
@@ -158,13 +155,11 @@ impl From<SocketAddr> for Addr {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr, SocketAddr};
-    use std::str::FromStr;
     use crate::Addr;
 
     #[test]
     fn test_addr() {
         let addr = Addr::new_addr("127.0.0.1", 1234);
-        assert_eq!(addr.socket_addr(false).unwrap(), SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), 1234));
+        assert_eq!(addr.to_string(), "127.0.0.1:1234");
     }
 }

@@ -2,15 +2,13 @@ mod aead;
 mod kdf;
 
 use super::client_hello::CipherSuite;
-use crate::dns::DNSError;
-use crate::{Buf, Reader};
-pub use aead::Aead;
+use crate::{Aead, Buf, BufferError, Reader};
 pub use kdf::KDF;
 #[cfg(debug_assertions)]
 use std::fmt::Debug;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[allow(dead_code)]
+#[derive(Default)]
 pub struct EchConfig {
     len: u16,
     ver: u16,
@@ -19,21 +17,9 @@ pub struct EchConfig {
 
 impl EchConfig {
     pub fn new() -> EchConfig {
-        EchConfig {
-            len: 0,
-            ver: 0,
-            content: EchContent {
-                config_id: 0,
-                kem_id: DHKem(0),
-                key: Buf::default(),
-                ciphers: vec![],
-                max_name_len: 0,
-                name: "".to_string(),
-                ext_len: 0,
-            },
-        }
+        EchConfig::default()
     }
-    pub fn from_bytes(bytes: &[u8]) -> Result<EchConfig, DNSError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<EchConfig, BufferError> {
         let mut reader = Reader::from_slice(bytes);
         Ok(EchConfig {
             ver: reader.read_u16()?,
@@ -43,7 +29,7 @@ impl EchConfig {
     }
 }
 
-#[allow(unused)]
+#[derive(Default)]
 struct DHKem(u16);
 
 impl DHKem {
@@ -67,7 +53,7 @@ impl Debug for DHKem {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[allow(dead_code)]
+#[derive(Default)]
 pub struct EchContent {
     config_id: u8,
     kem_id: DHKem,
@@ -79,7 +65,7 @@ pub struct EchContent {
 }
 
 impl EchContent {
-    pub fn from_reader(reader: &mut Reader) -> Result<EchContent, DNSError> {
+    pub fn from_reader(reader: &mut Reader) -> Result<EchContent, BufferError> {
         let config_id = reader.read_u8()?;
         let kem_id = DHKem(reader.read_u16()?);
         let key_len = reader.read_u16()?;
@@ -87,8 +73,8 @@ impl EchContent {
         let cipher_len = reader.read_u16()?;
         let mut ciphers = Vec::with_capacity(cipher_len as usize);
         for _ in (0..cipher_len).step_by(4) {
-            let aead = Aead::from_u16(reader.read_u16()?).ok_or(DNSError::UnknownAead)?;
-            let kdf = KDF::from_u16(reader.read_u16()?).ok_or(DNSError::UnknownKDF)?;
+            let aead = Aead::from_u16(reader.read_u16()?).unwrap();
+            let kdf = KDF::from_u16(reader.read_u16()?).unwrap();
             ciphers.push(CipherSuite { aead, kdf });
         }
         let max_name_len = reader.read_u8()?;

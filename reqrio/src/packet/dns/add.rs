@@ -1,32 +1,37 @@
-use crate::dns::error::DNSError;
-use crate::dns::{DNSClass, DNSValue, DnsType, Domain};
-use crate::{BufferError, Reader, Writer};
 use std::fmt::Debug;
+use reqtls::{BufferError, Reader, Writer};
+use crate::hex;
+use super::{DNSClass, DNSError, Domain, DNSValue, DnsType};
 
+#[derive(PartialEq)]
 pub struct AddOptionCode(u16);
 
 impl AddOptionCode {
-    const COOKIE: u16 = 0x000a;
+    const COOKIE: AddOptionCode = AddOptionCode::new(0x000a);
 
-    fn spec(&self) -> &str {
-        match self.0 {
+    const fn new(val: u16) -> AddOptionCode {
+        AddOptionCode(val)
+    }
+
+    const fn spec(&self) -> &str {
+        match *self {
             AddOptionCode::COOKIE => "COOKIE",
             _ => "Reserved"
         }
     }
+
+    const fn inner(&self) -> u16 { self.0 }
+
+    const fn into_inner(self) -> u16 { self.0 }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for AddOptionCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}(0x{:x})", self.spec(), self.0)
     }
 }
 
-impl From<u16> for AddOptionCode {
-    fn from(code: u16) -> Self {
-        AddOptionCode(code)
-    }
-}
 
 pub enum AddOption<'a> {
     Cookie(&'a [u8]),
@@ -41,10 +46,10 @@ impl<'b, 'a: 'b> AddOption<'a> {
         }
     }
 
-    pub fn from_bytes(reader: &'b mut Reader<'a>) -> Result<AddOption<'a>, DNSError> {
-        let code: AddOptionCode = reader.read_u16()?.into();
+    pub fn from_reader(reader: &'b mut Reader<'a>) -> Result<AddOption<'a>, BufferError> {
+        let code = AddOptionCode::new(reader.read_u16()?);
         let len = reader.read_u16()? as usize;
-        match code.0 {
+        match code {
             AddOptionCode::COOKIE => Ok(AddOption::Cookie(reader.read_slice(len)?)),
             _ => Ok(AddOption::Reserved(reader.read_slice(len)?)),
         }
@@ -53,7 +58,7 @@ impl<'b, 'a: 'b> AddOption<'a> {
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         match self {
             AddOption::Cookie(v) => {
-                writer.write_u16(AddOptionCode::COOKIE)?;
+                writer.write_u16(AddOptionCode::COOKIE.into_inner())?;
                 writer.write_u16(v.len() as u16)?;
                 writer.write_slice(v)
             }
@@ -62,6 +67,7 @@ impl<'b, 'a: 'b> AddOption<'a> {
     }
 }
 
+#[cfg(debug_assertions)]
 impl<'a> Debug for AddOption<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -72,10 +78,9 @@ impl<'a> Debug for AddOption<'a> {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Additional<'a> {
     name: Domain<'a>,
-    type_: DnsType,
+    typ: DnsType,
     class: DNSClass,
     live_sec: u32,
     data_len: u16,
@@ -86,7 +91,7 @@ impl<'b, 'a: 'b> Additional<'a> {
     pub fn new_opt(cookie: &'a [u8]) -> Additional<'a> {
         Additional {
             name: Domain::new(""),
-            type_: DnsType::OPT.into(),
+            typ: DnsType::OPT.into(),
             class: DNSClass(4096),
             live_sec: 0,
             data_len: 0,
@@ -94,16 +99,16 @@ impl<'b, 'a: 'b> Additional<'a> {
         }
     }
 
-    pub fn from_bytes(reader: &'b mut Reader<'a>) -> Result<Additional<'a>, DNSError> {
-        let name = Domain::from_bytes(reader)?;
-        let type_: DnsType = reader.read_u16()?.into();
-        let class: DNSClass = reader.read_u16()?.into();
+    pub fn from_reader(reader: &'b mut Reader<'a>) -> Result<Additional<'a>, DNSError> {
+        let name = Domain::from_reader(reader)?;
+        let typ =DnsType::new(reader.read_u16()?);
+        let class=DNSClass::new(reader.read_u16()?);
         let live_sec = reader.read_u32()?;
         let data_len = reader.read_u16()?;
-        let data = DNSValue::from_bytes(&type_, reader, data_len as usize)?;
+        let data = DNSValue::from_reader(&typ, reader, data_len as usize)?;
         Ok(Additional {
             name,
-            type_,
+            typ: typ,
             class,
             live_sec,
             data_len,
@@ -113,7 +118,7 @@ impl<'b, 'a: 'b> Additional<'a> {
 
     pub fn write_to(self, writer: &mut Writer) -> Result<(), BufferError> {
         self.name.write_to(writer)?;
-        writer.write_u16(self.type_.into_inner())?;
+        writer.write_u16(self.typ.into_inner())?;
         writer.write_u16(self.class.into_inner())?;
         writer.write_u32(self.live_sec)?;
         writer.write_u16(self.data.len() as u16)?;
