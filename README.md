@@ -18,6 +18,9 @@
 
 💡 **Application Cases**: [TLS Forward](https://tlsfoward.com/) — Advanced packet capture tool built on reqrio
 
+✨ **Free to use**: [Token](https://github.com/xllgl2017/reqrio/issues/43)This repo occasionally gives out free TOKENs
+
+
 ## Overview
 
 &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;`reqrio` is an HTTP request library designed for **protocol research, TLS

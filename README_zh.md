@@ -20,6 +20,8 @@
 
 💡 **应用案例**: [TLS Forward](https://tlsfoward.com/) — 基于 reqrio 构建的高级抓包工具
 
+✨ **免费使用**: [Token](https://github.com/xllgl2017/reqrio/issues/43) 此仓库不定期放出免费TOKEN
+
 ## 概述
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`reqrio` 是一个面向 **协议研究、TLS 指纹控制、高并发采集、复杂网络环境模拟** 设计的
