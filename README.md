@@ -20,7 +20,6 @@
 
 ✨ **Free to use**: [Token](https://github.com/xllgl2017/reqrio/issues/43)This repo occasionally gives out free TOKENs
 
-
 ## Overview
 
 &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;`reqrio` is an HTTP request library designed for **protocol research, TLS
@@ -133,7 +132,7 @@ TLS supports TLS 1.2 and TLS 1.3.
 | TLS 1.3 PSK / 0-RTT                   | ❌           | ❌                | ❌                | ❌           | ❌          | ⚠️(need improved) | ❌          |
 | SSLKEYLOGFILE Export                  | ✅           | ⚠️(configuration) | ⚠️(configuration) | ✅           | ✅          | ✅                | ❌          |
 | ECH (Not Open)                        | ⚠️(not open) | ❌                | ❌                | ❌           | ❌          | ✅                | ❌          |
-| TLCP / SM (Chinese GM)                | ✅           | ❌                | ❌                | ❌           | ❌          | ❌                | ❌          |
+| TLCP / SM                             | ✅           | ❌                | ❌                | ❌           | ❌          | ❌                | ❌          |
 
 * The `geektls` project is entirely AI-generated, and the conclusions are for reference only
 
