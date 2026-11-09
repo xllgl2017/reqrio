@@ -117,7 +117,7 @@ impl AcReq {
             priority: self.fingerprint.h2().priority,
             weight: self.fingerprint.h2().weight,
         }).await?;
-        self.responses.insert(sid, StreamMessage::new(sid));
+        self.responses.insert(sid, StreamMessage::new(sid, method));
         Ok(sid)
     }
 
