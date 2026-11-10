@@ -293,7 +293,7 @@ pub use ext::{ReqExt, ReqStreamExt, UrlExt};
 pub use fingerprint::{Fingerprint, H2Finger};
 pub use packet::{
     Application, ContentType, Cookie, Font, H2FrameFlag, H2FrameType, H2Frame, H2Setting, Header,
-    HeaderItem, HeaderValue, HttpStatus, Method, Response, Text, WsFrame, WsOpcode, Request,
+    HeaderItem, HeaderValue, HttpStatus, Method, Response, Text, WsFrame, WsOpcode, Request, ImageType,
 };
 #[cfg(feature = "quic")]
 pub use packet::{H3Payload, H3FrameType, H3Setting, H3Frame};
