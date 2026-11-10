@@ -45,7 +45,7 @@ impl NamedCurve {
     pub const FFDHE6144: NamedCurve = NamedCurve::new(0x0103);
     pub const FFDHE8192: NamedCurve = NamedCurve::new(0x0104);
     pub const ECC_SM2: NamedCurve = NamedCurve::new(0xFFFF);
-    pub const PRE_MASTER: NamedCurve = NamedCurve::new(0xFFFE);
+    pub const PreMaster: NamedCurve = NamedCurve::new(0xFFFE);
 
     pub const ALL: [NamedCurve; 13] = [
         NamedCurve::X25519,
@@ -103,7 +103,7 @@ impl NamedCurve {
             NamedCurve::SecP521r1 => 133,
             NamedCurve::X25519MLKEM768 => 1216,
             NamedCurve::SecP256r1MLKEM768 => 1249,
-            NamedCurve::PRE_MASTER => 48,
+            NamedCurve::PreMaster => 48,
             _ => unreachable!("{:?}", self)
         }
     }
@@ -154,7 +154,7 @@ impl<'a> ServerHellmanParam<'a> {
             res.pub_key = Buf::new_ref(reader.read_slice(res.pub_key_len as usize)?);
             res.signature_algorithm = SignatureAlgorithm::new(reader.read_u16()?);
         } else {
-            res.named_curve = NamedCurve::PRE_MASTER;
+            res.named_curve = NamedCurve::PreMaster;
             res.signature_algorithm = SignatureAlgorithm::new(0);
         }
         res.signature_len = reader.read_u16()?;

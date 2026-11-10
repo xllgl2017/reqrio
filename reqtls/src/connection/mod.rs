@@ -85,7 +85,7 @@ impl Connection {
         Connection {
             decryptor: AeadCtx::none(),
             encryptor: AeadCtx::none(),
-            named_curve: NamedCurve::PRE_MASTER,
+            named_curve: NamedCurve::PreMaster,
             exchange_pub_key: Buf::default(),
             alpn: ALPN::nullptr(),
             server_name: ServerName::nullptr(),
@@ -337,7 +337,7 @@ impl Connection {
         if pubkey.is_null() { return Err(HandShakeError::SecretPubKeyNull.into()); }
         let pubkey = unsafe { slice::from_raw_parts(pubkey, pubkey_len) };
         match (self.named_curve, self.version) {
-            (NamedCurve::PRE_MASTER, Version::TLCP) => {
+            (NamedCurve::PreMaster, Version::TLCP) => {
                 debug_assert_eq!(self.version, Version::TLCP);
                 let cert = self.certificates.iter_mut().find_map(|cert| {
                     let cert = cert.sm2_pub_key().ok().filter(|x| x.1 & 0x20 == 0x20);
@@ -347,7 +347,7 @@ impl Connection {
                 let pubkey = sm2_key.encrypt_premaster(pubkey)?;
                 Ok(Buf::Vec(pubkey))
             }
-            (NamedCurve::PRE_MASTER, Version::TLS_1_2) => {
+            (NamedCurve::PreMaster, Version::TLS_1_2) => {
                 debug_assert_eq!(self.version, Version::TLS_1_2);
                 let rsa = RsaCipher::new(self.certificates[0].pub_key()?)?;
                 Ok(Buf::Vec(rsa.encrypt(pubkey)?))
