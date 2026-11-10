@@ -1,3 +1,4 @@
+#![cfg(all(feature = "quic", not(feature = "staticlink")))]
 use std::{env, fs};
 use std::sync::LazyLock;
 use reqrio::*;
@@ -6,7 +7,6 @@ static TOKEN: LazyLock<String> = LazyLock::new(|| fs::read_to_string("../TOKEN")
 
 
 #[test]
-#[cfg(not(feature = "staticlink"))]
 fn test_quic() {
     Fingerprint::check_subscription(TOKEN.as_str());
     let mut req = ScReq::new().with_alpn(ALPN::HTTP30);
@@ -14,7 +14,7 @@ fn test_quic() {
     assert_eq!(resp.status(), HttpStatus::OK)
 }
 
-#[cfg(all(feature = "aync", not(feature = "staticlink")))]
+#[cfg(feature = "aync")]
 #[tokio::test]
 async fn test_quic_async() {
     Fingerprint::check_subscription(TOKEN.as_str());

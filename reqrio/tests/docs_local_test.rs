@@ -1,6 +1,6 @@
 //! [本测试由AI编写] 
 //! 
-//! 离线 API 契约测试 —— 依据 https://ms.xllgl.top/docs.html 编写。
+//! 离线 API 契约测试 —— 依据 https://www.reqrio.com/docs.html 编写。
 //!
 //! 覆盖文档中的：Method / Url / Header / Cookie / Body / HttpFile / Timeout /
 //! Fingerprint / H2Finger / H3Finger / Sm2Key / HlsError / HTTPStream。
@@ -22,13 +22,6 @@ static TOKEN: LazyLock<String> = LazyLock::new(|| {
         .unwrap_or_default()
 });
 
-static AUTH: LazyLock<String> = LazyLock::new(|| {
-    fs::read_to_string("../AUTH")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .or_else(|| env::var("REQRIO_AUTH").ok())
-        .unwrap_or_default()
-});
 
 const JA3: &str = "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,18-45-5-10-11-16-23-27-0-13-35-65281-43-51-17613,29-23-24,0";
 const JA4: &str = "t13d1515h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,ff01_0804,0403,0401,0303,0402,080b,0201,0203,0202,0302,0502,0301,0503,0602,0806,0809";
@@ -390,7 +383,7 @@ fn doc_fingerprint_constructors() {
         suites: vec![CipherSuite::TLS_AES_128_GCM_SHA256],
         extensions: vec![Extension::SupportedGroups(vec![NamedCurve::X25519])],
     };
-    let fp = Fingerprint::new_tls(tls, token).expect("new_tls");
+    let fp = Fingerprint::new_tls(tls, token);
     assert!(matches!(fp.tls(), TlsFinger::Custom { .. }));
 
     let tls = TlsFinger::Custom {
@@ -399,7 +392,7 @@ fn doc_fingerprint_constructors() {
         suites: vec![CipherSuite::TLS_AES_128_GCM_SHA256],
         extensions: vec![Extension::SupportedGroups(vec![NamedCurve::X25519])],
     };
-    let fp = Fingerprint::new_h2(tls, H2Finger::default(), token).expect("new_h2");
+    let fp = Fingerprint::new_h2(tls, H2Finger::default(), token);
     assert!(!fp.h2().frames.is_empty());
 
     assert!(Fingerprint::from_ja3("not,a,ja3", token).is_err());
@@ -442,7 +435,7 @@ fn doc_h3finger() {
         suites: vec![CipherSuite::TLS_AES_128_GCM_SHA256],
         extensions: vec![Extension::SupportedGroups(vec![NamedCurve::X25519])],
     };
-    let fp = Fingerprint::new_h3(tls, Default::default(), TOKEN.as_str()).expect("new_h3");
+    let fp = Fingerprint::new_h3(tls, Default::default(), TOKEN.as_str());
     assert!(!fp.h3().frames.is_empty());
 }
 
@@ -457,7 +450,7 @@ fn doc_fingerprint_builtin() {
 }
 
 // ---------------------------------------------------------------------------
-// SM2 (国密)
+// SM2 
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -539,8 +532,7 @@ fn doc_tls_tlcp_fingerprint_shape() {
             ],
         },
         TOKEN.as_str(),
-    )
-    .expect("TLCP fingerprint");
+    );
     match fp.tls() {
         TlsFinger::Custom { record_version, message_version, suites, extensions } => {
             assert_eq!(*record_version, Version::TLCP);
