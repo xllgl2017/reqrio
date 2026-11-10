@@ -55,6 +55,16 @@ impl HeaderItem {
         }
     }
 
+    pub fn remove_cookie(&mut self, name: &str) -> Option<Cookie> {
+        match self.value {
+            HeaderValue::Cookies(ref mut cookies) => {
+                let pos = cookies.inner().iter().position(|x| x.name() == name)?;
+                Some(cookies.inner_mut().remove(pos))
+            }
+            _ => None,
+        }
+    }
+
     pub fn name(&self) -> &str { &self.name }
 
     pub fn value(&self) -> &HeaderValue { &self.value }

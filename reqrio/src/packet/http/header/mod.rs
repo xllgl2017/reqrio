@@ -202,6 +202,14 @@ impl Header {
         let pos = self.inner.iter().position(|x| x.name().eq_ignore_ascii_case(name.as_ref()))?;
         Some(self.inner.remove(pos).into_value())
     }
+    
+    pub fn remove_cookie(&mut self,name:impl AsRef<str>)->Option<Cookie>{
+        let header = self.inner.iter_mut().find(|x|
+            x.name().eq_ignore_ascii_case("cookie")
+                || x.name().eq_ignore_ascii_case("set-cookie")
+        );
+        header?.remove_cookie(name.as_ref())
+    }
 
     pub fn add_cookie(&mut self, cookie: Cookie) {
         match self.inner.iter_mut().find(|x| x.name().eq_ignore_ascii_case("cookie")) {
