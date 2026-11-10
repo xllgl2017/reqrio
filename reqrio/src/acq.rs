@@ -275,7 +275,7 @@ impl AcReq {
     /// #### Send a request and validate errors, including body errors, then return JSON.
     /// 1. Send the request and validate the HTTP status code; return an error if it is not 200.
     /// 2. Compare the provided value using the supplied key, for example: {"code":200,..}; pass `k` as `code` and `v` as `200`. If it does not match, return an error.
-    pub async fn send_check_json<'a, U>(
+    pub async fn send_check_json<'a>(
         &mut self,
         method: Method,
         url: impl Into<ReqUrl<'a>>,
