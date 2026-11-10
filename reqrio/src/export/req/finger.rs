@@ -445,7 +445,7 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
             priority: custom["priority"].as_bool().unwrap_or(false),
             adv: None,
         };
-        let finger = Fingerprint::new_h2(tls, h2, token)?;
+        let finger = Fingerprint::new_h2(tls, h2, token);
         Ok(Box::into_raw(Box::new(finger)))
     }, |e| handle_err1(e, err, null_mut()))
 }

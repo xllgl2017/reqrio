@@ -223,36 +223,36 @@ impl Fingerprint {
         }
     }
 
-    pub fn new_h2(tls: TlsFinger<'static>, h2: H2Finger, token: impl AsRef<str>) -> HlsResult<Self> {
+    pub fn new_h2(tls: TlsFinger<'static>, h2: H2Finger, token: impl AsRef<str>) ->Self {
         Fingerprint::check_subscription(token);
-        Ok(Fingerprint {
+        Fingerprint {
             tls,
             h2,
             #[cfg(feature = "quic")]
             h3: H3Finger::default(),
             adv: None,
             sec_full: false,
-        })
+        }
     }
 
     #[cfg(feature = "quic")]
-    pub fn new_h3(tls: TlsFinger<'static>, h3: H3Finger, token: impl AsRef<str>) -> HlsResult<Self> {
+    pub fn new_h3(tls: TlsFinger<'static>, h3: H3Finger, token: impl AsRef<str>) -> Self {
         Fingerprint::check_subscription(token);
-        Ok(Fingerprint {
+        Fingerprint {
             tls,
             h2: H2Finger::default(),
             h3,
             adv: None,
             sec_full: false,
-        })
+        }
     }
 
-    pub fn new_tls(tls: TlsFinger<'static>, token: impl AsRef<str>) -> HlsResult<Self> {
+    pub fn new_tls(tls: TlsFinger<'static>, token: impl AsRef<str>) -> Self {
         Fingerprint::check_subscription(token);
-        Ok(Fingerprint {
+        Fingerprint {
             tls,
             ..Default::default()
-        })
+        }
     }
 
     pub fn h2(&self) -> &H2Finger {
