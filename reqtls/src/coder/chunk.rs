@@ -88,6 +88,7 @@ impl StreamDecode for ChunkDecoder {
                 if self.remain.last() == Some(&13) {
                     self.remain.push(reader.read_u8()?);
                 } else {
+                    debug_assert!(reader.unread_len() >= 4);
                     let other = reader.read_to(b"\r\n").ok_or(BufferError::Insufficient)?;
                     self.remain.extend_from_slice(other);
                     self.remain.extend_from_slice(reader.read_slice(2)?);
@@ -162,11 +163,11 @@ mod chunk_tests {
         let data = fs::read("../data/coder/chunk_br.bin").unwrap();
         let mut decompressed = Writer::with_capacity(8192);
         let mut coder = ChunkDecoder::new(CodeType::Brotli).unwrap();
-        let chunk_size = rand::random::<usize>() % (data.len() / 20);
-        println!("{}", chunk_size);
+        let chunk_size = rand::random_range(4..data.len() / 20);
         for chunk in data.chunks(chunk_size) {
             let mut reader = Reader::from_slice(chunk);
-            coder.decompress(&mut reader, &mut decompressed).unwrap();
+            let ret = coder.decompress(&mut reader, &mut decompressed);
+            assert!(ret.is_ok(), "chunk_size: {};err: {:?}", chunk_size, ret)
         }
         let finish = coder.flush(&mut decompressed).unwrap();
         assert!(finish);
