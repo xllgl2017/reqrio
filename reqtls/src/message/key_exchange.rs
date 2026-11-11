@@ -63,6 +63,14 @@ impl NamedCurve {
         NamedCurve::FFDHE8192
     ];
 
+    pub const SUPPORTED_GROUPS: [&'static NamedCurve; 5] = [
+        &NamedCurve::X25519,
+        &NamedCurve::SecP256r1,
+        &NamedCurve::SecP384r1,
+        &NamedCurve::SecP521r1,
+        &NamedCurve::X25519MLKEM768,
+    ];
+
     pub const fn spec(&self) -> &str {
         match *self {
             NamedCurve::X25519 => "X25519",

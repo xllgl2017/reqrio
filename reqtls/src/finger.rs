@@ -317,9 +317,9 @@ impl<'a> TlsFinger<'a> {
         };
         let mut groups: Vec<NamedCurve> = vec![];
         while groups.len() < 5 {
-            let group = NamedCurve::ALL[rand::random::<usize>() % 5];
-            if groups.contains(&group) { continue; }
-            groups.push(group);
+            let group = NamedCurve::SUPPORTED_GROUPS[rand::random::<usize>() % 5];
+            if groups.contains(group) { continue; }
+            groups.push(*group);
         }
 
         let mut extensions = vec![];
