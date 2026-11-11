@@ -91,7 +91,7 @@ async fn test_tls12_curve() {
 async fn test_ecdhe_rsa_cbc() {
     let fingerprint = build_sample_finger(CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, NamedCurve::X25519);
     let mut req = AcReq::new().with_timeout(Timeout::longer()).with_fingerprint(fingerprint);
-    req.get("https://m.so.com", None).await.unwrap();
+    req.get("https://httpbin.reqrio.com", None).await.unwrap();
     let conn = req.http_stream_mut().stream_mut().unwrap().tls_conn().unwrap();
     assert_eq!(conn.version(), Version::TLS_1_2);
     assert_eq!(conn.cipher_suite(), CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA);
@@ -99,7 +99,7 @@ async fn test_ecdhe_rsa_cbc() {
 
     let fingerprint = build_sample_finger(CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, NamedCurve::X25519);
     let mut req = AcReq::new().with_timeout(Timeout::longer()).with_fingerprint(fingerprint);
-    req.get("https://m.so.com", None).await.unwrap();
+    req.get("https://httpbin.reqrio.com", None).await.unwrap();
     let conn = req.http_stream_mut().stream_mut().unwrap().tls_conn().unwrap();
     assert_eq!(conn.version(), Version::TLS_1_2);
     assert_eq!(conn.cipher_suite(), CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA);
@@ -107,7 +107,7 @@ async fn test_ecdhe_rsa_cbc() {
 
     let fingerprint = build_sample_finger(CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256, NamedCurve::X25519);
     let mut req = AcReq::new().with_timeout(Timeout::longer()).with_fingerprint(fingerprint);
-    req.get("https://m.so.com", None).await.unwrap();
+    req.get("https://httpbin.reqrio.com", None).await.unwrap();
     let conn = req.http_stream_mut().stream_mut().unwrap().tls_conn().unwrap();
     assert_eq!(conn.version(), Version::TLS_1_2);
     assert_eq!(conn.cipher_suite(), CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256);
@@ -115,7 +115,7 @@ async fn test_ecdhe_rsa_cbc() {
 
     let fingerprint = build_sample_finger(CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384, NamedCurve::X25519);
     let mut req = AcReq::new().with_timeout(Timeout::longer()).with_fingerprint(fingerprint);
-    req.get("https://m.so.com", None).await.unwrap();
+    req.get("https://httpbin.reqrio.com", None).await.unwrap();
     let conn = req.http_stream_mut().stream_mut().unwrap().tls_conn().unwrap();
     assert_eq!(conn.version(), Version::TLS_1_2);
     assert_eq!(conn.cipher_suite(), CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384);
