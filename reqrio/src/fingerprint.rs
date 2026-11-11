@@ -154,6 +154,7 @@ impl Fingerprint {
         };
         let ret = unsafe { Finger_get(idx, auth.as_ptr(), auth.len(), &mut finger) };
         if ret != 1 { return Err("not subscribed or file not exists!".into()); }
+        if finger.hdr.is_null() { return Err("finger error".into()) }
         Ok(Fingerprint::from_adv(finger, sec_full))
     }
 
