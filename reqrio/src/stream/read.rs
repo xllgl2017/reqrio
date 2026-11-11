@@ -80,6 +80,7 @@ pub struct ChunkReading<'a, S> {
     pub(crate) buf: &'a mut Buffer,
     #[cfg(feature = "aync")]
     pub(crate) timeout: &'a mut Timeout,
+    #[cfg(feature = "aync")]
     pub(crate) timeout_reset: bool,
 }
 

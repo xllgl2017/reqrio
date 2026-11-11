@@ -98,6 +98,7 @@ impl<S> TlsStream<S> {
             buf: &mut self.read_buffer,
             #[cfg(feature = "aync")]
             timeout: &mut self.timeout,
+            #[cfg(feature = "aync")]
             timeout_reset: false,
         }
     }
