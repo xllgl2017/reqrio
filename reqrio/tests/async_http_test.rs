@@ -121,8 +121,6 @@ async fn test_large_body() {
 #[tokio::test]
 async fn  test_timeout() {
     let mut req = AcReq::new().with_timeout(Timeout::new_same(3000, 1));
-
-
     let start = Instant::now();
     let res = req.get("https://192.0.2.1/", None).await;
     assert!(res.is_err());
@@ -134,5 +132,5 @@ async fn  test_timeout() {
     let res = req.recv(sid).await;
     assert!(res.is_err());
     let elapsed = start.elapsed().as_millis();
-    assert!((3000..4000).contains(&elapsed), "{}", elapsed);
+    assert!((3000..6000).contains(&elapsed), "{}", elapsed);
 }

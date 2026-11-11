@@ -37,7 +37,7 @@ pub fn build_finger(
             Extension::ApplicationLayerProtocolNegotiation(alps)
         ],
     };
-    Fingerprint::new_tls(tls, fs::read_to_string("../TOKEN").unwrap_or("".to_string()))
+    Fingerprint::new_tls(tls, TOKEN.as_str())
 }
 
 pub fn build_min_finger() -> Fingerprint {
