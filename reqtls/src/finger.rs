@@ -1,13 +1,14 @@
-use crate::boring::BoringResExt;
+use crate::boring::{BczExt, BoringResExt};
 use crate::buffer::Buf;
 use crate::error::RlsResult;
 use crate::extend::{Extension, ExtensionType, StatusRequest};
 use crate::ffi::c_struct_free;
 use crate::*;
+use std::ffi::CStr;
 #[cfg(debug_assertions)]
 use std::fmt::Debug;
 use std::ops::Deref;
-use std::os::raw::{c_int, c_void};
+use std::os::raw::{c_char, c_int, c_void};
 use std::ptr::{null, null_mut};
 use std::sync::Arc;
 
@@ -79,6 +80,8 @@ unsafe extern "C" {
     #[allow(improper_ctypes)]
     fn Record_build_adv(config: *mut RecordParam, finger: *const Finger) -> c_int;
     fn Finger_free(finger: *mut Finger);
+    fn Finger_get_builtin(name: *const u8, name_len: usize, finger: *mut Finger) -> c_int;
+    fn Finger_get(idx: usize, auth: *const u8, path: *const c_char, finger: *mut Finger) -> c_int;
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -386,6 +389,34 @@ pub struct Finger {
     pub _rsv: [u8; 88],
 }
 
+impl Finger {
+    pub fn from_idx(idx: usize, auth: &[u8], path: &CStr) -> RlsResult<Finger> {
+        let mut finger = Finger {
+            hdr_count: 0,
+            hdr: null_mut(),
+            _rsv: [0; 88],
+        };
+        unsafe { Finger_get(idx, auth.as_ptr(), path.as_ptr(), &mut finger) }.checked()?;
+        if finger.hdr.is_null() { return Err("finger error".into()); }
+        Ok(finger)
+    }
+
+
+    /// Load a built-in fingerprint by name.
+    ///
+    /// * `name` - built-in fingerprint name.
+    /// * `token` - authorization token.
+    /// * `sec_full` - whether to include full `sec-*` headers.
+    pub fn from_builtin(name: &'static str) -> RlsResult<Finger> {
+        let mut finger = Finger {
+            hdr_count: 0,
+            hdr: null_mut(),
+            _rsv: [0; 88],
+        };
+        unsafe { Finger_get_builtin(name.as_ptr(), name.len(), &mut finger) }.checked()?;
+        Ok(finger)
+    }
+}
 
 #[cfg(test)]
 mod tests {

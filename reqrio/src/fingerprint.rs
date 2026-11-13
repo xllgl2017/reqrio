@@ -3,7 +3,6 @@ use std::ffi::CString;
 #[cfg(debug_assertions)]
 use std::fmt::Debug;
 use std::os::raw::{c_char, c_int};
-use std::ptr::null_mut;
 use std::slice;
 use std::sync::Arc;
 
@@ -12,8 +11,6 @@ unsafe extern "C" {
     #[cfg(feature = "quic")]
     fn Finger_build_h3(finger: *const Finger, writer: *mut Writer) -> c_int;
     fn get_compute_id() -> *const u8;
-    fn Finger_get_builtin(name: *const u8, name_len: usize, finger: *mut Finger) -> c_int;
-    fn Finger_get(idx: usize, auth: *const u8, auth_len: usize, finger: *mut Finger) -> c_int;
 }
 
 
@@ -146,15 +143,9 @@ impl Fingerprint {
     /// * `idx` - built-in fingerprint index.
     /// * `auth` - authorization token.
     /// * `sec_full` - whether to include full `sec-*` headers.
-    pub fn from_idx(idx: usize, auth: &str, sec_full: bool) -> HlsResult<Fingerprint> {
-        let mut finger = Finger {
-            hdr_count: 0,
-            hdr: null_mut(),
-            _rsv: [0; 88],
-        };
-        let ret = unsafe { Finger_get(idx, auth.as_ptr(), auth.len(), &mut finger) };
-        if ret != 1 { return Err("not subscribed or file not exists!".into()); }
-        if finger.hdr.is_null() { return Err("finger error".into()) }
+    pub fn from_idx(idx: usize, auth: &str, path: Option<&str>, sec_full: bool) -> HlsResult<Fingerprint> {
+        let cpath = CString::new(path.unwrap_or("."))?;
+        let finger = Finger::from_idx(idx, auth.as_bytes(), cpath.as_ref())?;
         Ok(Fingerprint::from_adv(finger, sec_full))
     }
 
@@ -165,17 +156,11 @@ impl Fingerprint {
     /// * `sec_full` - whether to include full `sec-*` headers.
     pub fn from_builtin(name: &'static str, token: &str, sec_full: bool) -> HlsResult<Fingerprint> {
         Fingerprint::check_subscription(token);
-        let mut finger = Finger {
-            hdr_count: 0,
-            hdr: null_mut(),
-            _rsv: [0; 88],
-        };
-        let ret = unsafe { Finger_get_builtin(name.as_ptr(), name.len(), &mut finger) };
-        if ret != 1 { return Err(format!("`{}` - not in builtin or not subscribed", name).into()); }
+        let finger = Finger::from_builtin(name)?;
         Ok(Fingerprint::from_adv(finger, sec_full))
     }
 
-    fn from_adv(finger: Finger, sec_full: bool) -> Fingerprint {
+    pub(crate) fn from_adv(finger: Finger, sec_full: bool) -> Fingerprint {
         let finger = Arc::new(finger);
         Fingerprint {
             tls: TlsFinger::Adv(finger.clone()),
@@ -224,7 +209,7 @@ impl Fingerprint {
         }
     }
 
-    pub fn new_h2(tls: TlsFinger<'static>, h2: H2Finger, token: impl AsRef<str>) ->Self {
+    pub fn new_h2(tls: TlsFinger<'static>, h2: H2Finger, token: impl AsRef<str>) -> Self {
         Fingerprint::check_subscription(token);
         Fingerprint {
             tls,
