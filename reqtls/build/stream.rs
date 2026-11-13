@@ -80,7 +80,7 @@ impl TkStream {
     }
 
 
-    fn handle_stream(&mut self, tdr: &Path, target: &str) -> Result<(), Box<dyn Error>> {
+    fn handle_stream(&mut self, tdr: &Path, target: &str, ver: i32) -> Result<(), Box<dyn Error>> {
         let len = self.read_stream()?;
         let off = self.offset.start..self.offset.start + len;
         let mut reader = Reader::from_slice(&self.buffer[off]);
@@ -91,6 +91,7 @@ impl TkStream {
             Frame::FileStream { filename, filesize } => {
                 self.offset.start += reader.pos;
                 let filesize = filesize as usize;
+                println!("{}", tdr.display());
                 let path = tdr.join("reqrio").join(filename);
                 let dep_path = tdr.join("deps").join(filename);
                 let exa_path = tdr.join("examples").join(target);
@@ -117,11 +118,11 @@ impl TkStream {
                 }
                 f.flush()?;
                 drop(f);
-                if !self.file_cmp(path.as_path(), target, &filename)? { return Err("File Hash not correct".into()); }
+                if !self.file_cmp(path.as_path(), target, &filename).unwrap() { return Err("File Hash not correct".into()); }
                 if !cfg!(feature = "static_link") {
-                    fs::copy(&path, dep_path)?;
-                    fs::copy(&path, t_path)?;
-                    fs::copy(&path, exa_path)?;
+                    if ver < 100 { fs::copy(&path, dep_path).unwrap(); }
+                    fs::copy(&path, t_path).unwrap();
+                    fs::copy(&path, exa_path).unwrap();
                 }
             }
             _ => unreachable!()
@@ -162,13 +163,14 @@ impl TkStream {
         }
     }
 
-    pub fn fetch_lib(&mut self, frame: Frame, tdr: &Path, target: String) -> Result<(), Box<dyn Error>> {
+    pub fn fetch_lib(&mut self, frame: Frame, tdr: &Path, target: String, ver: i32) -> Result<(), Box<dyn Error>> {
         let mut buf = Vec::with_capacity(frame.len());
         frame.encode(&mut buf);
         self.stream.write_all(&buf)?;
         loop {
-            if let Err(e) = self.handle_stream(tdr, &target) {
+            if let Err(e) = self.handle_stream(tdr, &target, ver) {
                 if e.to_string().contains("peer close") { break; }
+                println!("{}", e);
                 return Err(e);
             }
         }

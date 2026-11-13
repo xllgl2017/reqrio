@@ -105,6 +105,7 @@ impl From<io::Error> for HlsError {
 
 impl From<Infallible> for HlsError {
     fn from(value: Infallible) -> Self {
+        #[allow(unused)]
         HlsError::Currently(value.to_string())
     }
 }
