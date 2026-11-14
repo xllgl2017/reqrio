@@ -1,6 +1,7 @@
-use std::borrow::Cow;
 use super::value::HeaderValue;
 use crate::packet::http::cookie::Cookie;
+use std::borrow::Cow;
+
 
 #[derive(Clone)]
 pub struct HeaderItem {
