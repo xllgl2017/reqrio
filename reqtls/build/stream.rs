@@ -19,23 +19,23 @@ struct FileHash {
 const FILE_HASHES: [FileHash; 4] = [
     FileHash {
         target: "x86_64-windows-msvc",
-        bcz: "6e43594f15c47d0aae0cdb3cf49a277c9d22b792c43124e6bfc5a51bb76fe4d0",
-        dy_bcz: "7c2c899fbb2654afa0dc45a71635521bfddec8243533aae26745f73c444fa09c",
+        bcz: "2ff0b517446dd9898bbcf9f939896b0da35dc6ccad18fcb68c284174fb6e608e",
+        dy_bcz: "c2e3abae15925dcc85cd4f5653e57b69c2350f5ecf5ac6fadc01af332224d33b",
     },
     FileHash {
         target: "x86_64-windows-gnu",
-        bcz: "a3f481673cc393664bb7e17bd940a64e83f24b89af3a051353241ba06fcf2e72",
-        dy_bcz: "d990513747d143f54e1c83762da7e6a0399cfbadebdf8e1a8b475c9c18c0a93c",
+        bcz: "c8ca6649f296fb628050a650b7e75409b598f63ee3b6a38788abfb5ed5c1cb0d",
+        dy_bcz: "401481ee9fd4db0771b8c5274a0381409baf99a65ff3f311b64adf8478fe65ac",
     },
     FileHash {
         target: "x86_64-linux-gnu",
-        bcz: "edfba4dad9cc723bd2241530581ad893e3a9f1c58e78cdb6516714f771adbde6",
-        dy_bcz: "a93527345fb9a9952ecd0ff96f77799f032e5575ed52325aecfabc9a70f7a3dd",
+        bcz: "5fc715e406044b936b295fa374a9e3068f9d0906e68659a1cc8707e9c401a325",
+        dy_bcz: "74b78830f343bad303dbf656eddd29dec4470f429225ffb7b926e48654675512",
     },
     FileHash {
         target: "aarch64-macos-",
-        bcz: "97255be9295ef53c3b0cfd2b4e672f90ef55d2d431b3dcfeb2a0aab9a2bc3f12",
-        dy_bcz: "704dc5c381d4b9ba3d93c53a836b37933bf6f0272f1a3f05edc3907f82895e98",
+        bcz: "707b0fb0233eeba5e3ec105d9ce797fba9d4ffe0f50af4d823b1738f1622b778",
+        dy_bcz: "9dd4146de7380d96aa75506cbf3db79386ec5c6813738635b3c7d73cc4b492a1",
     }
 ];
 
@@ -80,7 +80,7 @@ impl TkStream {
     }
 
 
-    fn handle_stream(&mut self, tdr: &Path, target: &str) -> Result<(), Box<dyn Error>> {
+    fn handle_stream(&mut self, tdr: &Path, target: &str, ver: i32) -> Result<(), Box<dyn Error>> {
         let len = self.read_stream()?;
         let off = self.offset.start..self.offset.start + len;
         let mut reader = Reader::from_slice(&self.buffer[off]);
@@ -91,6 +91,7 @@ impl TkStream {
             Frame::FileStream { filename, filesize } => {
                 self.offset.start += reader.pos;
                 let filesize = filesize as usize;
+                println!("{}", tdr.display());
                 let path = tdr.join("reqrio").join(filename);
                 let dep_path = tdr.join("deps").join(filename);
                 let exa_path = tdr.join("examples").join(target);
@@ -117,11 +118,11 @@ impl TkStream {
                 }
                 f.flush()?;
                 drop(f);
-                if !self.file_cmp(path.as_path(), target, &filename)? { return Err("File Hash not correct".into()); }
+                if !self.file_cmp(path.as_path(), target, &filename).unwrap() { return Err("File Hash not correct".into()); }
                 if !cfg!(feature = "static_link") {
-                    fs::copy(&path, dep_path)?;
-                    fs::copy(&path, t_path)?;
-                    fs::copy(&path, exa_path)?;
+                    if ver < 100 { fs::copy(&path, dep_path).unwrap(); }
+                    fs::copy(&path, t_path).unwrap();
+                    fs::copy(&path, exa_path).unwrap();
                 }
             }
             _ => unreachable!()
@@ -162,13 +163,14 @@ impl TkStream {
         }
     }
 
-    pub fn fetch_lib(&mut self, frame: Frame, tdr: &Path, target: String) -> Result<(), Box<dyn Error>> {
+    pub fn fetch_lib(&mut self, frame: Frame, tdr: &Path, target: String, ver: i32) -> Result<(), Box<dyn Error>> {
         let mut buf = Vec::with_capacity(frame.len());
         frame.encode(&mut buf);
         self.stream.write_all(&buf)?;
         loop {
-            if let Err(e) = self.handle_stream(tdr, &target) {
+            if let Err(e) = self.handle_stream(tdr, &target, ver) {
                 if e.to_string().contains("peer close") { break; }
+                println!("{}", e);
                 return Err(e);
             }
         }

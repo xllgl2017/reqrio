@@ -34,8 +34,21 @@ fn test_random() {
 
 #[test]
 fn test_builtin() {
+    // assert!(Fingerprint::from_builtin("win-x64-edge-148", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-edge-148-h3", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-edge-156", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-edge-156-h3", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-chrome-137", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-chrome-137-h3", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-chrome-141", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-chrome-141-h3", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-chrome-148", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-chrome-148-h3", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-chrome-152", finger::TOKEN.as_str(), false).is_ok());
+    assert!(Fingerprint::from_builtin("win-x64-chrome-152-h3", finger::TOKEN.as_str(), false).is_ok());
+
     let fp = Fingerprint::from_builtin("win-x64-chrome-152", finger::TOKEN.as_str(), false).unwrap();
     let mut s = ScReq::new().with_fingerprint(fp);
-    let res=s.get("https://httpbin.reqrio.com", None).unwrap();
+    let res = s.get("https://httpbin.reqrio.com", None).unwrap();
     assert_eq!(res.status(), HttpStatus::OK);
 }

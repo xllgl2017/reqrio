@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use super::content_type::ContentType;
 use super::cookie::Cookie;
 use crate::cookie::CookieManager;
@@ -74,7 +75,6 @@ impl Header {
                 //unknown or http
                 HeaderItem::new_reserved("cache-control", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-full-version", HeaderValue::new_str("")),
-
                 HeaderItem::new_reserved("sec-ch-ua-platform-version", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-model", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("sec-ch-ua-bitness", HeaderValue::new_str("")),
@@ -126,7 +126,6 @@ impl Header {
                 HeaderItem::new_reserved("priority", HeaderValue::new_str("")),
                 //unknown or http
                 HeaderItem::new_reserved("content-encoding", HeaderValue::new_str("")),
-
                 HeaderItem::new_reserved("authorization", HeaderValue::new_str("")),
             ],
         }
@@ -163,20 +162,28 @@ impl Header {
     }
 
     pub fn to_req_cookie_str(&self) -> String {
-        let header = self.inner.iter().find(|x| x.name().eq_ignore_ascii_case("cookie"));
-        if let Some(header) = header && let Some(cookie) = header.cookies() {
-            cookie.iter().map(|cookie| cookie.as_req()).collect::<Vec<_>>().join("; ")
-        } else {
-            "".to_string()
+        let value = self.get("cookie");
+        match value {
+            Some(HeaderValue::Cookies(cookies)) => {
+                let mut cookie = String::with_capacity(1024);
+                cookies.inner().iter().for_each(|c| {
+                    let equal_sign = if c.equal_sign() { "=" } else { "" };
+                    if !cookie.is_empty() { let _ = write!(&mut cookie, "; "); }
+                    let _ = write!(&mut cookie, "{}{}{}", c.name(), equal_sign, c.value());
+                });
+                cookie
+            }
+            _ => "".to_string()
         }
     }
 
+    #[inline]
     pub fn get(&self, name: impl AsRef<str>) -> Option<&HeaderValue> {
         let header = self.inner.iter().find(|x| x.name().eq_ignore_ascii_case(name.as_ref()))?;
         Some(header.value())
     }
 
-    /// HPack table size
+    /// HPack/QPack table size
     ///
     /// on first header item
     pub fn update_table_size(&self) -> Option<usize> {
@@ -188,42 +195,46 @@ impl Header {
         }
     }
 
-    ///获取值为str的item，非str，请使用get
+    ///To retrieve an item with a string value, use get if it's not a string
+    #[inline]
     pub fn get_str(&self, name: impl AsRef<str>) -> Option<&str> {
-        let header = self.inner.iter().find(|x| x.name().eq_ignore_ascii_case(name.as_ref()))?;
-        header.value().as_string()
+        self.get(name)?.as_string()
     }
 
+    #[inline]
     pub fn get_mut(&mut self, name: impl AsRef<str>) -> Option<&mut HeaderValue> {
         let header = self.inner.iter_mut().find(|x| x.name().eq_ignore_ascii_case(name.as_ref()))?;
         Some(header.value_mut())
     }
 
+
     pub fn remove(&mut self, name: impl AsRef<str>) -> Option<HeaderValue> {
         let pos = self.inner.iter().position(|x| x.name().eq_ignore_ascii_case(name.as_ref()))?;
-        Some(self.inner.remove(pos).into_value())
+        match self.inner[pos].is_reserved() {
+            true => Some(mem::replace(self.inner[pos].value_mut(), HeaderValue::new_str(""))),
+            false => Some(self.inner.remove(pos).into_value())
+        }
     }
-    
-    pub fn remove_cookie(&mut self,name:impl AsRef<str>)->Option<Cookie>{
-        let header = self.inner.iter_mut().find(|x|
-            x.name().eq_ignore_ascii_case("cookie")
-                || x.name().eq_ignore_ascii_case("set-cookie")
-        );
-        header?.remove_cookie(name.as_ref())
+
+    pub fn remove_cookie(&mut self, name: impl AsRef<str>) -> Option<Cookie> {
+        let value = self.get_mut("cookie")?;
+        let cookie = value.remove_cookie(name.as_ref());
+        if cookie.is_some() { return cookie; }
+        let value = self.get_mut("set-cookie")?;
+        value.remove_cookie(name.as_ref())
     }
 
     pub fn add_cookie(&mut self, cookie: Cookie) {
-        match self.inner.iter_mut().find(|x| x.name().eq_ignore_ascii_case("cookie")) {
+        match self.get_mut("cookie") {
             None => self.inner.push(HeaderItem::new("cookie", HeaderValue::Cookies(CookieManager::new(vec![cookie])))),
-            Some(header) => header.value_mut().add_cookie(cookie)
+            Some(value) => value.add_cookie(cookie)
         }
     }
 
     pub fn set_cookies(&mut self, ck: Vec<Cookie>) {
-        let header = self.inner.iter_mut().find(|x| x.name().eq_ignore_ascii_case("cookie"));
-        match header {
+        match self.get_mut("cookie") {
             None => self.inner.push(HeaderItem::new("cookie", HeaderValue::Cookies(CookieManager::new(ck)))),
-            Some(header) => header.set_value(HeaderValue::Cookies(CookieManager::new(ck))),
+            Some(value) => *value = HeaderValue::Cookies(CookieManager::new(ck))
         }
     }
 
@@ -235,8 +246,7 @@ impl Header {
     /// For cookies, use `set_cookie` or `add_cookie`.
     pub fn insert(&mut self, k: impl AsRef<str>, value: impl Into<HeaderValue>) {
         let value = value.into();
-        let lower_key = k.as_ref().to_lowercase().replace("contentlength", "content-length")
-            .replace("contenttype", "content-type");
+        let lower_key = k.as_ref().to_lowercase();
         let value = match (lower_key.as_str(), value) {
             ("cookie", HeaderValue::Cookies(cookie)) => HeaderValue::Cookies(cookie),
             ("cookie", HeaderValue::String(value)) => {
@@ -253,17 +263,17 @@ impl Header {
             ("content-type" | "contenttype", _) => unreachable!(),
             (_, value) => value,
         };
-        let header = self.inner.iter_mut().find(|x| x.name().eq_ignore_ascii_case(&lower_key));
-        match (lower_key.as_str(), header) {
-            ("set-cookie", Some(header)) => {
+        let header_value = self.get_mut(lower_key.as_str());
+        match (lower_key.as_str(), header_value) {
+            ("set-cookie", Some(header_value)) => {
                 let cookie = Cookie::from_res(value.as_string().unwrap_or(""));
-                header.value_mut().add_cookie(cookie);
+                header_value.add_cookie(cookie);
             }
             ("set-cookie", None) => {
                 let cookie = Cookie::from_res(value.as_string().unwrap_or(""));
                 self.inner.push(HeaderItem::new(k.as_ref(), HeaderValue::Cookies(CookieManager::new(vec![cookie]))));
             }
-            (_, Some(header)) => header.set_value(value),
+            (_, Some(header_value)) => *header_value = value,
             (_, None) => self.inner.push(HeaderItem::new(k.as_ref(), value)),
         }
     }
@@ -285,7 +295,7 @@ impl Header {
     }
 
     pub fn sec_ch_ua_mobile(&self) -> Option<&str> {
-        self.get("sec-ch-ua-mobile")?.as_string()
+        self.get_str("sec-ch-ua-mobile")
     }
 
     pub fn set_sec_ch_ua_platform(&mut self, sec_ch_ua_platform: impl Into<HeaderValue>) {
@@ -293,15 +303,15 @@ impl Header {
     }
 
     pub fn sec_ch_ua_platform(&self) -> Option<&str> {
-        self.get("sec-ch-ua-platform")?.as_string()
+        self.get_str("sec-ch-ua-platform")
     }
 
     pub fn user_agent(&self) -> Option<&str> {
-        self.get("user-agent")?.as_string()
+        self.get_str("user-agent")
     }
 
     pub fn host(&self) -> Option<&str> {
-        self.get("host")?.as_string()
+        self.get_str("host")
     }
 
     pub fn set_origin(&mut self, origin: impl Into<HeaderValue>) {
@@ -313,7 +323,7 @@ impl Header {
     }
 
     pub fn referer(&self) -> Option<&str> {
-        self.get("referer")?.as_string()
+        self.get_str("referer")
     }
 
     pub fn set_accept(&mut self, accept: impl Into<HeaderValue>) {
@@ -325,9 +335,10 @@ impl Header {
     }
 
     pub fn max_table_size(&self) -> Option<usize> {
-        if let HeaderValue::Number(size) = self.get("update-table-size")? {
-            Some(*size)
-        } else { None }
+        match self.get("update-table-size")? {
+            HeaderValue::Number(size) => Some(*size),
+            _ => None
+        }
     }
 
     pub fn set_content_type(&mut self, content_type: ContentType) {
@@ -365,18 +376,18 @@ impl Header {
         header?.cookies()
     }
 
-    pub fn cookies_mut(&mut self) -> Option<&mut [Cookie]> {
+    pub fn cookies_mut(&mut self) -> Option<&mut Vec<Cookie>> {
         let header = self.inner.iter_mut().find(|x|
             x.name().eq_ignore_ascii_case("cookie")
                 || x.name().eq_ignore_ascii_case("set-cookie")
         );
-        header?.cookies_mut()
+        header?.value_mut().cookies_mut()
     }
 
     pub fn alpn(&self) -> &ALPN { &self.alpn }
 
     pub fn content_encoding(&self) -> Option<&str> {
-        self.get("content-encoding")?.as_string()
+        self.get_str("content-encoding")
     }
 
     pub fn set_content_encoding(&mut self, encoding: impl Into<HeaderValue>) {
@@ -384,15 +395,15 @@ impl Header {
     }
 
     pub fn accept_encoding(&self) -> Option<&str> {
-        self.get("accept-encoding")?.as_string()
+        self.get_str("accept-encoding")
     }
 
     pub fn location(&self) -> Option<&str> {
-        self.get("location")?.as_string()
+        self.get_str("location")
     }
 
     pub fn authorization(&self) -> Option<&str> {
-        self.get("authorization")?.as_string()
+        self.get_str("authorization")
     }
 
     pub fn set_authorization(&mut self, authorization: impl Into<HeaderValue>) {
@@ -412,10 +423,10 @@ impl Header {
         };
         let keys = mem::replace(&mut self.inner, keys);
         for ok in keys {
-            let nk = self.inner.iter_mut().find(|x| x.name().eq_ignore_ascii_case(ok.name()));
+            let nk = self.get_mut(ok.name());
             match nk {
                 None => self.inner.push(ok),
-                Some(nk) => nk.set_value(ok.into_value())
+                Some(nk) => *nk = ok.into_value()
             }
         }
     }
@@ -423,23 +434,23 @@ impl Header {
     pub fn set_by_json(&mut self, headers: JsonValue) {
         for (k, v) in headers.into_entries() {
             match k.as_str() {
-                "cookie" | "Cookie" => self.set_cookie(v.dump()),
+                "cookie" | "Cookie" => self.set_cookies(Cookie::from_req(v.dump())),
                 _ => self.insert(k, v.dump())
             }
         }
     }
 
     pub(crate) fn add_item(&mut self, key: HeaderItem) {
-        let header = self.inner.iter_mut().find(|x| x.name().eq_ignore_ascii_case(key.name()));
-        match header {
+        let value = self.get_mut(key.name());
+        match value {
             None => self.inner.push(key),
-            Some(hdr) => {
+            Some(header_value) => {
                 let value = key.into_value();
                 match value {
                     HeaderValue::Cookies(cookies) => for cookie in cookies.into_inner() {
-                        hdr.value_mut().add_cookie(cookie);
+                        header_value.add_cookie(cookie);
                     }
-                    _ => hdr.set_value(value),
+                    _ => *header_value = value,
                 }
             }
         }
