@@ -1,22 +1,34 @@
 # reqrio-v0.4.1
+
+* Fix idx finger
+* Fix build fail on Rust v1.100
+* Fix some bug 
+
+# reqrio-v0.4.1
+
 * fix some bugs
 * adjust h2 header order
 
-
 # reqrio-v0.4.0
 
-`v0.4.0` is a major leap for reqrio: it extends the transport layer to HTTP/3 and QUIC, adds TLCP / SM2 support for the Chinese national cryptography (GM) ecosystem, and unifies the stream processing model across HTTP/1.1, HTTP/2 and HTTP/3. The focus of this release is to provide more complete low-level capabilities for high concurrency, complex network environments and GM compliance scenarios.
+`v0.4.0` is a major leap for reqrio: it extends the transport layer to HTTP/3 and QUIC, adds TLCP / SM2 support for the
+Chinese national cryptography (GM) ecosystem, and unifies the stream processing model across HTTP/1.1, HTTP/2 and
+HTTP/3. The focus of this release is to provide more complete low-level capabilities for high concurrency, complex
+network environments and GM compliance scenarios.
 
 ## ✨ New Features
 
 ### 🌊 HTTP/3 and QUIC [#20](https://github.com/xllgl2017/reqrio/pull/20)
 
-- Added a QUIC transport layer covering connection establishment, handshake, encrypted packets, ACK, flow control, loss recovery and stream management.
+- Added a QUIC transport layer covering connection establishment, handshake, encrypted packets, ACK, flow control, loss
+  recovery and stream management.
 - Added HTTP/3 request and response handling, with both synchronous and asynchronous programming models.
 - Added QPACK encoding/decoding support, including static table, dynamic table and index management.
 - Added `H3Finger`, allowing finer-grained fingerprint control over HTTP/3 connection behavior.
-- Supports handling unordered streams, `HelloRetry` and `Retry` packets, and HTTP/3 response header fields in QUIC / HTTP/3 scenarios.
-- With the `quic` feature enabled, `ScReq` / `AcReq` can send HTTP/3 requests while keeping the same experience as the existing HTTP/1.1 / HTTP/2 APIs.
+- Supports handling unordered streams, `HelloRetry` and `Retry` packets, and HTTP/3 response header fields in QUIC /
+  HTTP/3 scenarios.
+- With the `quic` feature enabled, `ScReq` / `AcReq` can send HTTP/3 requests while keeping the same experience as the
+  existing HTTP/1.1 / HTTP/2 APIs.
 
 > ⚠️ HTTP/3 / QUIC is still an optional capability; enable the `quic` feature before use:
 
@@ -27,40 +39,46 @@ reqrio = { version = "0.4.0", features = ["quic"] }
 ### 🔐 TLCP and GM algorithms [#23](https://github.com/xllgl2017/reqrio/issues/23) [#25](https://github.com/xllgl2017/reqrio/pull/25)
 
 - Added TLCP server certificate verification, improving TLS compliance and compatibility in GM environments.
-- Supports TLS 1.3 server-side handshake, certificate verification and ALPN negotiation, completing the TLS 1.3 capability for server scenarios.
+- Supports TLS 1.3 server-side handshake, certificate verification and ALPN negotiation, completing the TLS 1.3
+  capability for server scenarios.
 - Added `Sm2Key`, supporting SM2 encryption, decryption, signing and verification.
 - Supports the `ECC_SM4_CBC_SM3` cipher suite, covering common GM scenarios.
-- Added `X509_verify` and `TrustAnchors` capabilities, improving certificate chain verification and trust anchor handling.
-- Improved the low-level interfaces for SM2, certificates, signatures and error handling, making GM algorithms easier to integrate.
-- Provides more complete TLS / certificate chain handling for GM scenarios, making reqrio better suited to government, financial and compliance-oriented network environments.
+- Added `X509_verify` and `TrustAnchors` capabilities, improving certificate chain verification and trust anchor
+  handling.
+- Improved the low-level interfaces for SM2, certificates, signatures and error handling, making GM algorithms easier to
+  integrate.
+- Provides more complete TLS / certificate chain handling for GM scenarios, making reqrio better suited to government,
+  financial and compliance-oriented network environments.
 
 ### 🧩 HTTPStream and streaming requests
 
 - Unified the stream processing structure `HTTPStream` across HTTP/1.1, HTTP/2 and HTTP/3.
 - `HTTPStream` supports both synchronous and asynchronous usage with a consistent API.
-- Supports sending multiple requests concurrently and receiving results on demand, without requiring responses to be read in strict send order.
+- Supports sending multiple requests concurrently and receiving results on demand, without requiring responses to be
+  read in strict send order.
 
 ```rust
 use reqrio::*;
 
-let mut req = ScReq::new().connect("https://example.com")?;
-let sid1 = req.send(Method::GET, "https://example.com/1", Body::none())?;
-let sid2 = req.send(Method::GET, "https://example.com/2", Body::none())?;
-let sid3 = req.send(Method::GET, "https://example.com/3", Body::none())?;
-let sid4 = req.send(Method::GET, "https://example.com/4", Body::none())?;
-let sid5 = req.send(Method::GET, "https://example.com/5", Body::none())?;
-let sid6 = req.send(Method::GET, "https://example.com/6", Body::none())?;
-let sid7 = req.send(Method::GET, "https://example.com/7", Body::none())?;
+let mut req = ScReq::new().connect("https://example.com") ?;
+let sid1 = req.send(Method::GET, "https://example.com/1", Body::none()) ?;
+let sid2 = req.send(Method::GET, "https://example.com/2", Body::none()) ?;
+let sid3 = req.send(Method::GET, "https://example.com/3", Body::none()) ?;
+let sid4 = req.send(Method::GET, "https://example.com/4", Body::none()) ?;
+let sid5 = req.send(Method::GET, "https://example.com/5", Body::none()) ?;
+let sid6 = req.send(Method::GET, "https://example.com/6", Body::none()) ?;
+let sid7 = req.send(Method::GET, "https://example.com/7", Body::none()) ?;
 
-let resp1 = req.recv(sid1)?;
-let resp7 = req.recv(sid7)?;
-let resp2 = req.recv(sid2)?;
+let resp1 = req.recv(sid1) ?;
+let resp7 = req.recv(sid7) ?;
+let resp2 = req.recv(sid2) ?;
 println!("{} {}", resp1.header().status(), resp7.header().status());
 ```
 
 ### 🧩 Multiple built-in fingerprints
 
-Several browser and HTTP/3 fingerprint templates are built in, making it easy to switch behavior characteristics across scenarios:
+Several browser and HTTP/3 fingerprint templates are built in, making it easy to switch behavior characteristics across
+scenarios:
 
 * win-x64-edge-148
 * win-x64-chrome-137
@@ -73,7 +91,8 @@ Several browser and HTTP/3 fingerprint templates are built in, making it easy to
 * win-x64-chrome-148-h3
 * win-x64-chrome-152-h3
 
-> `*-h3` fingerprints are for UDP / QUIC scenarios only and must not be mixed with TLS fingerprint configurations used for HTTP/1.1 / HTTP/2.
+> `*-h3` fingerprints are for UDP / QUIC scenarios only and must not be mixed with TLS fingerprint configurations used
+> for HTTP/1.1 / HTTP/2.
 
 ### 🎯 Other enhancements
 
@@ -85,8 +104,10 @@ Several browser and HTTP/3 fingerprint templates are built in, making it easy to
 ## 🛠️ Fixes and stability improvements
 
 - Fixed H2 response body parsing when `content-length` is missing.
-- Fixed TLS 1.2 server compatibility issues, making handshake, ALPN and certificate verification more stable in server mode.
-- Fixed `WebSocket` `permessage-deflate` not being decompressed correctly [#17](https://github.com/xllgl2017/reqrio/issues/17).
+- Fixed TLS 1.2 server compatibility issues, making handshake, ALPN and certificate verification more stable in server
+  mode.
+- Fixed `WebSocket` `permessage-deflate` not being decompressed
+  correctly [#17](https://github.com/xllgl2017/reqrio/issues/17).
 - Fixed boundary issues in streaming response handling [#18](https://github.com/xllgl2017/reqrio/issues/18).
 - Fixed incorrect responses under high network latency [#24](https://github.com/xllgl2017/reqrio/issues/24).
 - Fixed `content-length` not being set correctly for H2 POST requests with an empty body.
@@ -95,7 +116,8 @@ Several browser and HTTP/3 fingerprint templates are built in, making it easy to
 - Added timeout control for `QUICStream`, avoiding long blocking of stream operations on abnormal networks.
 - Fixed `upload_file` in the Python bindings.
 - Further improved `Header` handling of `update_table_size` (HPACK dynamic table).
-- Improved overall connection recovery, stream retry and response assembly stability, reducing the abnormal rate under complex network conditions.
+- Improved overall connection recovery, stream retry and response assembly stability, reducing the abnormal rate under
+  complex network conditions.
 
 ## 🚀 Use cases
 

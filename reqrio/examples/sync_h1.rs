@@ -6,7 +6,7 @@ use std::{env, fs};
 static TOKEN: LazyLock<String> = LazyLock::new(|| fs::read_to_string("TOKEN").unwrap_or(env::var("REQRIO_TOKEN").unwrap_or("".to_string())));
 
 #[allow(unused)]
-static AUTH: LazyLock<String> = LazyLock::new(|| fs::read_to_string("AUTH").unwrap_or(env::var("REQRIO_AUTH").unwrap_or("".to_string())));
+static AUTH: LazyLock<String> = LazyLock::new(|| fs::read_to_string("../../AUTH1").unwrap_or(env::var("REQRIO_AUTH").unwrap_or("".to_string())));
 
 #[cfg(feature = "log")]
 const LOGER: Logger = Logger {

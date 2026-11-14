@@ -26,7 +26,7 @@ impl LibType {
     }
 }
 
-
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Frame<'a> {
     GetLib {
         typ: LibType,
