@@ -207,6 +207,7 @@ impl Header {
         Some(header.value_mut())
     }
 
+
     pub fn remove(&mut self, name: impl AsRef<str>) -> Option<HeaderValue> {
         let pos = self.inner.iter().position(|x| x.name().eq_ignore_ascii_case(name.as_ref()))?;
         match self.inner[pos].is_reserved() {
