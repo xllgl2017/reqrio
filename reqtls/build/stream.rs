@@ -120,9 +120,13 @@ impl TkStream {
                 drop(f);
                 if !self.file_cmp(path.as_path(), target, &filename).unwrap() { return Err("File Hash not correct".into()); }
                 if !cfg!(feature = "static_link") {
-                    if ver < 100 { fs::copy(&path, dep_path).unwrap(); }
+                    if dep_path.parent().map(|x|x.exists()).unwrap_or(false) {
+                        fs::copy(&path, dep_path).unwrap();
+                    }
                     fs::copy(&path, t_path).unwrap();
-                    fs::copy(&path, exa_path).unwrap();
+                    if exa_path.parent().map(|x|x.exists()).unwrap_or(false) {
+                        fs::copy(&path, exa_path).unwrap();
+                    }
                 }
             }
             _ => unreachable!()
