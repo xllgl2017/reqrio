@@ -96,6 +96,7 @@ impl Header {
                 HeaderItem::new_reserved(":authority", HeaderValue::new_str("")),
                 HeaderItem::new_reserved(":scheme", HeaderValue::new_str("")),
                 HeaderItem::new_reserved(":path", HeaderValue::new_str("")),
+                HeaderItem::new_reserved("content-length", HeaderValue::Number(0)),
                 HeaderItem::new_reserved("pragma", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("cache-control", HeaderValue::new_str("")),
                 HeaderItem::new_reserved("ect", HeaderValue::new_str("")),

@@ -291,6 +291,7 @@ mod ext;
 #[cfg(feature = "quic")]
 pub mod quic;
 mod gm_sm;
+mod hpke;
 
 pub use alpn::ALPN;
 pub use boring::{
@@ -333,6 +334,7 @@ pub use version::Version;
 pub type Buffer = Writer;
 
 
+pub const ZERO: [u8; 64] = [0; 64];
 pub const REVERSED: [u16; 16] = [0x0a0a, 0x1a1a, 0x2a2a, 0x3a3a, 0x4a4a, 0x5a5a, 0x6a6a, 0x7a7a, 0x8a8a, 0x9a9a, 0xaaaa, 0xbaba, 0xcaca, 0xdada, 0xeaea, 0xfafa];
 //(?s)  /\*(.*?)-----BEGIN CERTIFICATE----
 
