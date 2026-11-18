@@ -56,26 +56,26 @@ impl HPackEncode {
     }
 
     pub fn encode_one(&mut self, name: impl AsRef<str>, value: impl AsRef<str>, writer: &mut Writer) -> Result<(), BufferError> {
-        let name = name.as_ref();
+        let name = name.as_ref().to_ascii_lowercase();
         let value = value.as_ref();
-        let item = self.table.get_by_name_value(name, value);
+        let item = self.table.get_by_name_value(&name, value);
         let index_excludes = [":path"];
         match item {
-            None => match self.table.get_by_name(name) {
+            None => match self.table.get_by_name(&name) {
                 None => {
                     let index = if name.contains("password") {
                         Index::NoIndexNever
                     } else { Index::NoIndexAdd };
                     self.encode_index(index, writer)?;
-                    self.encode_string(name, writer)?;
+                    self.encode_string(&name, writer)?;
                     self.encode_string(value, writer)?;
-                    let item = PackItem::new(name.to_string(), value.to_string());
+                    let item = PackItem::new(name, value.to_string());
                     self.table.insert(item);
                     Ok(())
                 }
                 Some(index) => {
                     let vl = value.to_ascii_lowercase();
-                    let index = if index_excludes.contains(&name) {
+                    let index = if index_excludes.contains(&name.as_str()) {
                         Index::NameIndexedOnce(index.into_inner())
                     } else if (name == "cookie" && (value.starts_with("_") || vl.contains("session") || vl.contains("auth"))) || name == "password" {
                         Index::NameIndexedNever(index.into_inner())
@@ -83,7 +83,7 @@ impl HPackEncode {
                     self.encode_index(&index, writer)?;
                     self.encode_string(value, writer)?;
                     if let Index::NameIndexedAdd(_) = index {
-                        let item = PackItem::new(name.to_string(), value.to_string());
+                        let item = PackItem::new(name, value.to_string());
                         self.table.insert(item);
                     }
                     Ok(())

@@ -28,10 +28,12 @@ pub extern "system" fn Fingerprint_from_builtin(name: *const c_char, sec_full: b
 
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
-pub extern "system" fn Fingerprint_from_idx(idx: usize, auth: *const c_char, sec_full: bool, err: *mut *mut c_char) -> *mut Fingerprint {
+pub extern "system" fn Fingerprint_from_idx(idx: usize, auth: *const c_char, path: *const c_char, sec_full: bool, err: *mut *mut c_char) -> *mut Fingerprint {
     check_run(move || {
-        let auth = unsafe { CStr::from_ptr(auth) }.to_str()?;
-        Ok(Box::into_raw(Box::new(Fingerprint::from_idx(idx, auth, sec_full)?)))
+        let auth = unsafe { CStr::from_ptr(auth) }.to_bytes();
+        let path = unsafe { CStr::from_ptr(path) };
+        let finger = Finger::from_idx(idx, auth, path)?;
+        Ok(Box::into_raw(Box::new(Fingerprint::from_adv(finger, sec_full))))
     }, |e| handle_err1(e, err, null_mut()))
 }
 
@@ -445,7 +447,7 @@ pub extern "system" fn Fingerprint_custom(custom: *const c_char, token: *const c
             priority: custom["priority"].as_bool().unwrap_or(false),
             adv: None,
         };
-        let finger = Fingerprint::new_h2(tls, h2, token)?;
+        let finger = Fingerprint::new_h2(tls, h2, token);
         Ok(Box::into_raw(Box::new(finger)))
     }, |e| handle_err1(e, err, null_mut()))
 }

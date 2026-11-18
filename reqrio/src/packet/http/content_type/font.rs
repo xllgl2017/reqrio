@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use crate::error::HlsError;
 
 #[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(PartialEq, Debug))]
 pub enum Font {
     Woff2,
     Woff,

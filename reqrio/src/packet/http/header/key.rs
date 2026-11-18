@@ -1,6 +1,7 @@
-use std::borrow::Cow;
 use super::value::HeaderValue;
 use crate::packet::http::cookie::Cookie;
+use std::borrow::Cow;
+
 
 #[derive(Clone)]
 pub struct HeaderItem {
@@ -51,6 +52,16 @@ impl HeaderItem {
     pub fn cookies_mut(&mut self) -> Option<&mut [Cookie]> {
         match self.value {
             HeaderValue::Cookies(ref mut cookies) => Some(cookies.inner_mut()),
+            _ => None,
+        }
+    }
+
+    pub fn remove_cookie(&mut self, name: &str) -> Option<Cookie> {
+        match self.value {
+            HeaderValue::Cookies(ref mut cookies) => {
+                let pos = cookies.inner().iter().position(|x| x.name() == name)?;
+                Some(cookies.inner_mut().remove(pos))
+            }
             _ => None,
         }
     }

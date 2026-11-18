@@ -23,6 +23,23 @@ impl HeaderValue {
         } else { *self = HeaderValue::Cookies(CookieManager::new(vec![cookie])) }
     }
 
+    pub fn remove_cookie(&mut self, name: &str) -> Option<Cookie> {
+        match self {
+            HeaderValue::Cookies(cookies) => {
+                let pos = cookies.inner().iter().position(|x| x.name() == name)?;
+                Some(cookies.inner_mut().remove(pos))
+            }
+            _ => None
+        }
+    }
+
+    pub fn cookies_mut(&mut self) -> Option<&mut Vec<Cookie>> {
+        match self {
+            HeaderValue::Cookies(cookies) => Some(cookies.inner_mut()),
+            _ => None,
+        }
+    }
+
     pub fn as_string(&self) -> Option<&str> {
         match self {
             HeaderValue::String(v) => Some(v),

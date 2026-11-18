@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use std::cell::RefCell;
 use std::ffi::c_int;
+use std::ops::{Add, Range, Rem, Sub};
 use std::rc::Rc;
 
 pub struct Random {
@@ -219,6 +220,23 @@ impl RandomValue for u64 {
         rng.fill_bytes(bytemuck::bytes_of_mut(&mut res));
         res
     }
+}
+
+impl RandomValue for i32 {
+    fn random(rng: &mut CryptRand) -> Self {
+        let mut res = 0;
+        rng.fill_bytes(bytemuck::bytes_of_mut(&mut res));
+        res
+    }
+}
+
+pub fn random_range<V>(r: Range<V>) -> V
+where
+    V: Copy + Copy + RandomValue + Sub<Output=V> + Rem<Output=V> + Add<Output=V>,
+{
+    let v: V = random();
+    let gap = r.end - r.start;
+    v % gap + r.start
 }
 
 

@@ -256,6 +256,15 @@ impl Stream {
         }
     }
 
+    pub fn tls_conn(&self) -> Option<&Connection> {
+        match self {
+            Stream::SyncHttps(s) => Some(s.connection()),
+            #[cfg(feature = "aync")]
+            Stream::AsyncHttps(s) => Some(s.connection()),
+            _ => None
+        }
+    }
+
     #[cfg(feature = "aync")]
     pub fn timeout(&self) -> &Timeout {
         match self {

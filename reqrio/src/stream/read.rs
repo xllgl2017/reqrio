@@ -80,6 +80,8 @@ pub struct ChunkReading<'a, S> {
     pub(crate) buf: &'a mut Buffer,
     #[cfg(feature = "aync")]
     pub(crate) timeout: &'a mut Timeout,
+    #[cfg(feature = "aync")]
+    pub(crate) timeout_reset: bool,
 }
 
 impl<'a, S: Read> ChunkReading<'a, S> {
@@ -115,13 +117,17 @@ impl<'a, S: AsyncRead + Unpin> Future for ChunkReading<'a, S> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let chunk_reading = self.get_mut();
+        if !chunk_reading.timeout_reset {
+            chunk_reading.timeout_reset = true;
+            chunk_reading.timeout.reset_read();
+        }
         if chunk_reading.buf.len() < chunk_reading.len_size {
             let mut reading = BufReading {
                 stream: chunk_reading.stream,
                 buf: chunk_reading.buf,
                 want_size: chunk_reading.len_size,
                 timeout: chunk_reading.timeout,
-                timeout_reset: false,
+                timeout_reset: true,
             };
             if Pin::new(&mut reading).poll(cx)?.is_pending() { return Poll::Pending; }
         }
@@ -131,7 +137,7 @@ impl<'a, S: AsyncRead + Unpin> Future for ChunkReading<'a, S> {
             buf: chunk_reading.buf,
             want_size: chunk_size,
             timeout: chunk_reading.timeout,
-            timeout_reset: false,
+            timeout_reset: true,
         };
         if Pin::new(&mut reading).poll(cx)?.is_pending() { return Poll::Pending; }
         Poll::Ready(Ok(chunk_size))

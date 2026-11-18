@@ -3,8 +3,9 @@ use crate::json;
 #[cfg(feature = "export")]
 use json::JsonValue;
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Cookie {
     name: String,
     value: String,
