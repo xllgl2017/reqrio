@@ -36,6 +36,9 @@ use crate::stream::http3::HTTP3Stream;
 #[cfg(feature = "quic")]
 use crate::stream::quic::QUICConnect;
 
+// static DNS: LazyLock<RwLock<HashMap<String, Arc<DNSCache>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
+
+
 pub struct ConnParam<'a> {
     pub url: &'a Url,
     pub proxy: &'a Proxy,

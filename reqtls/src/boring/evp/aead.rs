@@ -4,10 +4,40 @@ use crate::boring::BoringResExt;
 use crate::boring::bindings::EVP_AEAD_DEFAULT_TAG_LENGTH;
 use crate::buffer::{CipherEncodeBuffer, TlsDecodeBuffer};
 use crate::error::RlsResult;
-use crate::extend::Aead;
 use crate::ffi::c_struct_free;
 use std::os::raw::{c_int, c_void};
 use std::ptr::null_mut;
+
+#[derive(Debug, Clone, Copy)]
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub enum Aead {
+    AES_128_GCM = 0x1,
+    AES_256_GCM = 0x2,
+    ChaCha20_POLY1305 = 0x3,
+    AES_128_CCM = 0x4,
+    AES_128_CCM_8 = 0x5,
+    AES_128_CBC_SHA = 0xFF,
+    AES_128_CBC_SHA256 = 0xFE,
+    AES_256_CBC_SHA = 0xFD,
+    AES_256_CBC_SHA256 = 0xFC,
+    AES_256_CBC_SHA384 = 0xFB,
+    SM4_GCM = 0xFA,
+    SM4_CBC_SM3 = 0xF9,
+}
+
+impl Aead {
+    pub(crate) fn from_u16(v: u16) -> Option<Aead> {
+        match v {
+            0x01 => Some(Aead::AES_128_GCM),
+            0x02 => Some(Aead::AES_256_GCM),
+            0x03 => Some(Aead::ChaCha20_POLY1305),
+            0x04 => Some(Aead::AES_128_CCM),
+            0x05 => Some(Aead::AES_128_CCM_8),
+            _ => None
+        }
+    }
+}
 
 
 #[repr(C)]

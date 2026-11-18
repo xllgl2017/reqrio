@@ -7,7 +7,7 @@ use std::fmt::Debug;
 #[allow(dead_code)]
 pub struct DNSAnswer<'a> {
     name: Domain<'a>,
-    type_: DnsType,
+    typ: DnsType,
     class: DNSClass,
     live_sec: u32,
     data_len: u16,
@@ -15,16 +15,16 @@ pub struct DNSAnswer<'a> {
 }
 
 impl<'b, 'a: 'b> DNSAnswer<'a> {
-    pub fn from_bytes(reader: &'b mut Reader<'a>) -> Result<DNSAnswer<'a>, DNSError> {
-        let name = Domain::from_bytes(reader)?;
-        let type_: DnsType = reader.read_u16()?.into();
-        let class: DNSClass = reader.read_u16()?.into();
+    pub fn from_reader(reader: &'b mut Reader<'a>) -> Result<DNSAnswer<'a>, DNSError> {
+        let name = Domain::from_reader(reader)?;
+        let typ = DnsType::new(reader.read_u16()?);
+        let class = DNSClass::new(reader.read_u16()?);
         let live_sec = reader.read_u32()?;
         let data_len = reader.read_u16()?;
-        let data = DNSValue::from_bytes(&type_, reader, data_len as usize)?;
+        let data = DNSValue::from_reader(&typ, reader, data_len as usize)?;
         Ok(DNSAnswer {
             name,
-            type_,
+            typ,
             class,
             live_sec,
             data_len,
@@ -33,11 +33,11 @@ impl<'b, 'a: 'b> DNSAnswer<'a> {
         })
     }
 
-    pub fn type_(&self) -> &DnsType {
-        &self.type_
+    pub const fn typ(&self) -> DnsType {
+        self.typ
     }
 
-    pub fn data(&self) -> &DNSValue<'a> {
+    pub const fn data(&self) -> &DNSValue<'a> {
         &self.data
     }
 }

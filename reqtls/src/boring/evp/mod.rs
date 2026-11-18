@@ -2,7 +2,7 @@ pub mod cipher;
 mod aead;
 mod iv;
 
-pub use aead::{AeadCtx, AeadDir};
+pub use aead::{AeadCtx, AeadDir, Aead};
 pub use cipher::Cipher;
 pub use iv::Iv;
 

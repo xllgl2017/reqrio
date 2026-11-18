@@ -9,3 +9,4 @@ mod h2;
 mod ws;
 #[cfg(feature = "quic")]
 mod h3;
+pub mod dns;

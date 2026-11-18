@@ -1,16 +1,15 @@
 mod aead;
 mod kdf;
 
-use crate::dns::DNSError;
-use crate::{Buf, HashType, NamedCurve, Reader};
-pub use aead::Aead;
+use super::client_hello::CipherSuite;
+use crate::{Aead, Buf, BufferError, Reader};
 pub use kdf::KDF;
 use crate::hpke::HpkeSuite;
 #[cfg(debug_assertions)]
 use std::fmt::Debug;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[allow(dead_code)]
+#[derive(Default)]
 pub struct EchConfig {
     ver: u16,
     len: u16,
@@ -19,21 +18,9 @@ pub struct EchConfig {
 
 impl EchConfig {
     pub fn new() -> EchConfig {
-        EchConfig {
-            len: 0,
-            ver: 0,
-            content: HpkeKeyConfig {
-                config_id: 0,
-                kem_id: Kem::RESERVED,
-                key: Buf::default(),
-                ciphers: vec![],
-                max_name_len: 0,
-                name: "".to_string(),
-                ext_len: 0,
-            },
-        }
+        EchConfig::default()
     }
-    pub fn from_bytes(bytes: &[u8]) -> Result<EchConfig, DNSError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<EchConfig, BufferError> {
         let mut reader = Reader::from_slice(bytes);
         Ok(EchConfig {
             ver: reader.read_u16()?,
@@ -43,18 +30,8 @@ impl EchConfig {
     }
 }
 
-#[allow(unused)]
-#[derive(PartialEq, Eq, Copy, Clone)]
-pub struct Kem(u16);
-
-#[allow(unused)]
-impl Kem {
-    pub const RESERVED: Kem = Kem::new(0);
-    pub const P256_HKDF_SHA256: Kem = Kem::new(0x0010);
-    pub const P384_HKDF_SHA384: Kem = Kem::new(0x0011);
-    pub const P521_HKDF_SHA512: Kem = Kem::new(0x0022);
-    pub const X25519_HKDF_SHA256: Kem = Kem::new(0x0020);
-    pub const X448_HKDF_SHA512: Kem = Kem::new(0x0020);
+#[derive(Default)]
+struct DHKem(u16);
 
     pub const fn hash_type(&self) -> HashType {
         match *self {
@@ -109,8 +86,8 @@ impl Debug for Kem {
 
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[allow(dead_code)]
-pub struct HpkeKeyConfig {
+#[derive(Default)]
+pub struct EchContent {
     config_id: u8,
     kem_id: Kem,
     key: Buf<'static>,
@@ -120,8 +97,8 @@ pub struct HpkeKeyConfig {
     ext_len: u16,
 }
 
-impl HpkeKeyConfig {
-    pub fn from_reader(reader: &mut Reader) -> Result<HpkeKeyConfig, DNSError> {
+impl EchContent {
+    pub fn from_reader(reader: &mut Reader) -> Result<EchContent, BufferError> {
         let config_id = reader.read_u8()?;
         let kem_id = reader.read_u16()?;
         let key_len = reader.read_u16()?;
@@ -129,7 +106,9 @@ impl HpkeKeyConfig {
         let cipher_len = reader.read_u16()?;
         let mut ciphers = Vec::with_capacity(cipher_len as usize);
         for _ in (0..cipher_len).step_by(4) {
-            ciphers.push(HpkeSuite::find(kem_id, reader.read_u16()?, reader.read_u16()?));
+            let aead = Aead::from_u16(reader.read_u16()?).unwrap();
+            let kdf = KDF::from_u16(reader.read_u16()?).unwrap();
+            ciphers.push(CipherSuite { aead, kdf });
         }
         let max_name_len = reader.read_u8()?;
         let name_len = reader.read_u8()?;
