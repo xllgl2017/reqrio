@@ -15,6 +15,7 @@ mod font;
 mod video;
 
 #[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(PartialEq, Debug))]
 pub enum ContentType {
     Application(Application),
     Image(ImageType),
@@ -125,6 +126,7 @@ impl From<Font> for ContentType {
 }
 
 #[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(PartialEq, Debug))]
 pub enum BinaryType {
     OctetStream
 }

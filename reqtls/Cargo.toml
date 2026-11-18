@@ -1,6 +1,6 @@
 [package]
 name = "reqtls"
-version = "0.4.0"
+version = "0.4.2"
 edition = "2024"
 readme = "README.md"
 description = "A tls lib"
@@ -16,7 +16,6 @@ log = { version = "0.4", default-features = false, optional = true }
 
 
 [features]
-zstd = []
 static_link = []
 export = []
 quic = []

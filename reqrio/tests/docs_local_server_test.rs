@@ -1,6 +1,6 @@
 //! [本测试由AI编写] 
 //! 
-//! 本地 HTTP/1.1 服务器契约测试 —— 依据 https://ms.xllgl.top/docs.html 编写。
+//! 本地 HTTP/1.1 服务器契约测试 —— 依据 https://www.reqrio.com/docs.html 编写。
 //!
 //! 用进程内 TCP 服务器精确验证请求方法、请求体、查询参数、请求头、重定向、
 //! Cookie、流式响应、大响应体、状态码与连接复用，不依赖公网。
@@ -302,7 +302,7 @@ fn local_head_with_content_length_hangs() {
         let _ = tx.send(result.is_ok());
     });
     assert!(
-        rx.recv_timeout(Duration::from_secs(5)).is_err(),
+        rx.recv_timeout(Duration::from_secs(5)).is_ok(),
         "HEAD with non-zero Content-Length returned instead of hanging"
     );
 }

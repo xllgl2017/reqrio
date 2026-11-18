@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 use std::error::Error;
 use std::net::TcpStream;
+use std::process::Command;
 use crate::frame::{Frame, LibType};
 use crate::stream::TkStream;
 
@@ -64,14 +65,14 @@ impl<'a> Reader<'a> {
     }
 }
 
-fn fetch_lib(frame: Frame, tdr: &Path, target: String) -> Result<(), Box<dyn Error>> {
+fn fetch_lib(frame: Frame, tdr: &Path, target: String, ver: i32) -> Result<(), Box<dyn Error>> {
     let stream = TcpStream::connect("ms.xllgl.top:8080")?;
     let mut stream = TkStream::new(stream);
-    stream.fetch_lib(frame, tdr, target)
+    stream.fetch_lib(frame, tdr, target, ver)
 }
 
 
-fn check_lib(tdr: &Path, typ: &LibType, ver: &str) -> Result<bool, Box<dyn Error>> {
+fn check_lib(tdr: &Path, typ: &LibType, ver: &str, rver: i32) -> Result<bool, Box<dyn Error>> {
     let checksum = tdr.join("reqrio").join("checksum");
     let checksum = fs::read_to_string(checksum).unwrap_or("".to_string());
     if checksum != format!("{:?} {}", typ, ver) { return Ok(false); };
@@ -83,9 +84,11 @@ fn check_lib(tdr: &Path, typ: &LibType, ver: &str) -> Result<bool, Box<dyn Error
             filename.ends_with("bcz.dylib") ||
             filename.ends_with("bcz.lib") || filename.ends_with("bcz.a") {
             has_bcz = true;
-            let dep = tdr.join("deps").join(&filename);
-            if !dep.exists() { fs::copy(&path, &dep)?; }
-            println!("cargo:rerun-if-changed={}", dep.display());
+            if rver < 100 {
+                let dep = tdr.join("deps").join(&filename);
+                if !dep.exists() { fs::copy(&path, &dep)?; }
+                println!("cargo:rerun-if-changed={}", dep.display());
+            }
             let td = tdr.join(&filename);
             if !td.exists() { fs::copy(&path, &td)?; }
             println!("cargo:rerun-if-changed={}", td.display());
@@ -96,6 +99,10 @@ fn check_lib(tdr: &Path, typ: &LibType, ver: &str) -> Result<bool, Box<dyn Error
 
 
 fn main() {
+    let rustc = env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let output = Command::new(rustc).arg("--version").output().unwrap();
+    let version_str = String::from_utf8_lossy(&output.stdout).replace("rustc 1.", "");
+    let ver: i32 = version_str.split(".").next().unwrap().parse().unwrap();
     if env::var("DOCS_RS").is_ok() { return; }
     let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
@@ -104,7 +111,10 @@ fn main() {
     let token = env::var("REQRIO_TOKEN").unwrap_or("".to_string());
     let typ = if cfg!(feature = "static_link") { LibType::Static } else { LibType::Dynamic };
     let target_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let target_dir = target_dir.ancestors().nth(3).unwrap();
+    let target_dir = match ver {
+        ..100 => target_dir.ancestors().nth(3).unwrap(),
+        100.. => target_dir.ancestors().nth(4).unwrap()
+    };
     println!("cargo:rerun-if-changed={}", target_dir.join("reqrio").display());
     println!("cargo:rustc-link-search={}", target_dir.join("reqrio").display());
     println!("cargo:rustc-link-lib={}=bcz", typ.link());
@@ -114,10 +124,10 @@ fn main() {
     if env.is_empty() {
         println!("cargo:rustc-link-lib=c++");
     }
-    if os=="windows" {
+    if os == "windows" {
         println!("cargo:rustc-link-lib=advapi32")
     }
-    if check_lib(target_dir, &typ, &version).unwrap_or(false) {
+    if check_lib(target_dir, &typ, &version, ver).unwrap_or(false) {
         return;
     }
     fs::create_dir_all(target_dir.join("reqrio")).unwrap();
@@ -128,7 +138,7 @@ fn main() {
         arch: &arch,
         version: &version,
         token: &token,
-    }, target_dir, format!("{}-{}-{}", arch, os, env)).unwrap();
+    }, target_dir, format!("{}-{}-{}", arch, os, env), ver).unwrap();
     let checksum = format!("{:?} {}", typ, version);
     fs::write(target_dir.join("reqrio").join("checksum"), checksum).unwrap();
 }

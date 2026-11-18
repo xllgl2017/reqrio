@@ -4,15 +4,16 @@ mod kdf;
 use super::client_hello::CipherSuite;
 use crate::{Aead, Buf, BufferError, Reader};
 pub use kdf::KDF;
+use crate::hpke::HpkeSuite;
 #[cfg(debug_assertions)]
 use std::fmt::Debug;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default)]
 pub struct EchConfig {
-    len: u16,
     ver: u16,
-    content: EchContent,
+    len: u16,
+    content: HpkeKeyConfig,
 }
 
 impl EchConfig {
@@ -24,7 +25,7 @@ impl EchConfig {
         Ok(EchConfig {
             ver: reader.read_u16()?,
             len: reader.read_u16()?,
-            content: EchContent::from_reader(&mut reader)?,
+            content: HpkeKeyConfig::from_reader(&mut reader)?,
         })
     }
 }
@@ -32,33 +33,65 @@ impl EchConfig {
 #[derive(Default)]
 struct DHKem(u16);
 
-impl DHKem {
-    #[allow(unused)]
-    const X25519_HDK: u16 = 0x0020;
+    pub const fn hash_type(&self) -> HashType {
+        match *self {
+            Kem::P256_HKDF_SHA256 => HashType::Sha256,
+            Kem::P384_HKDF_SHA384 => HashType::Sha384,
+            Kem::P521_HKDF_SHA512 => HashType::Sha512,
+            Kem::X25519_HKDF_SHA256 => HashType::Sha256,
+            Kem::X448_HKDF_SHA512 => HashType::Sha512,
+            _ => unreachable!()
+        }
+    }
+
+    pub const fn named_curve(&self) -> NamedCurve {
+        match *self {
+            Kem::P256_HKDF_SHA256 => NamedCurve::SecP256r1,
+            Kem::P384_HKDF_SHA384 => NamedCurve::SecP384r1,
+            Kem::P521_HKDF_SHA512 => NamedCurve::SecP521r1,
+            Kem::X25519_HKDF_SHA256 => NamedCurve::X25519,
+            Kem::X448_HKDF_SHA512 => NamedCurve::X448,
+            _ => unreachable!()
+        }
+    }
+
+
+    pub const fn new(val: u16) -> Kem {
+        Kem(val)
+    }
 
     #[cfg(debug_assertions)]
-    fn spec(&self) -> &str {
-        match self.0 {
-            DHKem::X25519_HDK => "X25519",
+    pub const fn spec(&self) -> &str {
+        match *self {
+            Kem::P256_HKDF_SHA256 => "P256_HKDF_SHA256",
+            Kem::P384_HKDF_SHA384 => "P384_HKDF_SHA384",
+            Kem::P521_HKDF_SHA512 => "P521_HKDF_SHA512",
+            Kem::X25519_HKDF_SHA256 => "X25519_HKDF_SHA256",
+            Kem::X448_HKDF_SHA512 => "X448_HKDF_SHA512",
             _ => "Reversed"
         }
     }
+
+    pub const fn inner(&self) -> u16 { self.0 }
+
+    pub const fn into_inner(self) -> u16 { self.0 }
 }
 
 #[cfg(debug_assertions)]
-impl Debug for DHKem {
+impl Debug for Kem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}(0x{:x})", self.spec(), self.0)
     }
 }
 
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default)]
 pub struct EchContent {
     config_id: u8,
-    kem_id: DHKem,
+    kem_id: Kem,
     key: Buf<'static>,
-    ciphers: Vec<CipherSuite>,
+    ciphers: Vec<&'static HpkeSuite>,
     max_name_len: u8,
     name: String,
     ext_len: u16,
@@ -67,7 +100,7 @@ pub struct EchContent {
 impl EchContent {
     pub fn from_reader(reader: &mut Reader) -> Result<EchContent, BufferError> {
         let config_id = reader.read_u8()?;
-        let kem_id = DHKem(reader.read_u16()?);
+        let kem_id = reader.read_u16()?;
         let key_len = reader.read_u16()?;
         let key = reader.read_slice(key_len as usize)?;
         let cipher_len = reader.read_u16()?;
@@ -81,9 +114,9 @@ impl EchContent {
         let name_len = reader.read_u8()?;
         let name = reader.read_str(name_len as usize)?;
         let ext_len = reader.read_u16()?;
-        Ok(EchContent {
+        Ok(HpkeKeyConfig {
             config_id,
-            kem_id,
+            kem_id: Kem::new(kem_id),
             key: Buf::Vec(key.to_vec()),
             ciphers,
             max_name_len,

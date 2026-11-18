@@ -153,6 +153,7 @@ impl From<&str> for RlsError {
 
 impl From<Infallible> for RlsError {
     fn from(e: Infallible) -> Self {
+        #[allow(unused)]
         RlsError::Currently(e.to_string())
     }
 }

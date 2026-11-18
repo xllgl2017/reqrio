@@ -2,6 +2,7 @@ use crate::error::HlsError;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(PartialEq, Debug))]
 pub enum Application {
     Json,
     XWwwFormUrlencoded,

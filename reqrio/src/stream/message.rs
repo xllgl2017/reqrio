@@ -49,11 +49,12 @@ impl Default for StreamMessage {
 
 
 impl StreamMessage {
-    pub fn new(_sid: u64) -> StreamMessage {
+    pub fn new(_sid: u64,method: Method) -> StreamMessage {
         StreamMessage {
             #[cfg(feature = "export")]
             sid: _sid,
             body: Writer::with_capacity(8192),
+            method,
             ..Default::default()
         }
     }
@@ -63,6 +64,7 @@ impl StreamMessage {
         let encoding = self.header.content_encoding().unwrap_or("").trim();
         let default = if self.alpn == ALPN::HTTP11 && chunked.is_empty() { 0 } else { usize::MAX };
         self.remain = self.header.content_length().unwrap_or(default);
+        if self.method == Method::HEAD { self.remain = 0; }
         #[cfg(feature = "log")]
         debug!("[Response] make coding: chunk={}; encoding={}", chunked=="chunked", encoding);
         match (chunked, encoding) {
@@ -71,7 +73,7 @@ impl StreamMessage {
                 self.coder = Some(Box::new(coding))
             }
             ("chunked", "deflate") => {
-                let coding = ChunkDecoder::new(CodeType::Deflate)?;
+                let coding = ChunkDecoder::new(CodeType::Zlib)?;
                 self.coder = Some(Box::new(coding))
             }
             ("chunked", "br") => {
@@ -84,7 +86,7 @@ impl StreamMessage {
             }
             ("chunked", "") => self.coder = Some(Box::new(ChunkDecoder::new(CodeType::Null)?)),
             (_, "gzip") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Gzip)?)),
-            (_, "deflate") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Deflate)?)),
+            (_, "deflate") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Zlib)?)),
             (_, "br") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Brotli)?)),
             (_, "zstd") => self.coder = Some(Box::new(TZCoder::new_decompress(CodeType::Zstd)?)),
             (_, _) => {}
@@ -98,7 +100,7 @@ impl StreamMessage {
                 let read_len = min(buf.len(), self.remain);
                 self.body.extend_from_slice(&buf[..read_len])?;
                 self.remain -= read_len;
-                debug_assert_eq!(buf.len(), read_len);
+                debug_assert!(read_len <= buf.len());
                 Ok((self.remain == 0, read_len))
             }
             Some(ref mut coder) => {

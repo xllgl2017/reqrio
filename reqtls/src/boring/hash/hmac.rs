@@ -9,8 +9,6 @@ use std::ptr::null_mut;
 
 pub struct Hmac {
     ctx: CPointer<HMAC_CTX>,
-    buf: [u8; 64],
-    len: u32,
 }
 
 impl Hmac {
@@ -27,19 +25,20 @@ impl Hmac {
         }.ok(HashError::HmacInitError)?;
         Ok(Hmac {
             ctx,
-            buf: [0; 64],
-            len: 0,
         })
     }
 
-    pub fn update(&self, data: impl AsRef<[u8]>) -> Result<(), HashError> {
+    pub fn update(&mut self, data: impl AsRef<[u8]>) -> Result<(), HashError> {
         unsafe { HMAC_Update(self.ctx.as_mut_ptr(), data.as_ref().as_ptr(), data.as_ref().len()) }.ok(HashError::HmacUpdateError)?;
         Ok(())
     }
 
-    pub fn finalize(&mut self) -> Result<&[u8], HashError> {
-        unsafe { HMAC_Final(self.ctx.as_mut_ptr(), self.buf.as_mut_ptr(), &mut self.len) }.ok(HashError::HmacFinalizeError)?;
-        Ok(&self.buf[..self.len as usize])
+    pub fn finalize(self) -> Result<Vec<u8>, HashError> {
+        let mut res = vec![0; 64];
+        let mut len = 0;
+        unsafe { HMAC_Final(self.ctx.as_mut_ptr(), res.as_mut_ptr(), &mut len) }.ok(HashError::HmacFinalizeError)?;
+        res.truncate(len as usize);
+        Ok(res)
     }
 
     pub fn finalize_extract(&mut self, out: &mut [u8]) -> Result<(), HashError> {

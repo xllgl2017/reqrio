@@ -13,8 +13,8 @@ reqtls/c.der
 reqtls/ca.der
 reqtls/s.der
 TOKEN
-AUTH
-4f3e36b1.dat
 builtin.dat
-1.crt
-key.pem
+9045f269.dat
+cad2d041.dat
+cd943d9b.dat
+reqrio/tests/vip_finger.rs

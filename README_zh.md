@@ -20,6 +20,8 @@
 
 💡 **应用案例**: [TLS Forward](https://tlsfoward.com/) — 基于 reqrio 构建的高级抓包工具
 
+✨ **免费使用**: [Token](https://github.com/xllgl2017/reqrio/issues/43) 此仓库不定期放出免费TOKEN
+
 ## 概述
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`reqrio` 是一个面向 **协议研究、TLS 指纹控制、高并发采集、复杂网络环境模拟** 设计的
@@ -122,7 +124,7 @@ HTTP 请求库，主要用于需要精确控制网络行为的场景，
 | TLS 1.3 PSK / 0-RTT      | ❌         | ❌          | ❌         | ❌       | ❌        | ⚠️(待完善) | ❌       |
 | SSLKEYLOGFILE导出        | ✅         | ⚠️(配置)    | ⚠️(配置)   | ✅       | ✅        | ✅         | ❌       |
 | ECH(未开放)              | ⚠️(未开放) | ❌          | ❌         | ❌       | ❌        | ✅         | ❌       |
-| TLCP / 国密(SM)          | ✅         | ❌          | ❌         | ❌       | ❌        | ❌         | ❌       |
+| TLCP / SM                | ✅         | ❌          | ❌         | ❌       | ❌        | ❌         | ❌       |
 
 * geektls项目整体是AI生成，结论仅参考
 

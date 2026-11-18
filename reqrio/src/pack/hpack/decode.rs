@@ -202,6 +202,7 @@ impl HPackDecode {
 
 #[cfg(test)]
 mod tests {
+    use crate::Method;
     use crate::pack::HPackDecode;
     use crate::pack::hpack::decode::HPackDecodeBuf;
     use crate::stream::StreamMessage;
@@ -268,11 +269,11 @@ mod tests {
     #[test]
     fn test_hpack_decode() {
         let mut decode = HPackDecode::new(1024);
-        let mut resp = StreamMessage::new(0);
+        let mut resp = StreamMessage::new(0, Method::GET);
         decode.decode_into(&[130, 64, 134, 168, 190, 20, 168, 116, 151, 136, 168, 190, 20, 66, 108, 53, 83, 127], &mut resp).unwrap();
         assert_eq!(resp.header.to_string(), ":method: GET\r\nnew name: new string");
         let mut decode = HPackDecode::new(1024);
-        let mut resp = StreamMessage::new(0);
+        let mut resp = StreamMessage::new(0, Method::DELETE);
         decode.decode_into(&[66, 6, 68, 69, 76, 69, 84, 69], &mut resp).unwrap();
         assert_eq!(resp.header.to_string(), ":method: DELETE")
     }
