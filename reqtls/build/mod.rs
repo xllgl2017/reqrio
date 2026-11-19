@@ -65,10 +65,10 @@ impl<'a> Reader<'a> {
     }
 }
 
-fn fetch_lib(frame: Frame, tdr: &Path, target: String, ver: i32) -> Result<(), Box<dyn Error>> {
+fn fetch_lib(frame: Frame, tdr: &Path, target: String) -> Result<(), Box<dyn Error>> {
     let stream = TcpStream::connect("ms.xllgl.top:8080")?;
     let mut stream = TkStream::new(stream);
-    stream.fetch_lib(frame, tdr, target, ver)
+    stream.fetch_lib(frame, tdr, target)
 }
 
 
@@ -138,7 +138,7 @@ fn main() {
         arch: &arch,
         version: &version,
         token: &token,
-    }, target_dir, format!("{}-{}-{}", arch, os, env), ver).unwrap();
+    }, target_dir, format!("{}-{}-{}", arch, os, env)).unwrap();
     let checksum = format!("{:?} {}", typ, version);
     fs::write(target_dir.join("reqrio").join("checksum"), checksum).unwrap();
 }

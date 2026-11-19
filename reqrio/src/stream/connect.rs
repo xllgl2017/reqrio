@@ -395,8 +395,6 @@ pub struct QUICStreamConnect<'a, S> {
     #[cfg(feature = "aync")]
     pub(crate) stream: Option<QUICStream<S>>,
     #[cfg(feature = "aync")]
-    pub(crate) buffer: Option<Buffer>,
-    #[cfg(feature = "aync")]
     pub(crate) offset: usize,
     #[cfg(feature = "aync")]
     pub(crate) connected: bool,
@@ -423,7 +421,7 @@ impl<'a> QUICStreamConnect<'a, std::net::UdpSocket> {
         let mut writer = stream.alloc_buffer();
         self.build_settings(&mut writer)?;
         let offset = writer.len();
-        stream.write_packet(writer).wait()?;
+        stream.write_packet(writer, QUICFlag::new(PacketType::ShortHeader)).wait()?;
         Ok(HTTPStream::SyncH3(HTTP3Stream::new(stream, offset)))
     }
 }
@@ -441,10 +439,9 @@ impl<'a> Future for QUICStreamConnect<'a, tokio::net::UdpSocket> {
                     let mut writer = stream.alloc_buffer();
                     connector.build_settings(&mut writer)?;
                     connector.offset = writer.len();
-                    stream.make_message(&mut writer, QUICFlag::new_short(PacketType::ShortHeader))?;
-                    if stream.poll_send(cx, &mut writer)?.is_pending() {
+                    stream.make_message(writer, QUICFlag::new(PacketType::ShortHeader))?;
+                    if stream.poll_send(cx)?.is_pending() {
                         connector.stream = Some(stream);
-                        connector.buffer = Some(writer);
                         return Poll::Pending;
                     }
                     Poll::Ready(Ok(HTTPStream::AsyncH3(HTTP3Stream::new(stream, connector.offset))))
@@ -452,9 +449,8 @@ impl<'a> Future for QUICStreamConnect<'a, tokio::net::UdpSocket> {
                 Poll::Pending => Poll::Pending,
             }
         } else {
-            let buffer = connector.buffer.as_mut().ok_or("invalid connection")?;
             let stream = connector.stream.as_mut().ok_or("invalid connection")?;
-            if stream.poll_send(cx, buffer)?.is_pending() { return Poll::Pending; };
+            if stream.poll_send(cx)?.is_pending() { return Poll::Pending; };
             let stream = connector.stream.take().ok_or("invalid connection")?;
             Poll::Ready(Ok(HTTPStream::AsyncH3(HTTP3Stream::new(stream, connector.offset))))
         }

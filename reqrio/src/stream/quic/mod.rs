@@ -7,14 +7,13 @@ use crate::stream::http3;
 pub use connect::QUICConnect;
 use connect::QUICConnState;
 use crate::Timeout;
-pub(crate) use write::QUICPacketWrite2;
+pub(crate) use write::QUICPacketWrite;
 use read::QUICPacketRead;
 use reqtls::quic::*;
 use reqtls::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Range;
-use write::QUICPacketWrite;
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub(crate) enum QId {
@@ -32,18 +31,16 @@ pub(crate) struct Queue {
 
 pub struct QUICStream<S> {
     socket: S,
-    ur_buffer: Writer,
+    udp_read_buffer: Writer,
     tr_last_offset: usize,
-    tr_buffer: Writer,
-    uw_buffer: Writer,
+    tls_read_buffer: Writer,
+    udp_write_buffer: Writer,
 
-    tw_buffer: Writer,
+    tls_write_buffer: Writer,
     conn: QUICConnection,
-    sent_num: HashMap<u64, Range<usize>>,
+    wait_ack: HashMap<u64, Buffer>,
 
     addr: SocketAddr,
-    dcid: Buf<'static>,
-    token: Buf<'static>,
 
     handshake_finish: bool,
     encrypted_channel: bool,
@@ -69,16 +66,14 @@ impl<S> QUICStream<S> {
         QUICConnect {
             state: QUICConnState::Connecting(Box::new(QUICStream {
                 socket,
-                ur_buffer: Writer::with_capacity(6000),
+                udp_read_buffer: Writer::with_capacity(6000),
                 tr_last_offset: 0,
-                tr_buffer: Writer::with_capacity(8192),
-                uw_buffer: Writer::with_capacity(1500),
-                tw_buffer: Writer::with_capacity(16438),
+                tls_read_buffer: Writer::with_capacity(8192),
+                udp_write_buffer: Writer::with_capacity(1500),
+                tls_write_buffer: Writer::with_capacity(16438),
                 conn: QUICConnection::new(session, key_log, config.verify),
-                sent_num: HashMap::new(),
+                wait_ack: HashMap::with_capacity(10),
                 addr: remote_addr,
-                dcid: Buf::Vec(rand::random::<[u8; 8]>().to_vec()),
-                token: Buf::default(),
                 handshake_finish: false,
                 encrypted_channel: false,
                 hello_retrying: false,
@@ -93,31 +88,16 @@ impl<S> QUICStream<S> {
             })),
             config: Config::Client(config),
             sent_hello: false,
-            buffer: Buffer::with_capacity(1500),
             #[cfg(feature = "aync")]
             timeout_reset: false,
         }
     }
 
-    pub fn send_ack(&mut self, flag: QUICFlag, must: bool) -> QUICPacketWrite<'_, S> {
-        let mut writer = QUICPacketWrite {
-            packet: QUICPacket::default(),
-            frames: vec![],
-            uw_buffer: &mut self.uw_buffer,
-            conn: &mut self.conn,
-            socket: &mut self.socket,
-            chunk_size: 0,
-            sent_num: &mut self.sent_num,
-            addr: &self.addr,
-            #[cfg(feature = "aync")]
-            timeout: &mut self.timeout,
-            #[cfg(feature = "aync")]
-            timeout_reset: false,
-        };
-        if !writer.conn.recv_nums().need_ack() && !must { return writer; }
-        let seq = writer.conn.seq();
-        let mut ranges = writer.conn.recv_nums_mut().ranges(seq);
-        let Some(max_range) = ranges.pop() else { return writer };
+    pub fn build_ack(&mut self, must: bool) -> Option<Buffer> {
+        if !self.conn.recv_nums().need_ack() && !must { return None; }
+        let seq = self.conn.seq;
+        let mut ranges = self.conn.recv_nums_mut().ranges(seq);
+        let max_range = ranges.pop()?;
         ranges.reverse();
         let mut ack_range = Vec::with_capacity(ranges.len());
         let mut pre_start = max_range.start;
@@ -128,59 +108,21 @@ impl<S> QUICStream<S> {
             });
             pre_start = range.start;
         }
-        let frame = QUICFrame::Ack {
+        let mut buffer = self.alloc_buffer();
+        QUICFrame::Ack {
             largest_acknowledged: max_range.end,
             ack_delay: 200,
             ack_range_count: ack_range.len() as u64,
             first_ack_range: max_range.end - max_range.start,
             ack_range,
-        };
-        writer.packet = QUICPacket::new_ack(flag, self.dcid.as_ref(), seq, frame.len());
-        writer.frames.push(frame);
-        writer
-    }
-
-
-    pub(super) fn write_crypto(&mut self, typ: PacketType) -> QUICPacketWrite<'_, S> {
-        let chunks = self.tw_buffer.filled().chunks(350);
-        let mut frames = Vec::with_capacity(10);
-        let mut pd_len = 0;
-        let start = self.crypto_offset;
-        for chunk in chunks {
-            if pd_len + chunk.len() > 1210 { break; }
-            let frame = QUICFrame::Crypto {
-                offset: self.crypto_offset,
-                value: Buf::new_ref(chunk),
-                buf_pos: 0..0,
-            };
-            pd_len += frame.len();
-            frames.push(frame);
-            if self.crypto_offset == 0 {
-                frames.insert(0, QUICFrame::Ping);
-                pd_len += 1;
-            }
-            self.crypto_offset += chunk.len();
-        }
-        QUICPacketWrite {
-            packet: QUICPacket::new_long(typ, self.conn.seq(), pd_len, self.dcid.as_ref(), &self.token),
-            frames,
-            uw_buffer: &mut self.uw_buffer,
-            conn: &mut self.conn,
-            socket: &mut self.socket,
-            chunk_size: self.crypto_offset - start,
-            sent_num: &mut self.sent_num,
-            addr: &self.addr,
-            #[cfg(feature = "aync")]
-            timeout: &mut self.timeout,
-            #[cfg(feature = "aync")]
-            timeout_reset: false,
-        }
+        }.write_to(&mut buffer).ok();
+        Some(buffer)
     }
 
     pub fn read_next_packet(&mut self) -> QUICPacketRead<'_, S> {
         QUICPacketRead {
             socket: &mut self.socket,
-            buffer: &mut self.ur_buffer,
+            buffer: &mut self.udp_read_buffer,
             packet_offsets: &mut self.packet_offsets,
             current: self.current,
             #[cfg(feature = "aync")]
@@ -203,17 +145,17 @@ impl<S> QUICStream<S> {
     }
 
     fn handle_packet(&mut self, mut off: Range<usize>) -> Result<(), QUICError> {
-        let mut reader = Reader::from_slice(self.ur_buffer.slice(off.clone()));
+        let mut reader = Reader::from_slice(self.udp_read_buffer.slice(off.clone()));
         let mut packet = QUICPacket::from_reader(&mut reader)?;
         if packet.flag().packet_type() == PacketType::Initial {
-            self.conn.make_initial_cipher(packet.dc_id(), false)?;
+            self.conn.make_initial_cipher(false)?;
         } else if packet.flag().packet_type() == PacketType::Retry {
-            self.token = Buf::Vec(packet.token().to_vec());
-            self.dcid = Buf::Vec(packet.sc_id().to_vec());
+            self.conn.token = packet.token().to_vec();
+            self.conn.dcid = packet.sc_id().to_vec();
             return Err(QUICError::InitialRetry);
         }
-        if self.dcid.as_ref() != packet.sc_id().as_ref() && !packet.sc_id().as_ref().is_empty() {
-            self.dcid = Buf::Vec(packet.sc_id().as_ref().to_vec());
+        if self.conn.dcid != packet.sc_id().as_ref() && !packet.sc_id().as_ref().is_empty() {
+            self.conn.dcid = packet.sc_id().to_vec();
         }
         let (bid, mut idle_buffer) = if self.idle_buffer.is_empty() {
             let bid = self.buffer_size;
@@ -246,7 +188,10 @@ impl<S> QUICStream<S> {
                     let start = largest_acknowledged - first_ack_range;
                     for large in start..=largest_acknowledged {
                         self.conn.recv_nums_mut().remove(large);
-                        self.sent_num.remove(&large);
+                        if let Some(mut buffer) = self.wait_ack.remove(&large) {
+                            buffer.reset();
+                            self.idle_buffer.push((self.buffer_size.wrapping_add(1), buffer))
+                        };
                     }
                 }
                 QUICFrame::ConnectionCloseTrp { reason, err_code, .. } => return Err(QUICError::TransportError { reason: reason.to_string(), err_code }),
@@ -304,14 +249,14 @@ impl<S> QUICStream<S> {
                         let Some(pos) = pos else { break };
                         let queue = queues.remove(pos);
                         let (buffer, _) = &self.task_buffer[&queue.bid];
-                        self.tr_buffer.check_move(queue.pos.len())?;
-                        if self.tr_buffer.unfilled_len() < queue.pos.len() {
+                        self.tls_read_buffer.check_move(queue.pos.len())?;
+                        if self.tls_read_buffer.unfilled_len() < queue.pos.len() {
                             #[cfg(all(debug_assertions, feature = "log"))]
-                            warn!("[QUIC] resize buffer = {}", self.tr_buffer.capacity()*2);
-                            self.tr_buffer.resize(queue.pos.len() - self.tr_buffer.unfilled_len())?;
+                            warn!("[QUIC] resize buffer = {}", self.tls_read_buffer.capacity()*2);
+                            self.tls_read_buffer.resize(queue.pos.len() - self.tls_read_buffer.unfilled_len())?;
                         }
                         self.tr_last_offset += queue.pos.len();
-                        self.tr_buffer.write_slice(buffer.slice(queue.pos))?;
+                        self.tls_read_buffer.write_slice(buffer.slice(queue.pos))?;
                         Some(queue.bid)
                     }
                 };
@@ -327,53 +272,34 @@ impl<S> QUICStream<S> {
     }
 
 
-    pub fn write_stream<'a>(&'a mut self, frames: Vec<QUICFrame<'a>>) -> QUICPacketWrite<'a, S> {
-        let pd_len = frames.iter().map(|s| s.len()).sum::<usize>();
-        QUICPacketWrite {
-            packet: QUICPacket::new_short(PacketType::ShortHeader, self.conn.seq(), pd_len, self.dcid.as_ref()),
-            frames,
-            uw_buffer: &mut self.uw_buffer,
-            conn: &mut self.conn,
-            socket: &mut self.socket,
-            chunk_size: 0,
-            sent_num: &mut self.sent_num,
-            addr: &self.addr,
-            #[cfg(feature = "aync")]
-            timeout: &mut self.timeout,
-            #[cfg(feature = "aync")]
-            timeout_reset: false,
-        }
-    }
-
     pub fn alloc_buffer(&mut self) -> Buffer {
-        self.idle_buffer.pop().map(|x| x.1).unwrap_or_else(||
-            Buffer::with_capacity(1500))
+        let mut buffer = self.idle_buffer.pop().map(|x| x.1).unwrap_or_else(||
+            Buffer::with_capacity(1500));
+        buffer.reset();
+        buffer
     }
 
-    pub fn write_packet(&mut self, buffer: Buffer) -> QUICPacketWrite2<'_, S> {
-        let bid = self.buffer_size;
-        self.buffer_size += 1;
-        QUICPacketWrite2 {
-            buffer,
-            flag: QUICFlag::new_short(PacketType::ShortHeader),
+    pub fn write_packet(&mut self, buffer: Buffer, flag: QUICFlag) -> QUICPacketWrite<'_, S> {
+        QUICPacketWrite {
+            buffer: Some(buffer),
+            flag,
             stream: self,
-            bid,
-            #[cfg(feature = "aync")]
-            encrypted: false,
         }
     }
 
-    pub fn make_message(&mut self, buffer: &mut Buffer, flag: QUICFlag) -> Result<(), RlsError> {
-        self.conn.make_message2(buffer, self.dcid.as_slice(), flag)
+    pub fn make_message(&mut self, buffer: Buffer, flag: QUICFlag) -> Result<(), RlsError> {
+        self.conn.make_message(buffer.filled(), &mut self.udp_write_buffer, flag)?;
+        self.wait_ack.insert(self.conn.seq - 1, buffer);
+        Ok(())
     }
 }
 
 #[cfg(all(feature = "aync", feature = "quic"))]
 impl QUICStream<tokio::net::UdpSocket> {
-    pub fn poll_send(&mut self, cx: &mut std::task::Context, buffer: &mut Buffer) -> std::task::Poll<HlsResult<()>> {
-        match self.socket.poll_send_to(cx, buffer.filled(), self.addr)? {
+    pub fn poll_send(&mut self, cx: &mut std::task::Context) -> std::task::Poll<HlsResult<()>> {
+        match self.socket.poll_send_to(cx, self.udp_write_buffer.filled(), self.addr)? {
             std::task::Poll::Ready(ready) => {
-                buffer.used_empty(ready);
+                debug_assert_eq!(ready, self.udp_write_buffer.filled().len());
                 std::task::Poll::Ready(Ok(()))
             }
             std::task::Poll::Pending => std::task::Poll::Pending,
@@ -382,22 +308,21 @@ impl QUICStream<tokio::net::UdpSocket> {
 }
 
 impl QUICStream<std::net::UdpSocket> {
-    pub fn send(&mut self, buffer: &mut Buffer) -> HlsResult<()> {
-        while !buffer.is_empty() {
-            let len = self.socket.send_to(buffer.filled(), self.addr)?;
-            buffer.used_empty(len);
-        }
+    pub fn send(&mut self, buf: Buffer, flag: QUICFlag) -> HlsResult<()> {
+        self.make_message(buf, flag)?;
+        let len = self.socket.send_to(self.udp_write_buffer.filled(), self.addr)?;
+        debug_assert_eq!(len, self.udp_write_buffer.filled().len());
         Ok(())
     }
 }
 
 impl<S> StreamHandle for QUICStream<S> {
     fn stream_param(&mut self) -> (&Writer, StreamParam<'_>) {
-        (&self.tr_buffer, StreamParam {
+        (&self.tls_read_buffer, StreamParam {
             handshake_finish: &mut self.handshake_finish,
             encrypted_channel: &mut self.encrypted_channel,
             hello_retrying: &mut self.hello_retrying,
-            write_buffer: &mut self.tw_buffer,
+            write_buffer: &mut self.tls_write_buffer,
             conn: self.conn.tls_conn(),
         })
     }

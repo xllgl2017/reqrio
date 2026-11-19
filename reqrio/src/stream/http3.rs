@@ -170,7 +170,9 @@ impl HTTP3Stream<std::net::UdpSocket> {
             max_stream: &mut self.max_stream,
             responses,
         })?;
-        self.stream.send_ack(QUICFlag::new_short(PacketType::ShortHeader), !res.is_empty()).wait()?;
+        if let Some(ack) = self.stream.build_ack(!res.is_empty()) {
+            self.stream.send(ack, QUICFlag::new(PacketType::ShortHeader))?;
+        }
         Ok(res)
     }
 
@@ -179,11 +181,11 @@ impl HTTP3Stream<std::net::UdpSocket> {
         let mut index = 0;
         while index + 1 < param.header.len() {
             let buffer = self.encode_hdr(body_reader.len(), &param, &mut index)?;
-            self.stream.write_packet(buffer).wait()?;
+            self.stream.write_packet(buffer, QUICFlag::new(PacketType::ShortHeader)).wait()?;
         }
         while body_reader.len() != 0 && !body_reader.wrote() {
             let buffer = self.encode_body(&mut body_reader)?;
-            self.stream.write_packet(buffer).wait()?;
+            self.stream.write_packet(buffer, QUICFlag::new(PacketType::ShortHeader)).wait()?;
         }
         let sid = self.sid;
         self.sid += 4;
@@ -298,7 +300,11 @@ impl HTTP3Stream<tokio::net::UdpSocket> {
             max_stream: &mut self.max_stream,
             responses,
         })?;
-        self.stream.send_ack(QUICFlag::new_short(PacketType::ShortHeader), !res.is_empty()).await?;
+        if let Some(ack) = self.stream.build_ack(!res.is_empty()) {
+            self.stream.write_packet(ack, QUICFlag::new(PacketType::ShortHeader)).await?;
+            // self.stream.poll_send()
+        }
+        // self.stream.send_ack(QUICFlag::new(PacketType::ShortHeader), !res.is_empty()).await?;
         Ok(res)
     }
 
@@ -307,11 +313,11 @@ impl HTTP3Stream<tokio::net::UdpSocket> {
         let mut index = 0;
         while index + 1 < param.header.len() {
             let buffer = self.encode_hdr(body_reader.len(), &param, &mut index)?;
-            self.stream.write_packet(buffer).await?;
+            self.stream.write_packet(buffer, QUICFlag::new(PacketType::ShortHeader)).await?;
         }
         while body_reader.len() != 0 && !body_reader.wrote() {
             let buffer = self.encode_body(&mut body_reader)?;
-            self.stream.write_packet(buffer).await?;
+            self.stream.write_packet(buffer, QUICFlag::new(PacketType::ShortHeader)).await?;
         }
         let sid = self.sid;
         self.sid += 4;

@@ -327,8 +327,6 @@ impl Stream {
             #[cfg(feature = "aync")]
             stream: None,
             #[cfg(feature = "aync")]
-            buffer: None,
-            #[cfg(feature = "aync")]
             offset: 0,
             #[cfg(feature = "aync")]
             connected: false,

@@ -1,8 +1,8 @@
 use crate::boring::AeadDir;
-use crate::buffer::{CipherEncodeBuffer, TlsDecodeBuffer};
+use crate::buffer::{TlsDecodeBuffer};
 use crate::error::RlsResult;
 use crate::key::KeyType;
-use crate::message::{QUICFrame, QUICPacket};
+use crate::message::{QUICPacket};
 use crate::quic::{QUICNum, QUICRange};
 use crate::*;
 #[cfg(all(debug_assertions, feature = "log"))]
@@ -15,10 +15,10 @@ pub struct QUICConnection {
     conn: Connection,
     recv_nums: QUICRange,
     current: KeyType,
-    seq: u64,
-    dcid: Vec<u8>,
-    scid: Vec<u8>,
-    token: Vec<u8>,
+    pub seq: u64,
+    pub dcid: Vec<u8>,
+    pub scid: Vec<u8>,
+    pub token: Vec<u8>,
 }
 
 impl QUICConnection {
@@ -41,14 +41,14 @@ impl QUICConnection {
 
 
     /// [rfc9001 5.2](https://datatracker.ietf.org/doc/html/rfc9001#name-initial-secrets)
-    pub fn make_initial_cipher(&mut self, cid: &Buf<'_>, force: bool) -> RlsResult<()> {
+    pub fn make_initial_cipher(&mut self, force: bool) -> RlsResult<()> {
         if !self.conn.decryptor.is_null() && !self.conn.encryptor.is_null() & !force { return Ok(()); }
         // Clear existing handshake bytes.
         self.conn.session_bytes.clear();
         if !force { self.conn.derived.init(KeyType::Initial, &CipherSuite::TLS_AES_128_GCM_SHA256); }
         #[cfg(all(debug_assertions, feature = "log"))]
-        trace!("[QUIC] MakeCipher dcid={:?}", cid);
-        self.conn.derived.make_initial_quic_secret(cid.as_ref())?;
+        trace!("[QUIC] MakeCipher dcid={:?}; force: {}", self.dcid, force);
+        self.conn.derived.make_initial_quic_secret(self.dcid.as_ref())?;
         self.conn.derived_key_cipher(KeyType::Initial)?;
         self.make_sample_cipher(KeyType::Initial)?;
         Ok(())
@@ -125,83 +125,59 @@ impl QUICConnection {
         Ok(len)
     }
 
-
-    pub fn build_message(&mut self, packet: &mut QUICPacket, frames: &mut Vec<QUICFrame<'_>>, buffer: &mut Writer) -> RlsResult<()> {
-        if packet.padding_size() != 0 {
-            frames.push(QUICFrame::Padding(packet.padding_size()));
-        }
-        packet.encode()?;
-        if packet.len() > 1500 { return Err(BufferError::UdpMsgTooLarge.into()); }
-        buffer.write_slice(packet.hdr_raw())?;
-        for frame in frames {
-            frame.write_to(buffer)?;
-        }
-        buffer.add_len(16);
-        self.make_message(buffer.filled_mut(), packet)?;
-        Ok(())
-    }
-
-
-    pub fn make_message<'a>(&mut self, buffer: &mut [u8], packet: &mut QUICPacket<'a>) -> RlsResult<()> {
-        let mut encode_buffer = CipherEncodeBuffer::new_quic(buffer, packet, self.conn.suite);
-        let aad = encode_buffer.aad(packet.num);
-        let nonce = self.conn.encryptor.iv.as_array(packet.num, None);
-        self.conn.encryptor.seal(&nonce, &aad, &mut encode_buffer)?;
-        let sample = &buffer[packet.pn_offset + 4..packet.pn_offset + 20];
-        let mut mask = self.send_sample.encrypt(sample)?;
-        mask.truncate(5);
-        match packet.flag.is_long_header() {
-            true => buffer[0] ^= mask[0] & 0x0f,
-            false => buffer[0] ^= mask[0] & 0x1f
-        }
-        let pn_offset = packet.pn_offset..packet.pn_offset + packet.flag.num_len();
-        buffer[pn_offset].iter_mut().enumerate().for_each(|(i, x)| {
-            *x ^= mask[i + 1]
-        });
-        Ok(())
-    }
-
-    pub fn make_message2(&mut self, buffer: &mut Buffer, dcid: &[u8], flag: QUICFlag) -> RlsResult<()> {
-        //---------------build packet---------------
-        let pd_start = buffer.start();
-        let num_len = quic::write_variant_front(self.seq, buffer)?;
-        let pn_start = buffer.start();
+    fn build_packet_header(&mut self, origin: &[u8], writer: &mut Writer, flag: QUICFlag) -> Result<usize, BufferError> {
+        writer.reset();
+        writer.write_u8(flag.encode())?;
         match flag.is_long_header() {
             true => {
-                quic::write_variant_front(buffer.len() as u64, buffer)?;
-                buffer.write_slice_front(self.token.as_slice())?;
-                buffer.write_u8_front(self.token.len() as u8);
-                buffer.write_slice_front(self.scid.as_slice())?;
-                buffer.write_u8_front(self.scid.len() as u8);
-                buffer.write_slice_front(self.dcid.as_slice())?;
-                buffer.write_u8_front(self.dcid.len() as u8);
-                quic::write_variant_front(1, buffer)?;
+                writer.write_u32(1)?;
+                writer.write_u8(self.dcid.len() as u8)?;
+                writer.write_slice(self.dcid.as_slice())?;
+                writer.write_u8(self.scid.len() as u8)?;
+                writer.write_slice(self.scid.as_slice())?;
+                if flag.packet_type() == PacketType::Initial {
+                    quic::write_variant(self.token.len() as u64, writer)?;
+                    writer.write_slice(self.token.as_slice())?;
+                }
+                quic::write_variant((origin.len() + flag.num_len() + 16) as u64, writer)?;
             }
             false => {
-                buffer.write_slice_front(dcid)?;
+                writer.write_slice(self.dcid.as_slice())?;
             }
         }
-        let flag = flag.with_num_len(num_len);
-        buffer.write_u8_front(flag.encode());
-        buffer.add_len(16);
-        let pd_start = pd_start - buffer.start();
-        //---------------encrypt/encode-------------
-        let (head, payload) = buffer.filled_mut().split_at_mut(pd_start);
-        let mut encode_buffer = CipherEncodeBuffer::new_quic2(head, payload, self.conn.suite);
-        let aad = encode_buffer.aad(self.seq);
+        let pn_offset = writer.end();
+        match flag.num_len() {
+            1 => writer.write_u8(self.seq as u8)?,
+            2 => writer.write_u16(self.seq as u16)?,
+            4 => writer.write_u32(self.seq as u32)?,
+            8 => writer.write_slice(&self.seq.to_be_bytes())?,
+            _ => unreachable!()
+        }
+        Ok(pn_offset)
+    }
+
+    pub fn make_message(&mut self, origin: &[u8], writer: &mut Writer, mut flag: QUICFlag) -> RlsResult<()> {
+        flag = flag.with_num_len(quic::variant_len(self.seq));
+        let pn_offset = self.build_packet_header(origin, writer, flag)?;
+        writer.add_len(origin.len() + 16);
+        let (aad, encrypted) = writer.filled_mut().split_at_mut(pn_offset + flag.num_len());
         let nonce = self.conn.encryptor.iv.as_array(self.seq, None);
-        self.conn.encryptor.seal(&nonce, &aad, &mut encode_buffer)?;
-        let sample = buffer.slice(pn_start + 4..pn_start + 20);
+        let en_len = self.conn.encryptor.seal_extract(nonce.as_ref(), aad, origin, encrypted)?;
+        let packet_len = aad.len() + en_len;
+        writer.reset_offset(0..packet_len);
+
+        let sample = writer.slice(pn_offset + 4..pn_offset + 20);
         let mut mask = self.send_sample.encrypt(sample)?;
         mask.truncate(5);
         match flag.is_long_header() {
-            true => buffer.filled_mut()[0] ^= mask[0] & 0x0f,
-            false => buffer.filled_mut()[0] ^= mask[0] & 0x1f,
+            true => writer.filled_mut()[0] ^= mask[0] & 0x0f,
+            false => writer.filled_mut()[0] ^= mask[0] & 0x1f,
         }
-        let pn = buffer.slice_mut(pn_start..pn_start + num_len);
+        let pn = writer.slice_mut(pn_offset..pn_offset + flag.num_len());
         pn.iter_mut().enumerate().for_each(|(i, x)| {
             *x ^= mask[i + 1]
         });
+
         self.seq += 1;
         Ok(())
     }
@@ -215,14 +191,6 @@ impl QUICConnection {
     }
 
     pub const fn recv_nums_mut(&mut self) -> &mut QUICRange { &mut self.recv_nums }
-
-    pub const fn seq(&self) -> u64 { self.seq }
-
-    pub const fn set_seq(&mut self, seq: u64) { self.seq = seq }
-
-    pub const fn dcid(&self) -> &[u8] { self.dcid.as_slice() }
-
-    pub fn set_dcid(&mut self, dcid: Vec<u8>) { self.dcid = dcid }
 }
 
 
@@ -233,6 +201,7 @@ mod tests {
     use crate::{Buf, KeyExchangeAlg, Message, PacketType, QUICFlag, QUICPacket, Reader, RecordType, TlsSession, Version, Writer, quic};
     use std::collections::HashMap;
     use std::ops::Range;
+    use crate::quic::QUICFrameFlag;
 
     fn decode(conn: &mut QUICConnection, origin: &[u8], queues: &mut Vec<(usize, u64, Range<usize>)>, bid: u64) -> Writer {
         let mut reader = Reader::from_slice(origin);
@@ -267,8 +236,8 @@ mod tests {
     fn test_quic_read() {
         let mut conn = QUICConnection::new(TlsSession::default(), None, true);
         conn.conn.server = true;
-        let cid = Buf::Vec(hex::decode("5826e10f9e47274a").unwrap());
-        conn.make_initial_cipher(&cid, false).unwrap();
+        conn.dcid = hex::decode("5826e10f9e47274a").unwrap();
+        conn.make_initial_cipher(false).unwrap();
         let mut queues = vec![];
         let mut bufs = HashMap::new();
         let raw = hex::decode("cd00000001085826e10f9e47274a000044d0993ab805680e67b4ea7ae47bc5e56b20d8db153d61b499345f4866e3a0132fc87837f6306c971d0d6d6fdf05c48400d650e7de4a63bbc120056e8d9db3ae75c9132d33e6be90a660dc9b0761af9aa5c559d8ffd8970ce50962000097fc4ca9ddc77b791986574e0126fd2edbd9ca847d44d0bd07f24acd47e36a40c29bb47df3dc67db936417c321f666f752c9614f661da188b6fd08bd4a9fb7b2953d359e56808190d504ab0a716af80a0d3fe8888260e4b47d0a0eeae4180eb8faa737d58f3dd61002439bb72b96cf2ce31abe9e532461c47bcf7140d0999f62dd689aa60c287725f5d459b9342ed75f2b43c8328fd7f67c59bd45aceca52800e131a86c4fd25cf60c6f3fc28ab8bae30bf0842522fccf6bd9a74caf90726d667512a90c0235a55b0a991767195c36dcadd569c67aecad1209e9015f867b52789ba0667c30c9500ccc10cc8cebef6263cd74a051f39ece3468274ec53f0604f207d8ee631cad74d185e262c3133f9af955e7d4bb432069940e1e0159e15ab476ed22f3382efc51450fb28d38370e0626a9070f26be69a7cd40a5e71523b7df30186e87a8de2034974eefaebb5ed8216cec13898bcadba5cf9141b4da2161662302176af658b6aef4e5f1d2a026d69d2f9dffaad2cf79b5f4a7b3aead97ad1fe59b195270ef98aa30ac6022dfc6c33afeb87dd0129e701d7b19f7ccd83e7141bfe15ccd28b2b83fcd39577170e72176220b182f0956b4b7fe22d802491a8403dad869116dded38535edc4450d86e3aa77fe8bc6dde380d3bd3f694b2ef27879c48eb00dbf480aaf798b18e7853b841e519a439511b6e90d870b957b051ac6817947060fac8d6add3218d0af1ccbe36193361b8949b820c30b554e9ca66a48903fc5db703b0c893c761abe0603dbebeb616bc39623848536335c491ab002e5f65990577c33d6ac47433dff60c189470135c07576543ecf1ecb90e6db893489a751df1502891d9b484b1995d322f4da7bdf062f50b5aa9d28d0f4b64fdc2e21778d9ce2944a9bfe2e1eaadac0a79b0026452ecb76b9abc94f6c79f5d9ebc36f9d5294d8ea9d4219b06c1c3dfa8101f36494c32f4b814719408c7bafeaaa66c86bb119b95dda3058a59609c284ed10ef4f5338a50da530583b3e93b8a64929a206b9b4ed1b542726abe4d63e5e9bcd869ffeff32d3e88eb44140149e0d3488a6a70351042f6ff4cb5f501e10178ce2b3a9e34d397918d6cbb8a41dbea0c9cdafa8a033db3335180539e115e8b4a66f5fc3638a9d0f95cedcfb2188aaff600e32a6ed418d01f89cf83ed92e0bef3dbd3e520c7e4811519edb437cc202ea83e089dd21e65cc726f509830ce6cc43b9055525e2e92d1b7859681172f6c89b9e9034d1880f7a9b879959ed493bd28cfc65b669498339b31c4728a06de924710f8a81b9a16dc9d45873ae200285ef71ff6f07a5ee30f93d04ac47a2f40676dce6d45b32aedc8abc0216e4c20a53821f74114a51bb1a79e77c972aab80e52ae2a0724979961d70c653003a07b03e062550cf8feddde9285066632a6b5932d4812e2473c362e0bc08e4246dd151e6aba41fb6cc80038f8a1c869cfff0f3de9d809446eae5a680185d87c0a1cc9875cc144ea31a4bd02af8eb6bb5315749def35756565400ae1cf6e470c6fb06a8927b8f2c8ccef65dd7cfdf8a3eef96f284018d823e25c4bf27137d0104f32358c8c975072d8f24b7d429232fe6").unwrap();
@@ -287,8 +256,8 @@ mod tests {
         assert!(buffer.is_empty());
 
         let mut conn = QUICConnection::new(TlsSession::default(), None, true);
-        let cid = Buf::Vec(hex::decode("5826e10f9e47274a").unwrap());
-        conn.make_initial_cipher(&cid, false).unwrap();
+        conn.dcid = hex::decode("5826e10f9e47274a").unwrap();
+        conn.make_initial_cipher(false).unwrap();
         let mut queues = vec![];
         let mut bufs = HashMap::new();
         let raw = hex::decode("c900000001000818c8588d0880882d004016b3948a9a3e9b16341cb4b0b03d2b36554573afe3f81f").unwrap();
@@ -314,41 +283,38 @@ mod tests {
         let dcid = (0..12).collect::<Vec<u8>>();
         let mut conn = QUICConnection::new(TlsSession::default(), None, false);
         conn.dcid = dcid.clone();
-        conn.make_initial_cipher(&Buf::new_ref(&dcid), false).unwrap();
+        conn.make_initial_cipher(false).unwrap();
+
+        let mut app_writer = Writer::with_capacity(1500);
+        app_writer.reset_offset(100..100);
+        app_writer.write_slice(&(0..50).collect::<Vec<_>>()).unwrap();
+        quic::write_variant_front(app_writer.len() as u64, &mut app_writer).unwrap();
+        app_writer.write_slice_front(&[0]).unwrap();
+        quic::write_variant_front(app_writer.len() as u64, &mut app_writer).unwrap();
+        quic::write_variant_front(0, &mut app_writer).unwrap();
+        quic::write_variant_front(0xb, &mut app_writer).unwrap();
+        assert_eq!(app_writer.filled(), [11, 0, 52, 0, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]);
+        let flag = QUICFlag::new(PacketType::ShortHeader);
+        let mut udp_writer = Writer::with_capacity(1500);
+        conn.make_message(app_writer.filled(), &mut udp_writer, flag).unwrap();
+        assert_eq!(udp_writer.filled(), [91, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 49, 5, 243, 235, 202, 108, 8, 162, 186, 220, 116, 211, 125, 15, 244, 50, 15, 30, 126, 216, 231, 238, 186, 25, 186, 240, 122, 142, 46, 112, 104, 203, 171, 132, 37, 229, 178, 51, 217, 9, 231, 126, 168, 56, 215, 167, 230, 141, 50, 129, 203, 194, 29, 30, 145, 56, 214, 26, 174, 183, 249, 44, 36, 222, 85, 10, 51, 67, 185, 49, 90, 195]);
 
         let mut writer = Writer::with_capacity(1500);
-        writer.reset_offset(100..100);
-        writer.write_slice(&(0..50).collect::<Vec<_>>()).unwrap();
-        quic::write_variant_front(writer.len() as u64, &mut writer).unwrap();
-        writer.write_slice_front(&[0]).unwrap();
-        quic::write_variant_front(writer.len() as u64, &mut writer).unwrap();
-        quic::write_variant_front(0, &mut writer).unwrap();
-        quic::write_variant_front(0xb, &mut writer).unwrap();
-        assert_eq!(writer.filled(), [11, 0, 52, 0, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]);
-        let flag = QUICFlag::new_short(PacketType::ShortHeader);
-        conn.make_message2(&mut writer, &dcid, flag).unwrap();
-        assert_eq!(writer.filled(), [91, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 49, 5, 243, 235, 202, 108, 8, 162, 186, 220, 116, 211, 125, 15, 244, 50, 15, 30, 126, 216, 231, 238, 186, 25, 186, 240, 122, 142, 46, 112, 104, 203, 171, 132, 37, 229, 178, 51, 217, 9, 231, 126, 168, 56, 215, 167, 230, 141, 50, 129, 203, 194, 29, 30, 145, 56, 214, 26, 174, 183, 249, 44, 36, 222, 85, 10, 51, 67, 185, 49, 90, 195]);
-        // println!("{:?}", buffer.filled());
-
-        // let mut writer = Buffer::with_capacity(1500);
-        // let stream = QUICFrame::Stream {
-        //     flag: QUICFrameFlag::new(0).with_fin(true),
-        //     sid: 0,
-        //     offset: 0,
-        //     payload: Buf::new_ref(&[0, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]),
-        //     buf_pos: 0..0,
-        // };
-        // let mut packet = QUICPacket::new_short(PacketType::ShortHeader, 1, stream.len(), dcid.as_slice());
-        // packet.encode().unwrap();
-        // writer.write_slice(packet.hdr_raw()).unwrap();
-        // stream.write_to(&mut writer).unwrap();
-        // assert_eq!(&writer.filled()[packet.hdr_len()..], [11, 0, 52, 0, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]);
-        // println!("{:?}", writer.filled());
-        // writer.add_len(16);
-        //
-        // let mut conn = QUICConnection::new(TlsSession::default(), None, false);
-        // conn.make_initial_cipher(&Buf::new_ref(&dcid), false).unwrap();
-        // conn.make_message(writer.filled_mut(), &mut packet).unwrap();
-        // println!("{:?}", writer.filled_mut());
+        let stream = QUICFrame::Stream {
+            flag: QUICFrameFlag::new(0).with_fin(true),
+            sid: 0,
+            offset: 0,
+            payload: Buf::new_ref(&[0, 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]),
+            buf_pos: 0..0,
+        };
+        stream.write_to(&mut writer).unwrap();
+        let dcid = (0..12).collect::<Vec<u8>>();
+        let mut conn = QUICConnection::new(TlsSession::default(), None, false);
+        conn.dcid = dcid.clone();
+        conn.make_initial_cipher(false).unwrap();
+        QUICFrame::Padding(1160).write_to(&mut writer).unwrap();
+        let mut buf2 = Writer::with_capacity(1500);
+        conn.make_message(writer.filled(), &mut buf2, QUICFlag::new(PacketType::Initial)).unwrap();
+        assert_eq!(buf2.filled(), [203, 0, 0, 0, 1, 12, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 68, 208, 49, 5, 243, 235, 202, 108, 8, 162, 186, 220, 116, 211, 125, 15, 244, 50, 15, 30, 126, 216, 231, 238, 186, 25, 186, 240, 122, 142, 46, 112, 104, 203, 171, 132, 37, 229, 178, 51, 217, 9, 231, 126, 168, 56, 215, 167, 230, 141, 50, 129, 203, 194, 29, 30, 145, 56, 122, 195, 5, 122, 83, 98, 136, 109, 51, 100, 7, 240, 77, 24, 157, 167, 214, 163, 242, 193, 132, 168, 100, 208, 85, 50, 208, 90, 197, 8, 28, 40, 227, 105, 141, 85, 228, 175, 161, 161, 201, 7, 221, 140, 108, 178, 112, 60, 146, 226, 186, 52, 139, 244, 26, 152, 254, 163, 54, 97, 22, 211, 96, 24, 192, 167, 237, 43, 173, 128, 107, 69, 50, 120, 217, 183, 151, 230, 221, 33, 134, 65, 33, 112, 225, 173, 218, 141, 134, 123, 66, 142, 120, 83, 236, 142, 18, 125, 3, 182, 98, 216, 199, 204, 54, 167, 100, 27, 35, 155, 136, 254, 81, 245, 204, 74, 61, 1, 24, 215, 128, 170, 177, 211, 244, 46, 41, 212, 108, 45, 6, 32, 132, 184, 55, 40, 184, 29, 174, 202, 162, 122, 205, 236, 119, 195, 86, 204, 142, 120, 171, 154, 191, 54, 36, 175, 244, 141, 161, 75, 180, 38, 228, 126, 120, 252, 123, 58, 122, 129, 88, 4, 99, 248, 114, 129, 178, 134, 173, 113, 32, 38, 11, 23, 212, 176, 142, 13, 179, 213, 240, 160, 23, 96, 246, 48, 208, 217, 113, 144, 50, 39, 84, 72, 28, 190, 105, 208, 38, 39, 203, 79, 103, 15, 196, 154, 0, 192, 219, 129, 138, 196, 124, 188, 23, 60, 170, 17, 247, 254, 208, 229, 108, 252, 202, 220, 54, 16, 106, 19, 110, 77, 114, 215, 80, 122, 167, 74, 142, 143, 78, 231, 144, 93, 132, 117, 51, 220, 5, 20, 89, 193, 108, 192, 206, 66, 150, 221, 47, 154, 30, 86, 232, 195, 15, 42, 119, 23, 223, 79, 237, 173, 101, 42, 215, 126, 54, 155, 235, 238, 140, 76, 113, 253, 199, 216, 234, 164, 209, 241, 109, 137, 90, 181, 241, 15, 20, 224, 50, 154, 196, 187, 88, 134, 199, 91, 0, 121, 198, 96, 115, 213, 143, 14, 187, 181, 87, 67, 181, 134, 148, 21, 166, 178, 136, 137, 73, 98, 178, 233, 79, 86, 3, 212, 152, 91, 254, 217, 127, 231, 81, 180, 36, 117, 253, 177, 166, 189, 249, 165, 211, 202, 149, 111, 244, 43, 60, 122, 211, 253, 83, 155, 90, 42, 167, 218, 30, 166, 0, 150, 185, 29, 25, 97, 203, 168, 97, 3, 207, 114, 143, 227, 58, 35, 79, 231, 252, 157, 69, 0, 219, 44, 65, 91, 55, 131, 121, 210, 103, 226, 222, 243, 170, 35, 224, 0, 128, 102, 36, 77, 73, 119, 60, 237, 170, 65, 121, 6, 140, 185, 238, 61, 169, 10, 204, 148, 21, 210, 229, 250, 96, 39, 29, 129, 159, 35, 255, 224, 161, 123, 70, 176, 212, 81, 244, 54, 248, 132, 187, 156, 166, 76, 143, 123, 158, 138, 118, 125, 126, 42, 150, 134, 143, 63, 228, 172, 76, 209, 163, 133, 160, 123, 129, 184, 18, 176, 193, 99, 115, 218, 118, 110, 165, 213, 116, 171, 83, 129, 150, 57, 126, 209, 58, 229, 253, 188, 87, 206, 107, 170, 1, 190, 88, 211, 52, 38, 178, 212, 138, 185, 57, 25, 232, 233, 54, 180, 198, 16, 40, 62, 57, 161, 194, 152, 31, 176, 233, 203, 143, 4, 238, 198, 229, 156, 76, 226, 232, 70, 12, 238, 127, 148, 55, 1, 242, 234, 221, 60, 224, 219, 62, 237, 100, 119, 84, 39, 187, 39, 95, 47, 242, 126, 194, 158, 74, 208, 255, 50, 182, 73, 196, 118, 22, 148, 57, 126, 44, 86, 80, 245, 111, 82, 236, 208, 37, 197, 179, 66, 13, 86, 224, 81, 191, 111, 221, 98, 110, 142, 154, 61, 241, 149, 22, 19, 92, 104, 133, 17, 57, 115, 107, 197, 201, 82, 169, 67, 231, 136, 53, 129, 157, 117, 8, 226, 64, 87, 220, 153, 174, 129, 164, 35, 158, 149, 37, 91, 206, 198, 101, 90, 118, 248, 100, 107, 177, 85, 119, 103, 175, 255, 16, 30, 110, 187, 68, 61, 145, 0, 47, 138, 251, 133, 235, 249, 118, 150, 11, 203, 248, 43, 128, 11, 123, 77, 37, 167, 100, 163, 114, 120, 190, 103, 145, 208, 67, 213, 161, 29, 67, 245, 218, 22, 227, 126, 161, 94, 121, 220, 147, 144, 122, 180, 153, 215, 37, 190, 194, 3, 187, 95, 200, 141, 222, 75, 80, 208, 191, 246, 186, 178, 91, 194, 199, 249, 104, 165, 110, 35, 152, 118, 18, 202, 222, 250, 190, 225, 123, 80, 163, 97, 81, 170, 28, 221, 44, 168, 110, 230, 226, 236, 198, 54, 43, 244, 176, 219, 9, 177, 205, 62, 148, 170, 78, 133, 43, 120, 156, 51, 88, 71, 235, 16, 4, 203, 220, 145, 231, 29, 107, 221, 224, 52, 238, 40, 59, 111, 151, 184, 236, 195, 72, 189, 40, 142, 225, 144, 231, 95, 97, 24, 48, 234, 53, 74, 111, 103, 167, 14, 106, 33, 65, 182, 183, 93, 47, 26, 22, 225, 128, 42, 215, 107, 193, 149, 9, 156, 50, 147, 47, 173, 254, 41, 102, 180, 97, 51, 0, 141, 76, 141, 3, 3, 103, 118, 12, 87, 113, 14, 254, 242, 75, 123, 83, 44, 156, 173, 113, 102, 55, 163, 75, 157, 51, 147, 149, 52, 95, 147, 59, 100, 229, 242, 62, 75, 16, 76, 200, 14, 209, 227, 248, 87, 157, 126, 2, 188, 176, 48, 241, 189, 120, 187, 67, 218, 128, 82, 238, 2, 33, 158, 248, 101, 137, 208, 177, 151, 71, 212, 150, 109, 54, 172, 208, 18, 164, 31, 214, 180, 240, 137, 248, 81, 79, 78, 127, 109, 9, 56, 69, 55, 90, 253, 0, 190, 26, 174, 88, 247, 168, 157, 117, 106, 70, 103, 244, 62, 183, 101, 130, 180, 9, 111, 28, 240, 169, 194, 89, 50, 109, 150, 6, 78, 24, 188, 216, 131, 61, 63, 43, 26, 236, 183, 242, 230, 28, 150, 6, 195, 196, 211, 124, 53, 237, 181, 84, 168, 237, 191, 72, 56, 60, 165, 124, 77, 176, 50, 227, 185, 1, 252, 71, 158, 37, 170, 80, 130, 137, 18, 211, 114, 4, 47, 86, 175, 114, 203, 110, 49, 73, 215, 143, 50, 27, 91, 242, 86, 159, 14, 149, 83, 22, 108, 190, 169, 22, 31, 74, 247, 107, 99, 67, 127, 44, 32, 173, 159, 122, 118, 182, 182, 71, 106, 198, 236, 149, 221, 2, 145, 92, 240, 170, 96, 107, 168, 188, 44, 138, 46, 23, 71, 5, 25, 56, 51, 78, 208, 82, 62, 229, 29, 7, 143, 68, 130, 68, 12, 179, 19, 157, 202, 235, 34, 58, 170, 199, 253, 47, 70, 217, 19, 127, 183, 74, 35, 38, 111, 132, 23, 55, 170, 62, 220, 81, 166, 141, 230, 91, 206, 176, 94, 20, 242, 175, 31, 52, 127, 95, 184, 228, 52, 149, 84, 46, 164, 180, 54, 109, 8, 77, 249, 193, 168, 58, 188, 76, 232, 10, 177, 199, 85, 119, 80, 140, 225, 149, 220, 251, 248, 14, 10, 79, 171, 152, 162, 130, 30]);
     }
 }

@@ -80,7 +80,7 @@ impl TkStream {
     }
 
 
-    fn handle_stream(&mut self, tdr: &Path, target: &str, ver: i32) -> Result<(), Box<dyn Error>> {
+    fn handle_stream(&mut self, tdr: &Path, target: &str) -> Result<(), Box<dyn Error>> {
         let len = self.read_stream()?;
         let off = self.offset.start..self.offset.start + len;
         let mut reader = Reader::from_slice(&self.buffer[off]);
@@ -167,12 +167,12 @@ impl TkStream {
         }
     }
 
-    pub fn fetch_lib(&mut self, frame: Frame, tdr: &Path, target: String, ver: i32) -> Result<(), Box<dyn Error>> {
+    pub fn fetch_lib(&mut self, frame: Frame, tdr: &Path, target: String) -> Result<(), Box<dyn Error>> {
         let mut buf = Vec::with_capacity(frame.len());
         frame.encode(&mut buf);
         self.stream.write_all(&buf)?;
         loop {
-            if let Err(e) = self.handle_stream(tdr, &target, ver) {
+            if let Err(e) = self.handle_stream(tdr, &target) {
                 if e.to_string().contains("peer close") { break; }
                 println!("{}", e);
                 return Err(e);

@@ -129,8 +129,15 @@ impl AeadCtx {
     }
 
     pub fn seal_bytes(&self, nonce: &[u8], aad: &[u8], plaintext: &[u8]) -> RlsResult<Vec<u8>> {
-        debug_assert!(!self.is_null());
         let mut output = vec![0u8; plaintext.len() + 16];
+        let len = self.seal_extract(nonce, aad, plaintext, &mut output)?;
+        output.truncate(len);
+        Ok(output)
+    }
+
+
+    pub fn seal_extract(&self, nonce: &[u8], aad: &[u8], plaintext: &[u8], output: &mut [u8]) -> RlsResult<usize> {
+        debug_assert!(!self.is_null());
         let mut output_len = 0usize;
         unsafe {
             AEAD_CTX_seal(
@@ -146,8 +153,7 @@ impl AeadCtx {
                 aad.len(),
             )
         }.ok(RlsError::AeadEncryptError)?;
-        output.truncate(output_len);
-        Ok(output)
+        Ok(output_len)
     }
 
     pub(crate) fn open(&self, nonce: &[u8], aad: &[u8], buf: &mut TlsDecodeBuffer) -> RlsResult<usize> {

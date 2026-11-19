@@ -1,6 +1,6 @@
 use crate::error::HlsResult;
 use crate::stream::quic::QUICStream;
-use reqtls::quic::QUICError;
+use reqtls::quic::{QUICError, QUICFrame};
 use std::mem;
 use std::ops::{Deref, DerefMut};
 #[cfg(feature = "aync")]
@@ -47,7 +47,6 @@ pub struct QUICConnect<'a, S> {
     pub(crate) state: QUICConnState<S>,
     pub(crate) config: Config<'a>,
     pub(crate) sent_hello: bool,
-    pub(crate) buffer: Buffer,
     #[cfg(feature = "aync")]
     pub(crate) timeout_reset: bool,
 }
@@ -55,21 +54,21 @@ pub struct QUICConnect<'a, S> {
 impl<'a, S> QUICConnect<'a, S> {
     fn build_client_hello(&mut self, force: bool) -> Result<(), QUICError> {
         let state = self.state.deref_mut();
-        state.tw_buffer.reset();
-        state.conn.make_initial_cipher(&state.dcid, force)?;
+        state.tls_write_buffer.reset();
+        state.conn.make_initial_cipher(force)?;
         let config = self.config.client_mut().ok_or(HandShakeError::MissingClientConfig)?;
         state.build_client_hello(config)?;
-        state.tw_buffer.used_empty(5);
+        state.tls_write_buffer.used_empty(5);
         Ok(())
     }
 
     fn initial_retry(&mut self) -> Result<(), QUICError> {
         self.state.crypto_offset = 0;
         self.state.tr_last_offset = 0;
-        self.state.ur_buffer.reset();
+        self.state.udp_read_buffer.reset();
         self.state.packet_offsets.clear();
         self.state.current = PacketType::Initial;
-        self.state.tw_buffer.reset();
+        self.state.tls_write_buffer.reset();
         self.build_client_hello(true)
     }
 
@@ -79,14 +78,14 @@ impl<'a, S> QUICConnect<'a, S> {
         stream.conn.tls_conn().make_cipher(false)?;
         stream.conn.make_sample_cipher(KeyType::Application)?;
         stream.current = PacketType::ShortHeader;
-        stream.tr_buffer.reset();
+        stream.tls_read_buffer.reset();
         stream.tr_last_offset = 0;
         Ok(stream)
     }
 
     fn handle_message(&mut self) -> Result<(), QUICError> {
         let state = self.state.deref_mut();
-        let mut reader = Reader::from_slice(state.tr_buffer.filled());
+        let mut reader = Reader::from_slice(state.tls_read_buffer.filled());
         let mut read_len = 0;
         while let Ok(message) = Message::from_reader(&mut reader, RecordType::HandShake, KeyExchangeAlg::NULL, Version::TLS_1_3) {
             read_len += message.encoded.len();
@@ -95,44 +94,43 @@ impl<'a, S> QUICConnect<'a, S> {
                 handshake_finish: &mut state.handshake_finish,
                 encrypted_channel: &mut state.encrypted_channel,
                 hello_retrying: &mut state.hello_retrying,
-                write_buffer: &mut state.tw_buffer,
+                write_buffer: &mut state.tls_write_buffer,
                 conn: state.conn.tls_conn(),
             }, Some(&mut self.config), message, Version::TLS_1_3)?;
             if is_server_hello && !state.hello_retrying {
                 self.state.conn.make_sample_cipher(KeyType::Handshake)?;
                 self.state.current = PacketType::Handshake;
-                self.state.tr_buffer.reset();
+                self.state.tls_read_buffer.reset();
                 self.state.tr_last_offset = 0;
                 self.state.crypto_offset = 0;
                 return Ok(());
             }
         }
-        self.state.tr_buffer.used_empty(read_len);
+        self.state.tls_read_buffer.used_empty(read_len);
         Ok(())
     }
 
-    pub fn build_crypto(&mut self) -> Result<(), BufferError> {
-        self.buffer.reset_offset(100..100);
-        if self.state.crypto_offset == 0 {
-            //ping
-            self.buffer.write_u8(1)?;
+    pub fn build_crypto(&mut self) -> Result<Buffer, BufferError> {
+        let state = self.state.deref_mut();
+        let mut writer = state.alloc_buffer();
+        let chunks = state.tls_write_buffer.filled().chunks(350);
+        let start = state.crypto_offset;
+        if state.crypto_offset == 0 { QUICFrame::Ping.write_to(&mut writer)?; }
+        for chunk in chunks {
+            if writer.len() + chunk.len() > 1210 { break; }
+            QUICFrame::Crypto {
+                offset: state.crypto_offset,
+                value: Buf::new_ref(chunk),
+                buf_pos: 0..0,
+            }.write_to(&mut writer)?;
+            state.crypto_offset += chunk.len();
         }
-        let mut chunk_size = 0;
-        for chunk in self.state.tw_buffer.filled().chunks(350) {
-            if self.buffer.len() + chunk.len() > 1210 { break; }
-            self.buffer.write_u8(6)?;
-            quic::write_variant(self.state.crypto_offset as u64, &mut self.buffer)?;
-            quic::write_variant(chunk.len() as u64, &mut self.buffer)?;
-            self.buffer.write_slice(chunk)?;
-            chunk_size += chunk.len();
-        }
-        self.state.tw_buffer.used_empty(chunk_size);
-        let num_len = quic::variant_len(self.state.conn.seq());
-        let padding_size = if self.buffer.len() + num_len + 16 < 1232 {
-            1232 - self.buffer.len() - num_len - 16
-        } else { 0 };
-        self.buffer.write_zero(padding_size)?;
-        Ok(())
+        state.tls_write_buffer.used_empty(state.crypto_offset - start);
+        let num_len = quic::variant_len(self.state.conn.seq);
+        if writer.len() + num_len + 16 < 1232 {
+            QUICFrame::Padding(1232 - writer.len() - num_len - 16).write_to(&mut writer)?;
+        };
+        Ok(writer)
     }
 }
 
@@ -142,16 +140,18 @@ impl<'a> QUICConnect<'a, std::net::UdpSocket> {
             self.build_client_hello(false)?;
         }
         loop {
-            while !self.state.tw_buffer.is_empty() {
+            while !self.state.tls_write_buffer.is_empty() {
                 let state = self.state.deref_mut();
-                if state.hello_retrying { state.tw_buffer.used_empty(5); }
-                let chunk_size = state.write_crypto(state.current).wait()?;
-                state.tw_buffer.used_empty(chunk_size);
+                if state.hello_retrying { state.tls_write_buffer.used_empty(5); }
+                let flag = QUICFlag::new(state.current);
+                let crypto = self.build_crypto()?;
+                self.state.send(crypto, flag)?;
             }
+
             if self.state.handshake_finish { break; }
             let off = self.state.read_next_packet().wait()?;
-            if self.state.conn.recv_nums().need_ack() {
-                self.state.send_ack(QUICFlag::new_long(PacketType::Handshake), true).wait()?;
+            if self.state.conn.recv_nums().need_ack() && let Some(ack) = self.state.build_ack(true) {
+                self.state.send(ack, QUICFlag::new(PacketType::Handshake))?;
             };
             match self.state.handle_queues(off, &mut Default::default(), |_, _, _, _| Ok(None)) {
                 Err(HlsError::QUIC(QUICError::InitialRetry)) => self.initial_retry()?,
@@ -175,30 +175,35 @@ impl<'a> Future for QUICConnect<'a, tokio::net::UdpSocket> {
             connector.timeout_reset = true;
         }
         if !connector.sent_hello {
-            if connector.state.tw_buffer.is_empty() { connector.build_client_hello(false)?; }
+            if connector.state.tls_write_buffer.is_empty() { connector.build_client_hello(false)?; }
             connector.sent_hello = true;
         }
         loop {
-            while !connector.state.uw_buffer.is_empty() {
+            while !connector.state.udp_write_buffer.is_empty() {
                 let state = connector.state.deref_mut();
                 let writer = Pin::new(&mut state.socket);
-                match writer.poll_send_to(cx, state.uw_buffer.filled(), state.addr)? {
-                    Poll::Ready(len) => connector.state.uw_buffer.used_empty(len),
+                match writer.poll_send_to(cx, state.udp_write_buffer.filled(), state.addr)? {
+                    Poll::Ready(len) => connector.state.udp_write_buffer.used_empty(len),
                     Poll::Pending => {
                         connector.state.timeout.connect_timeout(cx)?;
                         return Poll::Pending;
                     }
                 };
             }
-            connector.state.uw_buffer.reset();
-            while !connector.state.tw_buffer.is_empty() {
+            connector.state.udp_write_buffer.reset();
+            while !connector.state.tls_write_buffer.is_empty() {
                 let state = connector.state.deref_mut();
-                if state.hello_retrying { state.tw_buffer.used_empty(5); }
-                let mut writer = state.write_crypto(state.current);
-                let pending = Pin::new(&mut writer).poll(cx).is_pending();
-                let chunk_size = writer.chunk_size;
-                state.tw_buffer.used_empty(chunk_size);
-                if pending {
+                if state.hello_retrying { state.tls_write_buffer.used_empty(5); }
+                let flag = QUICFlag::new(state.current);
+                let buffer = connector.build_crypto()?;
+                connector.state.make_message(buffer, flag)?;
+
+
+                // let mut writer = state.write_crypto(state.current);
+                // let pending = Pin::new(&mut writer).poll(cx).is_pending();
+                // let chunk_size = writer.chunk_size;
+                // state.tls_write_buffer.used_empty(chunk_size);
+                if connector.state.poll_send(cx).is_pending() {
                     connector.state.timeout.connect_timeout(cx)?;
                     return Poll::Pending;
                 }
@@ -213,9 +218,11 @@ impl<'a> Future for QUICConnect<'a, tokio::net::UdpSocket> {
                 }
                 Poll::Ready(off) => off,
             };
-            let pending = if connector.state.conn.recv_nums().need_ack() {
-                let mut writer = connector.state.send_ack(QUICFlag::new_long(PacketType::Handshake), true);
-                Pin::new(&mut writer).poll(cx).is_pending()
+            let pending = if connector.state.conn.recv_nums().need_ack() &&
+                let Some(ack) = connector.state.build_ack(true) {
+                connector.state.make_message(ack, QUICFlag::new(PacketType::Handshake))?;
+                // let mut writer = connector.state.send_ack(QUICFlag::new_long(PacketType::Handshake), true);
+                connector.state.poll_send(cx).is_pending()
             } else { false };
             match connector.state.handle_queues(off, &mut Default::default(), |_, _, _, _| Ok(None)) {
                 Err(HlsError::QUIC(QUICError::InitialRetry)) => connector.initial_retry()?,

@@ -1,7 +1,5 @@
 use crate::{CipherSuite, RecordType, Version};
 use std::ops::Range;
-#[cfg(feature = "quic")]
-use crate::message::QUICPacket;
 
 pub struct PayloadEncodeBuffer<'a> {
     encoded: &'a mut [u8],
@@ -22,15 +20,6 @@ impl<'a> PayloadEncodeBuffer<'a> {
             encode_offset: suite.trans_iv_len..suite.trans_iv_len + plain_offset.len() + suite.tag_len(plain_offset.len()),
             plain_offset,
 
-        }
-    }
-
-    #[cfg(feature = "quic")]
-    pub fn new_quic(buffer: &'a mut [u8], pd_len: usize) -> PayloadEncodeBuffer<'a> {
-        PayloadEncodeBuffer {
-            encoded: buffer,
-            plain_offset: 0..pd_len - 16,
-            encode_offset: 0..pd_len,
         }
     }
 
@@ -88,29 +77,6 @@ impl<'a> CipherEncodeBuffer<'a> {
             record_len: 0,
             payload: PayloadEncodeBuffer::new_tls(suite, rt, payload, origin),
             quic: false,
-        }
-    }
-
-    #[cfg(feature = "quic")]
-    pub(crate) fn new_quic(buffer: &'a mut [u8], packet: &QUICPacket, suite: &'static CipherSuite) -> CipherEncodeBuffer<'a> {
-        let (head, payload) = buffer.split_at_mut(packet.hdr_len());
-        CipherEncodeBuffer {
-            suite,
-            head,
-            record_len: 0,
-            payload: PayloadEncodeBuffer::new_quic(payload, packet.pd_len() - packet.flag.num_len()),
-            quic: true,
-        }
-    }
-
-    #[cfg(feature = "quic")]
-    pub(crate) fn new_quic2(head: &'a mut [u8], payload: &'a mut [u8], suite: &'static CipherSuite) -> CipherEncodeBuffer<'a> {
-        CipherEncodeBuffer {
-            suite,
-            head,
-            record_len: 0,
-            payload: PayloadEncodeBuffer::new_quic(payload, payload.len()),
-            quic: true,
         }
     }
 
