@@ -8,8 +8,6 @@ use std::str::Utf8Error;
 /// HTTP response returned by the request engine.
 #[repr(C)]
 pub struct Response {
-    //share c
-    #[cfg(feature = "export")]
     pub(crate) sid: u64,
     pub(crate) status: HttpStatus,
     pub(crate) alpn: ALPN,
@@ -22,7 +20,6 @@ impl Default for Response {
         Response {
             alpn: Default::default(),
             status: HttpStatus::None,
-            #[cfg(feature = "export")]
             sid: 0,
             header: Header::default(),
             body: Writer::with_capacity(8192),
@@ -55,10 +52,12 @@ impl Response {
     pub fn bytes(self) -> Vec<u8> { self.body.filled().to_vec() }
 
     /// Return the HTTP status.
-    pub fn status(&self) -> HttpStatus { self.status }
+    pub const fn status(&self) -> HttpStatus { self.status }
 
     /// Return the negotiated ALPN value.
-    pub fn alpn(&self) -> &ALPN { &self.alpn }
+    pub const fn alpn(&self) -> &ALPN { &self.alpn }
+
+    pub const fn sid(&self) -> u64 { self.sid }
 }
 
 impl Display for Response {

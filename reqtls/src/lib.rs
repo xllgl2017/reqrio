@@ -280,8 +280,6 @@ pub mod coder;
 mod alpn;
 mod url;
 mod config;
-#[cfg(feature = "export")]
-mod export;
 mod buffer;
 mod dns;
 mod hkdf;

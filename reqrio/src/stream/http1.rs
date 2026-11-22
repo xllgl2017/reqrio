@@ -1,10 +1,10 @@
+use super::message::SendParam;
 use crate::error::HlsResult;
 use crate::reader::ReadExt;
 use crate::stream::Stream;
 use crate::*;
 use std::collections::HashMap;
 use std::io::Write;
-use super::message::SendParam;
 
 pub struct HTTP1Stream {
     write_buffer: Writer,
@@ -135,14 +135,12 @@ impl HTTP1Stream {
 
 #[cfg(test)]
 mod tests {
-    use crate::body::BodyKind;
-    use crate::reader::HCow;
+    use super::HTTP1Stream;
     use crate::stream::Stream;
     use crate::stream::http1::SendParam;
-    use crate::{Application, Body, ContentType, Header, Method, json};
+    use crate::{Header, Method, json};
     use reqrio_json::JsonValue;
     use reqtls::Url;
-    use super::HTTP1Stream;
 
     #[test]
     fn test_h1_hdr_encode() {
@@ -171,7 +169,7 @@ mod tests {
         stream.encode_hdr(748, &SendParam {
             method: Method::GET,
             url: &url,
-            body: Body::new(BodyKind::Data(HCow::Owned(JsonValue::Null)), ContentType::Application(Application::Json)),
+            body: JsonValue::Null.into(),
             priority: false,
             header: &header,
             weight: 0,

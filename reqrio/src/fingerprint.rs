@@ -160,7 +160,7 @@ impl Fingerprint {
         Ok(Fingerprint::from_adv(finger, sec_full))
     }
 
-    pub(crate) fn from_adv(finger: Finger, sec_full: bool) -> Fingerprint {
+    pub fn from_adv(finger: Finger, sec_full: bool) -> Fingerprint {
         let finger = Arc::new(finger);
         Fingerprint {
             tls: TlsFinger::Adv(finger.clone()),

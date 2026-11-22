@@ -201,7 +201,7 @@ impl WebSocket {
         }
     }
 
-    pub(crate) fn send_frame<'a>(&'a mut self, typ: WsOpcode, buf: &'a [u8]) -> WsWrite<'a> {
+    pub fn send_frame<'a>(&'a mut self, typ: WsOpcode, buf: &'a [u8]) -> WsWrite<'a> {
         WsWrite {
             stream: &mut self.stream,
             write_buffer: &mut self.write_buffer,

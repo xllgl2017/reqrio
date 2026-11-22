@@ -90,7 +90,7 @@ pub struct Cipher {
 }
 
 impl Cipher {
-    pub(crate) fn new(cipher: CipherType) -> Cipher {
+    pub fn new(cipher: CipherType) -> Cipher {
         Cipher {
             ctx: CipherCtx::new(cipher),
             evp_cipher: cipher,

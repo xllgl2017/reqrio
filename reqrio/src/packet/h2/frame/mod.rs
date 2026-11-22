@@ -95,6 +95,14 @@ impl<'a> H2Payload<'a> {
             }
         }
     }
+
+    pub const fn value(&self) -> &H2PayloadValue<'a> {
+        &self.value
+    }
+
+    pub const fn value_mut(&mut self) -> &mut H2PayloadValue<'a> {
+        &mut self.value
+    }
 }
 
 
@@ -160,6 +168,8 @@ impl<'a> H2Frame<'a> {
     pub fn frame_type(&self) -> H2FrameType { self.typ }
 
     pub fn payload(&self) -> &H2Payload<'a> { &self.payload }
+
+    pub fn payload_mut(&mut self) -> &mut H2Payload<'a> { &mut self.payload }
 
     pub fn set_payload(&mut self, payload: &'a [u8]) { self.payload.value = H2PayloadValue::Data(Buf::new_ref(payload)); }
 

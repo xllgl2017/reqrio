@@ -266,8 +266,6 @@
 mod acq;
 pub mod pack;
 mod error;
-#[cfg(feature = "export")]
-mod export;
 mod ext;
 mod packet;
 mod scq;
@@ -294,6 +292,7 @@ pub use fingerprint::{Fingerprint, H2Finger};
 pub use packet::{
     Application, ContentType, Cookie, Font, H2FrameFlag, H2FrameType, H2Frame, H2Setting, Header,
     HeaderItem, HeaderValue, HttpStatus, Method, Response, Text, WsFrame, WsOpcode, Request, ImageType,
+    H2PayloadValue,
 };
 #[cfg(feature = "quic")]
 pub use packet::{H3Payload, H3FrameType, H3Setting, H3Frame};

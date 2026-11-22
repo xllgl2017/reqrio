@@ -24,7 +24,7 @@ pub struct ScReq {
     key_log: Option<Arc<String>>,
     url: Url,
     tls_session: Option<TlsSession>,
-    pub(crate) ignore_order: bool,
+    pub ignore_order: bool,
     responses: HashMap<u64, StreamMessage>,
     recv_ids: HashSet<u64>,
     version: Version,
@@ -131,7 +131,7 @@ impl ScReq {
         }
     }
 
-    pub(crate) fn recv_stream(&mut self, sid: u64) -> HlsResult<&StreamMessage> {
+    pub fn recv_stream(&mut self, sid: u64) -> HlsResult<&StreamMessage> {
         loop {
             let resp = self.responses.get(&sid).ok_or("response not inited or finished")?;
             if !resp.header.is_empty() { break; }
@@ -375,6 +375,3 @@ impl ReqExt for ScReq {
         Ok(())
     }
 }
-
-#[cfg(feature = "export")]
-unsafe impl Send for ScReq {}

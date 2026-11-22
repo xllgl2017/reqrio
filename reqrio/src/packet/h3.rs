@@ -96,8 +96,8 @@ pub enum H3Payload<'a> {
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct H3Frame<'a> {
-    pub(crate) typ: H3FrameType,
-    pub(crate) payload: H3Payload<'a>,
+    pub typ: H3FrameType,
+    pub payload: H3Payload<'a>,
 }
 
 impl<'a> H3Frame<'a> {
@@ -109,9 +109,9 @@ impl<'a> H3Frame<'a> {
     }
 
     pub fn new_setting(settings: Vec<H3Setting>) -> H3Frame<'a> {
-        H3Frame{
-            typ:H3FrameType::Setting,
-            payload:H3Payload::Settings(settings),
+        H3Frame {
+            typ: H3FrameType::Setting,
+            payload: H3Payload::Settings(settings),
         }
     }
 
@@ -222,6 +222,8 @@ impl<'a> H3Frame<'a> {
     }
 
     pub const fn payload(&self) -> &H3Payload<'a> { &self.payload }
+
+    pub const fn payload_mut(&mut self) -> &mut H3Payload<'a> { &mut self.payload }
 
     pub fn set_payload(&mut self, payload: H3Payload<'a>) {
         self.payload = payload;

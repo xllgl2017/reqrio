@@ -338,9 +338,7 @@ fn local_cookie_jar() {
 #[test]
 fn local_stream_chunked() {
     let mut s = client();
-    #[cfg(feature = "export")]
-    let sid = s.send_stream(Method::GET, SERVER.url("/chunked"), None).unwrap().sid;
-    #[cfg(not(feature = "export"))]
+    let _sid = s.send_stream(Method::GET, SERVER.url("/chunked"), None).unwrap().sid;
     let sid = s.send(Method::GET, SERVER.url("/chunked"), None).unwrap();
 
     let mut body = Vec::new();

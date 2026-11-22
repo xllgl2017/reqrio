@@ -1,9 +1,3 @@
-#[cfg(feature = "export")]
-use crate::json;
-#[cfg(feature = "export")]
-use json::JsonValue;
-
-
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Cookie {
@@ -176,23 +170,6 @@ impl Cookie {
     }
 }
 
-#[cfg(feature = "export")]
-impl From<&Cookie> for JsonValue {
-    fn from(cookie: &Cookie) -> Self {
-        json::object! {
-            "name": cookie.name.clone(),
-            "value": cookie.value.clone(),
-            "age": cookie.age,
-            "domain": cookie.domain.clone(),
-            "path": cookie.path.clone(),
-            "http_only": cookie.http_only,
-            "secure": cookie.secure,
-            "expires": cookie.expires.clone(),
-            "same_site": cookie.same_site.clone(),
-            "icpsp": cookie.icpsp,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

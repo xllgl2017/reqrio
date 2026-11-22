@@ -7,10 +7,6 @@ description = "A lightweight, high-performance, fingerprint-based HTTP request l
 license-file = "../LICENSE-APACHE"
 repository = "https://github.com/xllgl2017/reqrio/tree/main/reqrio"
 
-[lib]
-name = "reqrio"
-crate-type = ['rlib', 'cdylib']
-
 [[test]]
 name = "server_test"
 path = "tests/server_test.rs"
@@ -29,7 +25,6 @@ reqtls = { workspace = true, features = ["zstd"] }
 
 [features]
 aync = ["tokio"]
-export = ["reqtls/export"]
 staticlink = ["reqtls/static_link"]
 log = ["reqtls/log"]
 quic = ["reqtls/quic"]

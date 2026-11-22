@@ -26,9 +26,8 @@ impl HeaderItem {
             reserved: false,
         }
     }
-
-    #[cfg(feature = "export")]
-    pub(crate) fn with_reserved(mut self, reserved: bool) -> HeaderItem {
+    
+    pub fn with_reserved(mut self, reserved: bool) -> HeaderItem {
         self.reserved = reserved;
         self
     }

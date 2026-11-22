@@ -140,16 +140,16 @@ impl<'a> From<Option<()>> for Body<'a> {
 
 
 impl<'a> Body<'a> {
-    /// Create a body from a specific payload kind and content type.
-    ///
-    /// * `body` - wire data kind.
-    /// * `ty` - content type.
-    pub fn new(body: BodyKind<'a>, ty: ContentType) -> Body<'a> {
-        Body {
-            kind: body,
-            ct: ty,
-        }
-    }
+    // /// Create a body from a specific payload kind and content type.
+    // ///
+    // /// * `body` - wire data kind.
+    // /// * `ty` - content type.
+    // pub fn new(body: &'a [u8], ty: ContentType) -> Body<'a> {
+    //     Body {
+    //         kind: body,
+    //         ct: ty,
+    //     }
+    // }
 
     /// Create an empty body.
     pub fn none() -> Body<'a> {
@@ -225,4 +225,9 @@ impl<'a> Body<'a> {
 
     /// Return the body content type.
     pub fn context_type(&self) -> &ContentType { &self.ct }
+
+    pub fn with_ct(mut self, ct: impl Into<ContentType>) -> Body<'a> {
+        self.ct = ct.into();
+        self
+    }
 }

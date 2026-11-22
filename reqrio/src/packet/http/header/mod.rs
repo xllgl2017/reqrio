@@ -440,7 +440,7 @@ impl Header {
         }
     }
 
-    pub(crate) fn add_item(&mut self, key: HeaderItem) {
+    pub fn add_item(&mut self, key: HeaderItem) {
         let value = self.get_mut(key.name());
         match value {
             None => self.inner.push(key),

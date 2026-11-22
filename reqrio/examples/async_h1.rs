@@ -52,7 +52,7 @@ async fn main() {
         .with_key_log("2.log")
         .with_auto_redirect(false)
         // .with_proxy(Proxy::Null)
-        .with_alpn(ALPN::HTTP20)
+        .with_alpn(ALPN::HTTP30)
         .with_header_json(headers)
         // .with_mtls(vec![], RsaKey::none(), Some(vec![cert]))
         // .with_proxy(Proxy::try_from("http://180.117.50.133:3828").unwrap())
@@ -64,7 +64,8 @@ async fn main() {
     // let res = req.post("http://127.0.0.1:8000/log", json::object! {"on": false}).await.unwrap();
     // let res = req.get("https://fk1.moutai519.com.cn/bangcle/api/v1/1/1", None).await.unwrap().json().unwrap();
     // let res = req.post("http://127.0.0.1:8000/upload_wac", res).await.unwrap();
-    // // println!("{}", res.raw_string());
+    // // println!("{}
+    // , res.raw_string());
     // let res = req.post("http://127.0.0.1:8000/generate", json::object! {
     //     "ua": "Mozilla/5.0 (Linux; Android 12; 2201123C Build/SKQ1.211006.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/123",
     //     "body":{},
@@ -93,7 +94,7 @@ async fn main() {
     // println!("{}", Time::now().as_mills() - t.as_mills())
 
     // let res1 = req.get("https://docs.rs", None).await.unwrap();
-    let res1 = req.get("https://www.bing.com", None).await.unwrap();
+    let res1 = req.get("https://cn.bing.com", None).await.unwrap();
     // let res1 = req.get("https://202.89.233.101".sni("cn.bing.com"), None).await.unwrap();
     // let res1=req.get("https://m.so.com",None).await.unwrap();
     println!("{}", res1);

@@ -17,7 +17,6 @@ pub struct SendParam<'a> {
 
 #[repr(C)]
 pub struct StreamMessage {
-    #[cfg(feature = "export")]
     pub sid: u64,
     pub status: HttpStatus,
     pub alpn: ALPN,
@@ -33,7 +32,6 @@ pub struct StreamMessage {
 impl Default for StreamMessage {
     fn default() -> Self {
         StreamMessage {
-            #[cfg(feature = "export")]
             sid: 0,
             coder: None,
             remain: 0,
@@ -49,10 +47,9 @@ impl Default for StreamMessage {
 
 
 impl StreamMessage {
-    pub fn new(_sid: u64,method: Method) -> StreamMessage {
+    pub fn new(sid: u64,method: Method) -> StreamMessage {
         StreamMessage {
-            #[cfg(feature = "export")]
-            sid: _sid,
+            sid,
             body: Writer::with_capacity(8192),
             method,
             ..Default::default()
@@ -182,7 +179,6 @@ impl StreamMessage {
 
     pub fn final_response(self) -> Response {
         Response {
-            #[cfg(feature = "export")]
             sid: self.sid,
             status: self.status,
             alpn: self.alpn,

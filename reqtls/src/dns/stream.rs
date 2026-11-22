@@ -166,7 +166,7 @@ impl DNSStream {
         self.conn.send_to(self.write_buf.filled(), self.dns_addr).map_err(DNSError::DnsIoError)?;
         let len = if let Ok(len) = self.read() {
             len
-        }else { return Ok(DNSCache::new_addrs(vec![])) };
+        } else { return Ok(DNSCache::new_addrs(vec![])) };
         let dns = DNS::from_bytes(&self.read_buf[..len])?;
         let answer = dns.answers().iter().find(|x| x.type_() == DnsType::HTTPS);
         let (alpn, addrs, echo) = if let Some(answer) = answer && let DNSValue::Https { params, .. } = answer.data() {
