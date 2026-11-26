@@ -3,14 +3,13 @@
 ### Browser-grade TLS Fingerprinting & High Performance HTTP Client
 
 [![Github](https://github.com/xllgl2017/reqrio/actions/workflows/main.yml/badge.svg)](https://github.com/xllgl2017/reqrio/actions/workflows/main.yml)
-[![Apache](https://img.shields.io/badge/license-Apache2.0-blue.svg?logo=apache)](https://github.com/xllgl2017/reqrio/blob/main/LICENSE-APACHE)
-[![Crates](https://img.shields.io/crates/v/reqrio.svg?logo=rust&label=rust)](https://crates.io/crates/reqrio)
+[![Github](https://img.shields.io/github/v/release/xllgl2017/reqrio?display_name=tag&logo=github&label=release)](https://github.com/xllgl2017/reqrio/actions/workflows/main.yml)
 [![PyPI](https://img.shields.io/pypi/v/reqrio.svg?logo=pypi)](https://pypi.org/project/reqrio/)
 [![Npm](https://img.shields.io/npm/v/reqrio.svg?logo=npm)](https://www.npmjs.org/package/reqrio)
 [![Maven](https://img.shields.io/maven-central/v/io.github.xllgl2017/reqrio?logo=apachemaven&label=maven)](https://search.maven.org/artifact/io.github.xllgl2017/reqrio)
-[![Go](https://img.shields.io/crates/v/reqrio.svg?logo=go&label=go)](https://pkg.go.dev/github.com/xllgl2017/reqrio/reqrio-go)
+[![Go](https://img.shields.io/github/v/release/xllgl2017/reqrio?display_name=tag&logo=go&label=go)](https://pkg.go.dev/github.com/xllgl2017/reqrio-bindings/go/reqrio)
 
-[![Rustdocs](https://docs.rs/reqrio/badge.svg)](https://docs.rs/reqrio)
+[![Apache](https://img.shields.io/badge/license-Apache2.0-blue.svg?logo=apache)](https://github.com/xllgl2017/reqrio/blob/main/LICENSE-APACHE)
 [![Javadocs](https://javadoc.io/badge/io.github.xllgl2017/reqrio/latest.svg)](https://javadoc.io/doc/io.github.xllgl2017/reqrio/latest)
 ---
 
