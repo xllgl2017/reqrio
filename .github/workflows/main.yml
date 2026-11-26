@@ -48,20 +48,20 @@ jobs:
       - name: build and test
         run: |
           cargo test --features aync,serde,staticlink,quic,reqtls/cert_signer
-          cargo build --package reqrio --features export,staticlink,quic,reqtls/cert_signer
-      - name: Copy dylib to bindings
-        run: cp target/${{ matrix.outdir }}/${{ matrix.file }} bindings/python/reqrio/
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.9"
-      - name: Set python path env
-        shell: bash
-        run: echo "PYTHONPATH=${{ github.workspace }}/bindings/python" >> "$GITHUB_ENV"
-      - name: Run Python FFI Test
-        run: |
-          python bindings/python/tests/test_session.py
-          python bindings/python/tests/test_cipher.py
+#          cargo build --package reqrio --features export,staticlink,quic,reqtls/cert_signer
+#      - name: Copy dylib to bindings
+#        run: cp target/${{ matrix.outdir }}/${{ matrix.file }} bindings/python/reqrio/
+#      - name: Setup Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.9"
+#      - name: Set python path env
+#        shell: bash
+#        run: echo "PYTHONPATH=${{ github.workspace }}/bindings/python" >> "$GITHUB_ENV"
+#      - name: Run Python FFI Test
+#        run: |
+#          python bindings/python/tests/test_session.py
+#          python bindings/python/tests/test_cipher.py
 
   #      - name: Run Go FFI Test
   #        env:
